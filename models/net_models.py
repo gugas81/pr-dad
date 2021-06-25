@@ -39,12 +39,12 @@ class PhaseRetrievalPredictor(nn.Module):
         in_fc = self.in_features
         self.fc_blocks = []
         for ind in range(deep_fc):
+            if ind == deep_fc - 1:
+                out_fc = out_fc_features
             fc_block = FcBlock(in_fc, out_fc, use_dropout=use_dropout, use_bn=use_bn)
             in_fc = out_fc
 
             out_fc *= self.multy_coeff
-            if ind == deep_fc - 1:
-                out_fc = out_fc_features
             self.fc_blocks.append(fc_block)
 
         # fc1 = FcBlock(self.in_features, self.in_features, use_dropout=use_dropout, use_bn=use_bn)
