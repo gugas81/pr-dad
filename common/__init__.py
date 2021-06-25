@@ -4,3 +4,6 @@ from .data_classes import TensorBatch, LossesPRFeatures, LossesPRImages, Inferre
     DiscriminatorBatch
 from .configs import ConfigTrainer
 from .aws_utils import S3FileSystem
+from .paths import PATHS
+
+

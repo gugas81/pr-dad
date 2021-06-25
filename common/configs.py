@@ -4,7 +4,7 @@ import jsonpickle
 import numpy as np
 from typing import Optional, List, Callable, Iterable, Dict
 from dataclasses import dataclass, field
-
+from .paths import PATHS
 
 class NumpyEncoder(json.JSONEncoder):
     """
@@ -122,7 +122,7 @@ class ConfigTrainer(ConfigBase):
     use_tensor_board: bool = True
     seed: int = 1
     use_ref_net: bool = False
-    log_path: Optional[str] = None
+    log_path: Optional[str] = field(default_factory=PATHS.LOG)
     n_epochs_pr: int = 50
     lr_milestones_en: List[int] = field(default_factory=lambda: [20, 30, 40])
     lr_reduce_rate_en: float = 0.5

@@ -14,11 +14,8 @@ from torch.utils.data.dataloader import DataLoader
 from torch.nn import functional as F
 import logging
 from common import TensorBatch, ConfigTrainer, set_seed, Losses
-from common import im_concatenate, square_grid_im_concat
+from common import im_concatenate, square_grid_im_concat, PATHS
 from typing import Optional
-
-DATASETS_PATH = './files/'
-CLEARML_BUCKET = 's3://data-clearml'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -89,7 +86,7 @@ class TrainerPhaseRetrieval:
             data_transforms += data_transforms_aoug
         data_transforms = data_transforms + [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         data_transforms = transforms.Compose(data_transforms)
-        ds_path = os.path.join(DATASETS_PATH, ds_name)
+        ds_path = os.path.join(PATHS.DATASETS, ds_name)
         self.train_dataset = image_dataset(root=ds_path, train=True, download=True, transform=data_transforms)
         self.test_dataset = image_dataset(root=ds_path, train=False, download=True, transform=data_transforms)
         self.train_loader = DataLoader(self.train_dataset,
@@ -155,7 +152,7 @@ class TrainerPhaseRetrieval:
             task_name = f'{time_str}-{config_name}-{ds_name}-{experiment_name}'
             self._task = clearml.Task.init(task_name=task_name, project_name=self.config.project_name)
             self._task.connect_configuration(self.config.as_dict(), name='config_trainer')
-            clearml.Logger.current_logger().set_default_upload_destination(CLEARML_BUCKET)
+            clearml.Logger.current_logger().set_default_upload_destination(PATHS.CLEARML_BUCKET)
             self._task.upload_artifact('config-trainer', self.config.as_dict())
         else:
             self._task = None

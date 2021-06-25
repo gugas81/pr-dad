@@ -14,7 +14,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from dataclasses import dataclass
 
 from common import LossesPRFeatures, InferredBatch, ConfigTrainer, l2_grad_norm,  LossesGradNorms,  DiscriminatorBatch
-from common import im_concatenate, S3FileSystem, l2_perceptual_loss
+from common import im_concatenate, S3FileSystem, l2_perceptual_loss, PATHS
 
 from training.base_phase_retrieval_trainer import TrainerPhaseRetrieval
 
@@ -592,9 +592,6 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
     import matplotlib.pyplot as plt
     if plot_metrics:
         matplotlib.use('module://backend_interagg')
-    log_path = '/home/ubuntu/code/phase-retrieval/logs'
-
-    os.makedirs(log_path, exist_ok=True)
 
     if config_path is None:
         config = ConfigTrainer()
@@ -604,7 +601,7 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
         assert os.path.exists(config_path)
         config = ConfigTrainer.from_data_file(config_path)
 
-    config.log_path = log_path
+    config.log_path = PATHS.LOG
     config = config.update(**kwargs)
 
     trainer = TrainerPhaseRetrievalAeFeatures(config=config, experiment_name=experiment_name)
