@@ -38,12 +38,13 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         self.n_epochs_ae = config.n_epochs_ae
         self.n_encoder_ch = config.n_features // 4
         self.ae_net = AeConv(n_encoder_ch=self.n_encoder_ch, img_size=self.img_size, deep=self.config.deep_ae)
-        self.magnitude_encoder = PhaseRetrievalPredictor(out_ch=self.ae_net.n_features_ch,
-                                                         inter_ch=2*self.ae_net.n_features_ch,
-                                                         out_img_size=self.ae_net.n_features_size,
-                                                         multy_coeff=2,
-                                                         fft_norm=self.config.fft_norm,
-                                                         im_img_size=self.img_size)
+        self.phase_predictor = PhaseRetrievalPredictor(out_ch=self.ae_net.n_features_ch,
+                                                       inter_ch=2*self.ae_net.n_features_ch,
+                                                       out_img_size=self.ae_net.n_features_size,
+                                                       multy_coeff=2,
+                                                       fft_norm=self.config.fft_norm,
+                                                       predict_type=self.config.predict_type,
+                                                       im_img_size=self.img_size)
 
         if self.config.use_gan:
             self.features_discriminator = Discriminator(input_ch=self.ae_net.n_features_ch,
@@ -70,14 +71,14 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             self.ae_net.train()
         self.ae_net.to(device=self.device)
 
-        self.magnitude_encoder.train()
-        self.magnitude_encoder.to(device=self.device)
+        self.phase_predictor.train()
+        self.phase_predictor.to(device=self.device)
 
         if self.config.is_train_ae:
             self.optimizer_ae = optim.Adam(params=self.ae_net.parameters(), lr=self.learning_rate)
         else:
             self.optimizer_ae = None
-        self.optimizer_en = optim.Adam(params=self.magnitude_encoder.parameters(), lr=self.learning_rate)
+        self.optimizer_en = optim.Adam(params=self.phase_predictor.parameters(), lr=self.learning_rate)
 
         if self.config.use_gan:
             self.features_discriminator.train()
@@ -122,7 +123,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
 
             if is_load_module(self.ModulesNames.magnitude_encoder, loaded_sate):
                 self._log.info(f'Load wieghts of {self.ModulesNames.magnitude_encoder}')
-                self.magnitude_encoder.load_state_dict(loaded_sate[self.ModulesNames.magnitude_encoder])
+                self.phase_predictor.load_state_dict(loaded_sate[self.ModulesNames.magnitude_encoder])
 
             if is_load_module(self.ModulesNames.img_discriminator, loaded_sate) and self.config.use_gan:
                 self._log.info(f'Load wieghts of {self.ModulesNames.img_discriminator}')
@@ -148,7 +149,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         if eval_mode:
             self.set_eval_mode()
         magnitude_batch = self.forward_magnitude_fft(data_batch)
-        features_batch_recon, intermediate_features = self.magnitude_encoder(magnitude_batch)
+        features_batch_recon, intermediate_features = self.phase_predictor(magnitude_batch)
         recon_batch = self.ae_net.decoder(features_batch_recon)
 
         feature_encoder = self.ae_net.encoder(data_batch)
@@ -164,11 +165,11 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         return inferred_batch
 
     def set_eval_mode(self):
-        self.magnitude_encoder.eval()
+        self.phase_predictor.eval()
         self.ae_net.eval()
 
     def set_train_model(self):
-        self.magnitude_encoder.train()
+        self.phase_predictor.train()
         self.ae_net.train()
 
     def forward_ae(self, data_batch: Tensor, eval_mode: bool = False) -> InferredBatch:
@@ -263,7 +264,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
     def _save_gan_models(self, step: int) -> None:
         if self.save_path is not None:
             save_state = {'ae_model': self.ae_net.state_dict(),
-                          'magnitude_encoder': self.magnitude_encoder.state_dict(),
+                          'magnitude_encoder': self.phase_predictor.state_dict(),
                           'opt_magnitude_encoder': self.optimizer_en.state_dict()}
             if self.config.use_gan:
                 save_state['img_discriminator'] = self.img_discriminator.state_dict()
@@ -300,8 +301,8 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
 
     def fit(self, data_batch: Tensor, lr: float, lr_milestones: List[int], lr_reduce_rate: float, n_iter: int, name: str) -> (InferredBatch, LossesPRFeatures):
         self._global_step = 0
-        init_params_state_state = copy.deepcopy(self.magnitude_encoder.state_dict())
-        fit_optimizer = optim.Adam(params=self.magnitude_encoder.parameters(), lr=lr)
+        init_params_state_state = copy.deepcopy(self.phase_predictor.state_dict())
+        fit_optimizer = optim.Adam(params=self.phase_predictor.parameters(), lr=lr)
         lr_scheduler_fitter = MultiStepLR(fit_optimizer, lr_milestones, lr_reduce_rate)
 
         real_labels = torch.ones((data_batch.shape[0], 1), device=self.device, dtype=data_batch.dtype)
@@ -337,7 +338,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             lr_scheduler_fitter.step()
 
             if (ind_iter % 50 == 0) or (ind_iter == n_iter - 1):
-                l2_grad_encoder_norm, _ = l2_grad_norm(self.magnitude_encoder)
+                l2_grad_encoder_norm, _ = l2_grad_norm(self.phase_predictor)
                 l2_grad = LossesGradNorms(l2_grad_magnitude_encoder=l2_grad_encoder_norm)
                 self._log.info(f'Fitter: iter={ind_iter}, {losses}, {l2_grad}')
                 self._add_losses_tensorboard(f'fit-{name}', losses, step=self._global_step)
@@ -352,7 +353,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             self._global_step += 1
 
         losses_fit = LossesPRFeatures.merge(losses_fit)
-        self.magnitude_encoder.load_state_dict(init_params_state_state)
+        self.phase_predictor.load_state_dict(init_params_state_state)
 
         return inferred_batch, losses_fit
 
@@ -370,7 +371,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             train_losses.append(tr_losses.detach())
 
             if batch_idx % self.log_interval == 0:
-                l2_grad_magnitude_encoder_norm, _ = l2_grad_norm(self.magnitude_encoder)
+                l2_grad_magnitude_encoder_norm, _ = l2_grad_norm(self.phase_predictor)
                 grad_losses = LossesGradNorms(l2_grad_magnitude_encoder=l2_grad_magnitude_encoder_norm)
                 if self.config.use_gan:
                     grad_losses.l2_grad_img_discriminator, _ = l2_grad_norm(self.img_discriminator)
@@ -433,7 +434,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         tr_losses = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
         tr_losses.total.backward()
         if self.config.clip_encoder_grad is not None:
-            torch.nn.utils.clip_grad_norm_(self.magnitude_encoder.parameters(), self.config.clip_encoder_grad)
+            torch.nn.utils.clip_grad_norm_(self.phase_predictor.parameters(), self.config.clip_encoder_grad)
         self.optimizer_en.step()
 
         return inferred_batch, tr_losses

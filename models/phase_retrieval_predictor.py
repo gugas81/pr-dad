@@ -10,15 +10,15 @@ from models.layers import FcBlock, ConvBlock, ResBlock
 class PhaseRetrievalPredictor(nn.Module):
     # class TypeRecon(Enum):
 
-    def __init__(self, use_dropout: bool = False, im_img_size: int = 28, inter_ch: int = 1,  out_ch: int = 1,
+    def __init__(self, use_dropout: bool = False, im_img_size: int = 28, inter_ch: int = 1, out_ch: int = 1,
                  out_img_size: int = 32,
                  multy_coeff: int = 1, use_bn: bool = False, fft_norm: str = "ortho", deep_fc: int = 4,
                  deep_conv: int = 2,
-                 type_recon: str = 'spectral', conv_type: str = 'ConvBlock'):
+                 predict_type: str = 'spectral', conv_type: str = 'ConvBlock'):
         super(PhaseRetrievalPredictor, self).__init__()
         self.im_img_size = im_img_size
         self.out_img_size = out_img_size
-        self._type_recon = type_recon
+        self._predict_type = predict_type
 
         self.out_ch = out_ch
         self.int_ch = inter_ch
@@ -29,10 +29,19 @@ class PhaseRetrievalPredictor(nn.Module):
         self.out_features = self.out_ch * self.out_img_size ** 2
         self._fft_norm = fft_norm
 
-        if type_recon == 'spectral':
+        if self._predict_type == 'spectral':
             out_fc_features = 2 * self.inter_features
-        elif type_recon == 'phase':
-            out_fc_features = 2 * self.inter_features
+        elif self._predict_type == 'phase':
+            out_fc_features = self.inter_features
+        else:
+            raise NameError(f'Not supported type_recon: {predict_type}')
+
+        if conv_type == 'ConvBlock':
+            conv_block_class = ConvBlock
+        elif conv_type == 'ResBlock':
+            conv_block_class = ResBlock
+        else:
+            raise NameError(f'Non valid conv_type: {conv_type}')
 
         out_fc = self.in_features
         in_fc = self.in_features
@@ -55,12 +64,7 @@ class PhaseRetrievalPredictor(nn.Module):
 
         self.fc_blocks = nn.Sequential(*self.fc_blocks)
 
-        if conv_type == 'ConvBlock':
-            conv_block_class = ConvBlock
-        elif conv_type == 'ResBlock':
-            conv_block_class = ResBlock
-        else:
-            raise NameError(f'Non valid conv_type: {conv_type}')
+
 
         in_conv = self.int_ch
         out_conv = 2 * in_conv
@@ -83,10 +87,10 @@ class PhaseRetrievalPredictor(nn.Module):
         x_float = magnitude.view(-1, self.in_features)
         fc_features = self.fc_blocks(x_float)
 
-        if self._type_recon == 'spectral':
+        if self._predict_type == 'spectral':
             spectral = fc_features.view(-1, self.int_ch, self.out_img_size, self.out_img_size, 2)
             spectral = torch.view_as_complex(spectral)
-        elif self._type_recon == 'phase':
+        elif self._predict_type == 'phase':
             phase = fc_features.view(-1, self.int_ch, self.out_img_size, self.out_img_size)
             exp_phase = torch.exp(torch.view_as_complex(torch.stack([torch.zeros_like(magnitude), phase], -1)))
             spectral = magnitude * exp_phase

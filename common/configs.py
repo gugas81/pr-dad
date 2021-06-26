@@ -144,6 +144,7 @@ class ConfigTrainer(ConfigBase):
     log_interval: int = 100
     log_image_interval: int = 500
     fft_norm: str = "ortho"
+    predict_type: str = 'spectral'
     seed: int = 1
     use_aug: bool = True
     debug_mode: bool = False
