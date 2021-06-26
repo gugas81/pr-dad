@@ -6,10 +6,9 @@ import torch.optim as optim
 import fire
 import os
 import copy
-import matplotlib
 from typing import Optional, List
 from tqdm import tqdm
-from models.net_models import PhaseRetrievalPredictor,  Discriminator, AeConv
+from models import PhaseRetrievalPredictor,  Discriminator, AeConv
 from torch.optim.lr_scheduler import MultiStepLR
 from dataclasses import dataclass
 
@@ -588,10 +587,10 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
 
 
 def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
-                            config_path: str = None, plot_metrics: bool = False, fit_only: bool = False, **kwargs):
-    import matplotlib.pyplot as plt
-    if plot_metrics:
-        matplotlib.use('module://backend_interagg')
+                            config_path: str = None,
+                            train_model: bool = True,
+                            fit_batch: bool = False,
+                            **kwargs):
 
     if config_path is None:
         config = ConfigTrainer()
@@ -606,19 +605,20 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
 
     trainer = TrainerPhaseRetrievalAeFeatures(config=config, experiment_name=experiment_name)
 
-    if not fit_only:
+    if train_model:
         train_en_losses, test_en_losses, test_ae_losses = trainer.train()
 
-    trainer._log.info(f'FITTING TEST BATCH')
+    if fit_batch:
+        trainer._log.info(f'FITTING TEST BATCH')
 
-    for num_img_fit in range(len(trainer.data_ts_batch)):
-        trainer._log.info(f'fit ts batch num - {num_img_fit}')
-        fit_batch = torch.unsqueeze(trainer.data_ts_batch[num_img_fit], 0)
-        data_ts_batch_fitted, losses_fit = trainer.fit(fit_batch,
-                                                       lr=0.00001, n_iter=1000,
-                                                       lr_milestones=[250, 5000, 750],
-                                                       lr_reduce_rate=0.5,
-                                                       name=str(num_img_fit))
+        for num_img_fit in range(len(trainer.data_ts_batch)):
+            trainer._log.info(f'fit ts batch num - {num_img_fit}')
+            fit_batch = torch.unsqueeze(trainer.data_ts_batch[num_img_fit], 0)
+            data_ts_batch_fitted, losses_fit = trainer.fit(fit_batch,
+                                                           lr=0.00001, n_iter=1000,
+                                                           lr_milestones=[250, 5000, 750],
+                                                           lr_reduce_rate=0.5,
+                                                           name=str(num_img_fit))
 
 
 if __name__ == '__main__':
