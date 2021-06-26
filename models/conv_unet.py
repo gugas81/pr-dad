@@ -1,11 +1,8 @@
-import numpy as np
 import torch
 from torch import Tensor
 import torch.nn as nn
-from typing import List, Optional
-from enum import Enum
-from models.layers import FcBlock, ConvBlock, UpConvBlock, get_norm_layer, DownConvBlock, ResBlock
-from common.data_classes import DiscriminatorBatch
+from models.layers import ConvBlock, UpConvBlock
+
 
 class UNetConv(nn.Module):
     def __init__(self, img_ch=1, output_ch=1):

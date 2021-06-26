@@ -1,11 +1,10 @@
-import numpy as np
-import torch
 from torch import Tensor
 import torch.nn as nn
 from typing import List, Optional
-from enum import Enum
-from models.layers import FcBlock, ConvBlock, UpConvBlock, get_norm_layer, DownConvBlock, ResBlock
+from models.untils import get_norm_layer
 from common.data_classes import DiscriminatorBatch
+from models.seq_blocks import EncoderConv
+
 
 class Discriminator(nn.Module):
     def __init__(self, input_ch=1, in_conv_ch: Optional[int] = 8, img_size: int = 28,
