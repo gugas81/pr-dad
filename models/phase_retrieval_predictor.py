@@ -12,7 +12,7 @@ class PhaseRetrievalPredictor(nn.Module):
 
     def __init__(self, use_dropout: bool = False, im_img_size: int = 28, inter_ch: int = 1, out_ch: int = 1,
                  out_img_size: int = 32,
-                 multy_coeff: int = 1, use_bn: bool = False, fft_norm: str = "ortho", deep_fc: int = 4,
+                 fc_multy_coeff: int = 1, use_bn: bool = False, fft_norm: str = "ortho", deep_fc: int = 4,
                  deep_conv: int = 2,
                  predict_type: str = 'spectral', conv_type: str = 'ConvBlock'):
         super(PhaseRetrievalPredictor, self).__init__()
@@ -22,7 +22,7 @@ class PhaseRetrievalPredictor(nn.Module):
 
         self.out_ch = out_ch
         self.int_ch = inter_ch
-        self.multy_coeff = multy_coeff
+        self.fc_multy_coeff = fc_multy_coeff
         self.in_features = self.im_img_size ** 2
         self.inter_features = self.int_ch * self.out_img_size ** 2
 
@@ -52,7 +52,7 @@ class PhaseRetrievalPredictor(nn.Module):
             fc_block = FcBlock(in_fc, out_fc, use_dropout=use_dropout, use_bn=use_bn)
             in_fc = out_fc
 
-            out_fc *= self.multy_coeff
+            out_fc *= self.fc_multy_coeff
             self.fc_blocks.append(fc_block)
 
         # fc1 = FcBlock(self.in_features, self.in_features, use_dropout=use_dropout, use_bn=use_bn)

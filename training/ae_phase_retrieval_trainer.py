@@ -41,10 +41,11 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         self.phase_predictor = PhaseRetrievalPredictor(out_ch=self.ae_net.n_features_ch,
                                                        inter_ch=2*self.ae_net.n_features_ch,
                                                        out_img_size=self.ae_net.n_features_size,
-                                                       multy_coeff=2,
+                                                       fc_multy_coeff=self.config.predict_fc_multy_coeff,
                                                        fft_norm=self.config.fft_norm,
                                                        predict_type=self.config.predict_type,
-                                                       im_img_size=self.img_size)
+                                                       im_img_size=self.img_size,
+                                                       conv_type=self.config.predict_conv_type)
 
         if self.config.use_gan:
             self.features_discriminator = Discriminator(input_ch=self.ae_net.n_features_ch,
