@@ -38,9 +38,19 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         self.n_epochs_ae = config.n_epochs_ae
         self.n_encoder_ch = config.n_features // 4
         self.ae_net = AeConv(n_encoder_ch=self.n_encoder_ch, img_size=self.img_size, deep=self.config.deep_ae)
-        self.phase_predictor = PhaseRetrievalPredictor(out_ch=self.ae_net.n_features_ch,
-                                                       inter_ch=2*self.ae_net.n_features_ch,
-                                                       out_img_size=self.ae_net.n_features_size,
+
+        if self.config.predict_out == 'features':
+            predict_out_ch = self.ae_net.n_features_ch
+            predict_out_size = self.ae_net.n_features_size
+        elif self.config.predict_out == 'images':
+            predict_out_ch = 1
+            predict_out_size = self.config.image_size
+        else:
+            raise NameError(f'Nonna valid predict_out type: {self.config.predict_out}')
+
+        self.phase_predictor = PhaseRetrievalPredictor(out_ch=predict_out_ch,
+                                                       inter_ch=2*predict_out_ch,
+                                                       out_img_size=predict_out_size,
                                                        fc_multy_coeff=self.config.predict_fc_multy_coeff,
                                                        fft_norm=self.config.fft_norm,
                                                        predict_type=self.config.predict_type,
@@ -48,14 +58,17 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                                        conv_type=self.config.predict_conv_type)
 
         if self.config.use_gan:
-            self.features_discriminator = Discriminator(input_ch=self.ae_net.n_features_ch,
-                                                        in_conv_ch=2*self.ae_net.n_features_ch,
-                                                        input_norm_type=self.config.disrim_input_norm,
-                                                        fc_norm_type=self.config.disrim_fc_norm,
-                                                        img_size=self.ae_net.n_features_size,
-                                                        n_fc_layers=self.config.disrim_fc_layers,
-                                                        deep_conv_net=1,
-                                                        reduce_validity=True)
+            if self.config.predict_out == 'features':
+                self.features_discriminator = Discriminator(input_ch=self.ae_net.n_features_ch,
+                                                            in_conv_ch=2*self.ae_net.n_features_ch,
+                                                            input_norm_type=self.config.disrim_input_norm,
+                                                            fc_norm_type=self.config.disrim_fc_norm,
+                                                            img_size=self.ae_net.n_features_size,
+                                                            n_fc_layers=self.config.disrim_fc_layers,
+                                                            deep_conv_net=1,
+                                                            reduce_validity=True)
+            else:
+                self.features_discriminator = None
 
             self.img_discriminator = Discriminator(in_conv_ch=self.config.disrim_in_conv_ch,
                                                    input_norm_type=self.config.disrim_input_norm,
@@ -82,12 +95,15 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         self.optimizer_en = optim.Adam(params=self.phase_predictor.parameters(), lr=self.learning_rate)
 
         if self.config.use_gan:
-            self.features_discriminator.train()
-            self.features_discriminator.to(device=self.device)
+            if self.config.predict_out == 'features':
+                self.features_discriminator.train()
+                self.features_discriminator.to(device=self.device)
 
             self.img_discriminator.train()
             self.img_discriminator.to(device=self.device)
-            disrim_params = list(self.img_discriminator.parameters()) + list(self.features_discriminator.parameters())
+            disrim_params = list(self.img_discriminator.parameters())
+            if self.config.predict_out == 'features':
+                disrim_params += list(self.features_discriminator.parameters())
             self.optimizer_discr = optim.Adam(params=disrim_params, lr=self.learning_rate)
 
         else:
@@ -130,7 +146,8 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                 self._log.info(f'Load wieghts of {self.ModulesNames.img_discriminator}')
                 self.img_discriminator.load_state_dict(loaded_sate[self.ModulesNames.img_discriminator])
 
-            if is_load_module(self.ModulesNames.features_discriminator, loaded_sate) and self.config.use_gan:
+            if is_load_module(self.ModulesNames.features_discriminator, loaded_sate) and \
+                    self.config.use_gan and self.config.predict_out == 'features':
                 self._log.info(f'Load wieghts of {self.ModulesNames.features_discriminator}')
                 self.features_discriminator.load_state_dict(loaded_sate[self.ModulesNames.features_discriminator])
 
@@ -151,7 +168,10 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             self.set_eval_mode()
         magnitude_batch = self.forward_magnitude_fft(data_batch)
         features_batch_recon, intermediate_features = self.phase_predictor(magnitude_batch)
-        recon_batch = self.ae_net.decoder(features_batch_recon)
+        if self.config.predict_out == 'features':
+            recon_batch = self.ae_net.decoder(features_batch_recon)
+        elif self.config.predict_out == 'images':
+            recon_batch = features_batch_recon
 
         feature_encoder = self.ae_net.encoder(data_batch)
         decoded_batch = self.ae_net.decoder(feature_encoder)
@@ -270,7 +290,8 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             if self.config.use_gan:
                 save_state['img_discriminator'] = self.img_discriminator.state_dict()
                 save_state['opt_discr'] = self.optimizer_discr.state_dict()
-                save_state['features_discriminator'] = self.features_discriminator.state_dict()
+                if self.config.predict_out == 'features':
+                    save_state['features_discriminator'] = self.features_discriminator.state_dict()
             if self.config.is_train_ae:
                 save_state['opt_ae'] = self.optimizer_ae.state_dict()
             torch.save(save_state, os.path.join(self.save_path, f'phase-retrieval-gan-model.pt'))
@@ -318,11 +339,17 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
             img_adv_loss = self.adv_loss(self.img_discriminator(inferred_batch.img_recon).validity,
                                          real_labels)
-            features_adv_loss = self.adv_loss(self.features_discriminator(inferred_batch.feature_recon).validity,
-                                              real_labels)
 
-            total_loss = 2.0 * l2_magnitude_loss + 1.0 * l2_realness_features + 0.01 * l1_sparsity_features + \
-                         0.01 * img_adv_loss + 0.01 * features_adv_loss
+            if self.config.predict_out == 'features':
+                features_adv_loss = self.adv_loss(self.features_discriminator(inferred_batch.feature_recon).validity,
+                                                  real_labels)
+                total_loss = 0.01 * features_adv_loss
+            else:
+                features_adv_loss = None
+
+            total_loss += 2.0 * l2_magnitude_loss + 1.0 * l2_realness_features + 0.01 * l1_sparsity_features + \
+                         0.01 * img_adv_loss
+
 
             losses = LossesPRFeatures(total=total_loss,
                                       l2_magnitude=l2_magnitude_loss,
@@ -376,7 +403,8 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                 grad_losses = LossesGradNorms(l2_grad_magnitude_encoder=l2_grad_magnitude_encoder_norm)
                 if self.config.use_gan:
                     grad_losses.l2_grad_img_discriminator, _ = l2_grad_norm(self.img_discriminator)
-                    grad_losses.l2_grad_features_discriminator, _ = l2_grad_norm(self.features_discriminator)
+                    if self.config.predict_out == 'features':
+                        grad_losses.l2_grad_features_discriminator, _ = l2_grad_norm(self.features_discriminator)
 
                 self._log.info(f'Train Epoch: {epoch} [{batch_idx * len(data_batch)}/{len(self.train_loader.dataset)}'
                                 f'({100. * batch_idx / len(self.train_loader):.0f}%)], {train_losses[batch_idx]}, '
@@ -408,18 +436,22 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         batch_size = data_batch.shape[0]
         real_labels = torch.ones((batch_size, 1), device=self.device, dtype=data_batch.dtype)
         fake_labels = torch.zeros((batch_size, 1), device=self.device, dtype=data_batch.dtype)
-        feature_disrm_loss = self._discrim_ls_loss(self.features_discriminator,
-                                                   real_img=inferred_batch.feature_encoder,
-                                                   generated_img=inferred_batch.feature_recon,
-                                                   real_labels=real_labels,
-                                                   fake_labels=fake_labels)
+        if self.config.predict_out == 'features':
+            feature_disrm_loss = self._discrim_ls_loss(self.features_discriminator,
+                                                       real_img=inferred_batch.feature_encoder,
+                                                       generated_img=inferred_batch.feature_recon,
+                                                       real_labels=real_labels,
+                                                       fake_labels=fake_labels)
+            tr_losses.disrm_loss = self.config.lambda_discrim_features * feature_disrm_loss
+        else:
+            feature_disrm_loss = None
         img_disrm_loss = self._discrim_ls_loss(self.img_discriminator,
                                                real_img=inferred_batch.decoded_img,
                                                generated_img=inferred_batch.img_recon,
                                                real_labels=real_labels,
                                                fake_labels=fake_labels)
-        tr_losses.disrm_loss = self.config.lambda_discrim_img * img_disrm_loss + \
-                               self.config.lambda_discrim_features * feature_disrm_loss
+        tr_losses.disrm_loss = self.config.lambda_discrim_img * img_disrm_loss
+
         tr_losses.img_disrm_loss = img_disrm_loss
         tr_losses.features_disrm_loss = feature_disrm_loss
         tr_losses.disrm_loss.backward()
@@ -460,42 +492,54 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
 
         fft_magnitude_recon = self.forward_magnitude_fft(inferred_batch.img_recon)
         l2_img_recon_loss = self.l2_loss(data_batch, inferred_batch.img_recon)
-        l2_features_loss = self.l2_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
+        if self.config.predict_out == 'features':
+            l2_features_loss = self.l2_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
+            l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
+        else:
+            l2_features_loss = None
+            l1_sparsity_features = None
+
         l2_magnitude_loss = self.l2_loss(inferred_batch.fft_magnitude.detach(), fft_magnitude_recon)
-        l2_features_imag_part = 0.5 * torch.mean(torch.square(inferred_batch.intermediate_features.imag.abs()))
-        l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
+        l2_features_realness = 0.5 * torch.mean(torch.square(inferred_batch.intermediate_features.imag.abs()))
 
         real_labels = torch.ones((data_batch.shape[0], 1), device=self.device, dtype=data_batch.dtype)
 
         total_loss = self.config.lambda_img_recon_loss * l2_img_recon_loss
         if use_adv_loss:
             img_discrim_batch: DiscriminatorBatch = self.img_discriminator(inferred_batch.img_recon)
-            f_disc_generated_batch: DiscriminatorBatch = self.features_discriminator(inferred_batch.feature_recon)
-            f_disc_real_batch: DiscriminatorBatch = self.features_discriminator(inferred_batch.feature_encoder)
-            p_loss_discrim_f = l2_perceptual_loss(f_disc_generated_batch.features, f_disc_real_batch.features,
-                                                  weights=[1, 0])
             img_adv_loss = self.adv_loss(img_discrim_batch.validity, real_labels)
-            features_adv_loss = self.adv_loss(f_disc_generated_batch.validity, real_labels)
+            total_loss += self.config.lambda_img_adv_loss * img_adv_loss
 
-            total_loss += self.config.lambda_img_adv_loss * img_adv_loss + \
-                          self.config.lambda_features_adv_loss * features_adv_loss + \
-                          self.config.lambda_features_perceptual_loss * p_loss_discrim_f
+            if self.config.predict_out == 'features':
+                f_disc_generated_batch: DiscriminatorBatch = self.features_discriminator(inferred_batch.feature_recon)
+                f_disc_real_batch: DiscriminatorBatch = self.features_discriminator(inferred_batch.feature_encoder)
+                p_loss_discrim_f = l2_perceptual_loss(f_disc_generated_batch.features, f_disc_real_batch.features,
+                                                      weights=[1, 0])
+                features_adv_loss = self.adv_loss(f_disc_generated_batch.validity, real_labels)
+
+                total_loss += self.config.lambda_features_adv_loss * features_adv_loss + \
+                              self.config.lambda_features_perceptual_loss * p_loss_discrim_f
+            else:
+                p_loss_discrim_f = None
+                features_adv_loss = None
         else:
             img_adv_loss = None
             features_adv_loss = None
             p_loss_discrim_f = None
 
-        total_loss += self.config.lambda_features_recon_loss * l2_features_loss + \
-                      self.config.lambda_magnitude_recon_loss * l2_magnitude_loss + \
-                      self.config.lambda_features_realness * l2_features_imag_part + \
-                      self.config.lambda_sparsity_features * l1_sparsity_features
+        total_loss += self.config.lambda_magnitude_recon_loss * l2_magnitude_loss + \
+                      self.config.lambda_features_realness * l2_features_realness
+
+        if self.config.predict_out == 'features':
+            total_loss += self.config.lambda_features_recon_loss * l2_features_loss + \
+                          self.config.lambda_sparsity_features * l1_sparsity_features
 
         losses = LossesPRFeatures(total=total_loss,
                                   l2_img=l2_img_recon_loss,
                                   l2_features=l2_features_loss,
                                   l2_magnitude=l2_magnitude_loss,
                                   l1_sparsity_features=l1_sparsity_features,
-                                  realness_features=l2_features_imag_part,
+                                  realness_features=l2_features_realness,
                                   img_adv_loss=img_adv_loss,
                                   features_adv_loss=features_adv_loss,
                                   perceptual_disrim_features=p_loss_discrim_f)

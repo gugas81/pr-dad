@@ -119,6 +119,7 @@ class ConfigTrainer(ConfigBase):
     project_name = 'phase-retrieval'
     task_name: str = 'ae-features-prediction'
     dataset_name: str = 'mnist'
+    predict_out: str = 'features' # 'images'
     use_tensor_board: bool = True
     seed: int = 1
     use_ref_net: bool = False
