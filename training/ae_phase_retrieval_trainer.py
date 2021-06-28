@@ -48,8 +48,13 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         else:
             raise NameError(f'Nonna valid predict_out type: {self.config.predict_out}')
 
+        if self.config.predict_type == 'phase':
+            inter_ch = predict_out_ch
+        else:
+            inter_ch = 2 * predict_out_ch
+
         self.phase_predictor = PhaseRetrievalPredictor(out_ch=predict_out_ch,
-                                                       inter_ch=2*predict_out_ch,
+                                                       inter_ch=inter_ch,
                                                        out_img_size=predict_out_size,
                                                        fc_multy_coeff=self.config.predict_fc_multy_coeff,
                                                        fft_norm=self.config.fft_norm,
@@ -109,10 +114,15 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         else:
             self.optimizer_discr = None
 
-        self._lr_schedulers_en = [
-            MultiStepLR(self.optimizer_en, self.config.lr_milestones_en, self.config.lr_reduce_rate_en),
-            MultiStepLR(self.optimizer_discr, self.config.lr_milestones_en, self.config.lr_reduce_rate_en)
-        ]
+        if self.config.use_gan:
+            self._lr_schedulers_en = [
+                MultiStepLR(self.optimizer_en, self.config.lr_milestones_en, self.config.lr_reduce_rate_en),
+                MultiStepLR(self.optimizer_discr, self.config.lr_milestones_en, self.config.lr_reduce_rate_en)
+            ]
+        else:
+            self._lr_schedulers_en = [
+                MultiStepLR(self.optimizer_en, self.config.lr_milestones_en, self.config.lr_reduce_rate_en)
+            ]
 
         if self.config.is_train_ae:
             self._lr_scheduler_ae = MultiStepLR(self.optimizer_ae,
