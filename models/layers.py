@@ -60,8 +60,6 @@ class ResBlock(nn.Module):
                                              nn.Conv2d(3*in_channels, out_channels, kernel_size,
                                                        padding=padding, bias=bias_out))
 
-
-    # pylint: disable=arguments-differ
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_1 = self._conv_block1(x)
         x_2 = self._conv_block1(x)
@@ -71,9 +69,14 @@ class ResBlock(nn.Module):
 
 
 class DownConvBlock(nn.Module):
-    def __init__(self, ch_in: int, ch_out: int):
+    def __init__(self, ch_in: int, ch_out: int, use_res_block:  bool = False):
         super(DownConvBlock, self).__init__()
-        self.conv_block = nn.Sequential(ConvBlock(ch_in, ch_out), nn.MaxPool2d(kernel_size=2, stride=2))
+        if use_res_block:
+            conv_op = ResBlock
+        else:
+            conv_op = ConvBlock
+
+        self.conv_block = nn.Sequential(conv_op(ch_in, ch_out), nn.MaxPool2d(kernel_size=2, stride=2))
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.conv_block(x)

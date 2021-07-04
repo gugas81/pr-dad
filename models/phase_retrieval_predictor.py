@@ -81,8 +81,9 @@ class PhaseRetrievalPredictor(nn.Module):
         elif self._predict_type == 'phase':
             out_features = self._angle_pred(magnitude)
             intermediate_features = out_features
+            out_features = out_features.real
 
-        return out_features.real, intermediate_features
+        return out_features, intermediate_features
 
     def _angle_pred(self,  magnitude: Tensor) -> Tensor:
         magnitude = torch.fft.fftshift(magnitude, dim=(-2, -1))

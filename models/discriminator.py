@@ -7,21 +7,24 @@ from models.seq_blocks import EncoderConv
 
 
 class Discriminator(nn.Module):
-    def __init__(self, input_ch=1, in_conv_ch: Optional[int] = 8, img_size: int = 28,
-                 input_norm_type: str = None, fc_norm_type: str = None,
-                 n_fc_layers: Optional[List[int]] = None, deep_conv_net: int = 2, reduce_validity: bool = False):
+    def __init__(self, input_ch=1,
+                 in_conv_ch: Optional[int] = 8,
+                 img_size: int = 28,
+                 input_norm_type: str = None,
+                 fc_norm_type: str = None,
+                 n_fc_layers: Optional[List[int]] = None,
+                 deep_conv_net: int = 2,
+                 reduce_validity: bool = False,
+                 use_res_blocks: bool = False):
         super(Discriminator, self).__init__()
         self.n_fc_layers = [512, 256, 1] if n_fc_layers is None else n_fc_layers
         self.in_conv_ch = in_conv_ch
         if self.in_conv_ch is not None:
             self.conv_encoder = EncoderConv(in_ch=input_ch, encoder_ch=self.in_conv_ch, last_down=False,
-                                            deep=deep_conv_net)
-            # scale_factor = 2 ** (self.encoder.deep - 1)
-            # scale_factor = 4
+                                            deep=deep_conv_net, use_res_blocks=use_res_blocks)
             scale_factor = 2 ** self.conv_encoder.deep
             enc_size = img_size // scale_factor
             out_conv_ch = self.conv_encoder.out_ch
-            # out_conv_ch = self.in_conv_ch * scale_factor
         else:
             self.conv_encoder = nn.Identity()
             enc_size = img_size

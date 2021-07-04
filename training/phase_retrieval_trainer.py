@@ -71,7 +71,8 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                                             img_size=self.ae_net.n_features_size,
                                                             n_fc_layers=self.config.disrim_fc_layers,
                                                             deep_conv_net=1,
-                                                            reduce_validity=True)
+                                                            reduce_validity=True,
+                                                            use_res_blocks=True)
             else:
                 self.features_discriminator = None
 
