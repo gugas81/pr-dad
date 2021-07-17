@@ -37,7 +37,7 @@ class EncoderConv(nn.Module):
         curr_out_ch = encoder_ch
         for ind_block in range(self.deep):
             self.out_ch.append(curr_out_ch)
-            if ind_block == self.deep - 1 and last_down:
+            if ind_block == 0 or (ind_block == self.deep - 1 and not last_down):
                 # if use_res_blocks:
                 #     conv_block = ResBlock(in_channels=inp_ch_block, out_channels=self.out_ch)
                 # else:
@@ -50,10 +50,15 @@ class EncoderConv(nn.Module):
                 curr_out_ch *= 2
 
             self.conv_down_blocks.append(conv_block)
+        # if last_down:
+        #     self.conv_down_blocks(nn.MaxPool2d(kernel_size=2, stride=2))
         # self.conv_down_blocks = nn.Sequential(*self.conv_down_blocks)
 
     def forward(self, x: Tensor, use_residual: bool = False) -> Union[Tensor, List[Tensor]]:
         return self.conv_down_blocks(x, use_residual=use_residual)
+
+    def get_layers(self) -> BlockList:
+        return self.conv_down_blocks
 
 
 class DecoderConv(nn.Module):
@@ -61,29 +66,42 @@ class DecoderConv(nn.Module):
                  use_res_blocks: bool = False, skip_connect_ch:  List[int] = None):
         super(DecoderConv, self).__init__()
         self.deep = deep
-        self.conv_blocks = BlockList()
+        self.conv_layers = BlockList()
         ch_im = img_ch
+        ch_out = ch_im
+        self.ch_out = []
         if skip_connect_ch is None:
-            skip_connect_ch = np.zeros(self.deep,)
-        for ind_block in range(self.deep):
-            ch_im += skip_connect_ch[ind_block]
-            if ind_block == self.deep - 1 and output_ch is not  None:
-                conv_block = nn.Conv2d(ch_out, output_ch, kernel_size=1, stride=1, padding=0)
+            skip_connect_ch = np.zeros(self.deep, dtype=np.int)
+        for ind_layer in range(self.deep):
+            ch_im += skip_connect_ch[ind_layer]
+            if ind_layer == self.deep - 1:
+                if output_ch is not None:
+                    conv_layer = nn.Conv2d(ch_im, output_ch, kernel_size=1, stride=1, padding=0)
+                else:
+                    ch_out = ch_out // 2
+                    if use_res_blocks:
+                        conv_layer = ResBlock(ch_im, ch_out)
+                    else:
+                        conv_layer = ConvBlock(ch_im, ch_out)
             else:
-                ch_out = ch_im // 2
+                ch_out = ch_out // 2
                 up_conv_block = UpConvBlock(ch_in=ch_im, ch_out=ch_out)
-                self.conv_blocks.append(up_conv_block)
                 if use_res_blocks:
                     conv_block = ResBlock(ch_out, ch_out)
                 else:
                     conv_block = ConvBlock(ch_out, ch_out)
+                conv_layer = nn.Sequential(up_conv_block, conv_block)
 
             ch_im = ch_out
-            self.conv_blocks.append(conv_block)
+            self.ch_out.append(ch_out)
+            self.conv_layers.append(conv_layer)
         # self.conv_blocks = nn.Sequential(*self.conv_blocks)
+
+    def get_layers(self) -> BlockList:
+        return self.conv_layers
 
     def forward(self, x: Tensor, use_residual: bool = False) -> Union[Tensor, List[Tensor]]:
         # decoding path
-        return self.conv_blocks(x, use_residual=use_residual)
+        return self.conv_layers(x, use_residual=use_residual)
 
 

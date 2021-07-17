@@ -20,9 +20,10 @@ class Discriminator(nn.Module):
         self.n_fc_layers = [512, 256, 1] if n_fc_layers is None else n_fc_layers
         self.in_conv_ch = in_conv_ch
         if self.in_conv_ch is not None:
-            self.conv_encoder = EncoderConv(in_ch=input_ch, encoder_ch=self.in_conv_ch, last_down=False,
+            last_down = True
+            self.conv_encoder = EncoderConv(in_ch=input_ch, encoder_ch=self.in_conv_ch, last_down=last_down,
                                             deep=deep_conv_net, use_res_blocks=use_res_blocks)
-            scale_factor = 2 ** self.conv_encoder.deep
+            scale_factor = (2 ** (self.conv_encoder.deep-1)) if last_down else (2 ** (self.conv_encoder.deep-2))
             enc_size = img_size // scale_factor
             out_conv_ch = self.conv_encoder.out_ch[-1]
         else:

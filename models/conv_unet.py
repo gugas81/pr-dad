@@ -13,12 +13,12 @@ class UNetConv(nn.Module):
         self.n_features_ch = self.encoder.out_ch[-1]
         # if in_ch_features:
         #     self.n_features_ch += in_ch_features
-        skip_connect_decoder = self.encoder.out_ch
+        skip_connect_decoder = self.encoder.out_ch[::-1]
         if in_ch_features:
             skip_connect_decoder[0] = in_ch_features
         else:
             skip_connect_decoder[0] = 0
-        self.decoder = DecoderConv(output_ch=output_ch, img_ch=self.n_features_ch, deep=deep,
+        self.decoder = DecoderConv(output_ch=None, img_ch=self.n_features_ch, deep=deep,
                                    skip_connect_ch=skip_connect_decoder)
 
         # self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
@@ -34,24 +34,26 @@ class UNetConv(nn.Module):
         # self.up_2 = UpConvBlock(ch_in=32, ch_out=16)
         # self.up_conv_2 = ConvBlock(ch_in=32, ch_out=16)
 
-        self.conv_out = nn.Conv2d(16, output_ch, kernel_size=1, stride=1, padding=0)
+        self.conv_out = nn.Conv2d(self.decoder.ch_out[-1], output_ch, kernel_size=1, stride=1, padding=0)
 
-    def decoder(self, encoder_features: List[torch.Tensor]) -> Tensor:
+    def decode(self, encoder_features: List[torch.Tensor]) -> Tensor:
         out_features = None
-        for enc_encoder_features_layer,  decoder_block in zip(encoder_features, self.decoder):
+        for enc_encoder_features_layer,  decoder_layer in zip(encoder_features, self.decoder.get_layers()):
             in_features = enc_encoder_features_layer
             if out_features is not None:
                 in_features = torch.cat((in_features, out_features), dim=1)
-            out_features = decoder_block(in_features)
+            out_features = decoder_layer(in_features)
         return out_features
 
     def forward(self, x: Tensor, features: Optional[Tensor] = None) -> Tensor:
         # encoding path
-        encoder_features = self.encoder(x, use_res_blocks= True)
+        encoder_features = self.encoder(x, use_residual=True)
         if features is not None:
             encoder_features[-1] = torch.cat((encoder_features[-1], features), dim=1)
-        x = self.decode(encoder_features)
-        return x
+        encoder_features = encoder_features[1:][::-1]
+        x_out = self.decode(encoder_features)
+        x_out = self.conv_out(x_out)
+        return x_out
         # x1 = self.conv_1(x) # 16x27x27
         #
         # x2 = self.maxpool(x1)# 16x14x14

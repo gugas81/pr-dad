@@ -76,7 +76,7 @@ class DownConvBlock(nn.Module):
         else:
             conv_op = ConvBlock
 
-        self.conv_block = nn.Sequential(conv_op(ch_in, ch_out), nn.MaxPool2d(kernel_size=2, stride=2))
+        self.conv_block = nn.Sequential(nn.MaxPool2d(kernel_size=2, stride=2), conv_op(ch_in, ch_out))
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.conv_block(x)

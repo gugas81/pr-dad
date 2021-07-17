@@ -194,12 +194,12 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         magnitude_batch = self.forward_magnitude_fft(data_batch)
         features_batch_recon, intermediate_features = self.phase_predictor(magnitude_batch)
         if self.config.predict_out == 'features':
-            recon_batch = self.ae_net.decoder(features_batch_recon)
+            recon_batch = self.ae_net.decode(features_batch_recon)
         elif self.config.predict_out == 'images':
             recon_batch = features_batch_recon
 
         feature_encoder = self.ae_net.encoder(data_batch)
-        decoded_batch = self.ae_net.decoder(feature_encoder)
+        decoded_batch = self.ae_net.decode(feature_encoder)
 
         inferred_batch = InferredBatch(fft_magnitude=magnitude_batch,
                                        img_recon=recon_batch,
@@ -208,7 +208,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                        decoded_img=decoded_batch,
                                        intermediate_features=intermediate_features)
         if self.config.use_ref_net:
-            inferred_batch.img_recon_ref = self.ref_unet(recon_batch)
+            inferred_batch.img_recon_ref = self.ref_unet(recon_batch, features_batch_recon)
             inferred_batch.fft_magnitude_recon_ref = self.forward_magnitude_fft(inferred_batch.img_recon_ref)
 
         if eval_mode:
@@ -239,6 +239,10 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                              fft_magnitude=fft_magnitude, feature_recon=feature_recon)
 
     def train(self) -> (LossesPRFeatures, LossesPRFeatures, LossesPRFeatures):
+        if self.config.debug_mode:
+            losses_dbg_batch_tr, losses_dbg_batch_ts = self._log_en_magnitude_dbg_batch(self.config.use_gan,
+                                                                                        self._global_step)
+
         if self.config.is_train_ae:
             self.train_ae()
 

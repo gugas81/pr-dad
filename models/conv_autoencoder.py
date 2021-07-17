@@ -13,11 +13,17 @@ class AeConv(nn.Module):
         self.n_features_ch = self.n_encoder_ch * 4
         self.n_features_size = int(np.ceil(img_size / (2 * (deep-1))))
         self.encoder = EncoderConv(in_ch=img_ch, encoder_ch=self.n_encoder_ch, deep=deep)
-        self.decoder = DecoderConv(output_ch=output_ch, img_ch=self.n_features_ch, deep=deep)
+        self.decoder = DecoderConv(output_ch=None, img_ch=self.n_features_ch, deep=deep)
+        self.out_layer = nn.Conv2d(self.decoder.ch_out[-1], output_ch, kernel_size=1, stride=1, padding=0)
+
+    def decode(self,  features: Tensor) -> Tensor:
+        x_out = self.decoder(features)
+        x_out = self.out_layer(x_out)
+        return x_out
 
     def forward(self, x: Tensor) -> Tensor:
         features = self.encoder(x)
-        x_out = self.decoder(features)
+        x_out = self.decode(features)
         return x_out, features
 
 
