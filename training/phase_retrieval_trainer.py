@@ -65,14 +65,14 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         if self.config.use_gan:
             if self.config.predict_out == 'features':
                 self.features_discriminator = Discriminator(input_ch=self.ae_net.n_features_ch,
-                                                            in_conv_ch=2*self.ae_net.n_features_ch,
-                                                            input_norm_type=self.config.disrim_input_norm,
+                                                            in_conv_ch=self.ae_net.n_features_ch,
+                                                            input_norm_type= self.config.disrim_input_norm,
                                                             fc_norm_type=self.config.disrim_fc_norm,
                                                             img_size=self.ae_net.n_features_size,
-                                                            n_fc_layers=self.config.disrim_fc_layers,
+                                                            n_fc_layers=[2048, 1024, 512, 128, 64], #self.config.disrim_fc_layers,
                                                             deep_conv_net=1,
                                                             reduce_validity=True,
-                                                            use_res_blocks=True)
+                                                            use_res_blocks=False)
             else:
                 self.features_discriminator = None
 
