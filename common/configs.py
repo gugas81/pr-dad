@@ -153,11 +153,13 @@ class ConfigTrainer(ConfigBase):
     debug_mode: bool = False
     cuda: bool = True
     lambda_img_recon_loss: float = 1.0
+    lambda_ref_img_recon_loss: float = 1.0
     lambda_img_adv_loss: float = 1.0
     lambda_features_adv_loss: float = 1.0
     lambda_features_recon_loss: float = 1.0
     lambda_features_perceptual_loss: float = 1.0
     lambda_magnitude_recon_loss: float = 1.0
+    lambda_ref_magnitude_recon_loss: float = 1.0
     lambda_features_realness: float = 1.0
     lambda_sparsity_features: float = 1.0
     lambda_discrim_img: float = 1.0

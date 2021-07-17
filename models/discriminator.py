@@ -24,7 +24,7 @@ class Discriminator(nn.Module):
                                             deep=deep_conv_net, use_res_blocks=use_res_blocks)
             scale_factor = 2 ** self.conv_encoder.deep
             enc_size = img_size // scale_factor
-            out_conv_ch = self.conv_encoder.out_ch
+            out_conv_ch = self.conv_encoder.out_ch[-1]
         else:
             self.conv_encoder = nn.Identity()
             enc_size = img_size
@@ -48,7 +48,6 @@ class Discriminator(nn.Module):
 
         self.adv_fc.append(nn.Linear(self.n_fc_layers[-2], self.n_fc_layers[-1]))
         self.adv_fc = nn.Sequential(*self.adv_fc)
-
 
     def forward(self, x: Tensor) -> DiscriminatorBatch:
         x_norm = self.input_norm(x)
