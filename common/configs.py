@@ -156,6 +156,7 @@ class ConfigTrainer(ConfigBase):
     lambda_ref_img_recon_loss: float = 1.0
     lambda_img_adv_loss: float = 1.0
     lambda_img_perceptual_loss: float = 1.0
+    lambda_ref_img_adv_loss: float = 1.0
     lambda_ref_img_perceptual_loss: float = 1.0
     lambda_features_adv_loss: float = 1.0
     lambda_features_recon_loss: float = 1.0
@@ -165,6 +166,7 @@ class ConfigTrainer(ConfigBase):
     lambda_features_realness: float = 1.0
     lambda_sparsity_features: float = 1.0
     lambda_discrim_img: float = 1.0
+    lambda_discrim_ref_img: float = 1.0
     lambda_discrim_features: float = 1.0
     clip_encoder_grad: Optional[float] = 0.5
     clip_discriminator_grad: Optional[float] = 0.1
@@ -177,3 +179,4 @@ class ConfigTrainer(ConfigBase):
     deep_ae: int = 3
     part_supervised_pairs: float = 1.0
     ref_net_skip_input: bool = False
+    weights_plos: List[float] = field(default_factory=lambda:  [1.0, 0.0])

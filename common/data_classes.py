@@ -123,12 +123,15 @@ class LossesPRFeatures(Losses):
     l2_ref_magnitude: Optional[Tensor] = None
     realness_features: Optional[Tensor] = None
     img_adv_loss: Optional[Tensor] = None
+    ref_img_adv_loss: Optional[Tensor] = None
     features_adv_loss: Optional[Tensor] = None
     img_disrm_loss: Optional[Tensor] = None
+    ref_img_disrm_loss: Optional[Tensor] = None
     features_disrm_loss: Optional[Tensor] = None
     disrm_loss: Optional[Tensor] = None
     l1_sparsity_features: Optional[Tensor] = None
     perceptual_disrim_img: Optional[Tensor] = None
+    perceptual_disrim_ref_img: Optional[Tensor] = None
     perceptual_disrim_features: Optional[Tensor] = None
     lr:  Optional[Tensor] = None
     total: Optional[Tensor] = None
