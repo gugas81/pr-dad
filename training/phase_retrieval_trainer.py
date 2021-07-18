@@ -639,7 +639,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                   features_adv_loss=features_adv_loss,
                                   perceptual_disrim_features=p_loss_discrim_f,
                                   perceptual_disrim_img=p_loss_discrim_img,
-                                  p_loss_discrim_ref_img=p_loss_discrim_ref_img)
+                                  perceptual_disrim_ref_img=p_loss_discrim_ref_img)
 
         return losses
 
