@@ -176,3 +176,4 @@ class ConfigTrainer(ConfigBase):
     n_dataloader_workers: int = 1
     deep_ae: int = 3
     part_supervised_pairs: float = 1.0
+    ref_net_skip_input: bool = False

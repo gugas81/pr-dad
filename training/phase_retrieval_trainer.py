@@ -92,7 +92,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             self.ref_unet = UNetConv(n_encoder_ch=self.n_encoder_ch,
                                      deep=self.config.deep_ae,
                                      in_ch_features=self.ae_net.n_features_ch,
-                                     skip_input=True)
+                                     skip_input=self.config.ref_net_skip_input)
             self.ref_unet.train()
             self.ref_unet.to(device=self.device)
         else:
