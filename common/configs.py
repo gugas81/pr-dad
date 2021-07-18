@@ -155,6 +155,8 @@ class ConfigTrainer(ConfigBase):
     lambda_img_recon_loss: float = 1.0
     lambda_ref_img_recon_loss: float = 1.0
     lambda_img_adv_loss: float = 1.0
+    lambda_img_perceptual_loss: float = 1.0
+    lambda_ref_img_perceptual_loss: float = 1.0
     lambda_features_adv_loss: float = 1.0
     lambda_features_recon_loss: float = 1.0
     lambda_features_perceptual_loss: float = 1.0
@@ -173,3 +175,4 @@ class ConfigTrainer(ConfigBase):
     image_size: int = 32
     n_dataloader_workers: int = 1
     deep_ae: int = 3
+    part_supervised_pairs: float = 1.0

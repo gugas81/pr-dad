@@ -89,8 +89,10 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             self.features_discriminator = None
 
         if self.config.use_ref_net:
-            self.ref_unet = UNetConv(n_encoder_ch=self.n_encoder_ch, deep=self.config.deep_ae,
-                                     in_ch_features=self.ae_net.n_features_ch)
+            self.ref_unet = UNetConv(n_encoder_ch=self.n_encoder_ch,
+                                     deep=self.config.deep_ae,
+                                     in_ch_features=self.ae_net.n_features_ch,
+                                     skip_input=True)
             self.ref_unet.train()
             self.ref_unet.to(device=self.device)
         else:
@@ -107,7 +109,8 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             self.optimizer_ae = optim.Adam(params=self.ae_net.parameters(), lr=self.learning_rate)
         else:
             self.optimizer_ae = None
-        self.optimizer_en = optim.Adam(params=self.phase_predictor.parameters(), lr=self.learning_rate)
+        gen_params = list(self.phase_predictor.parameters()) + list(self.ref_unet.parameters())
+        self.optimizer_en = optim.Adam(params=gen_params, lr=self.learning_rate)
 
         if self.config.use_gan:
             if self.config.predict_out == 'features':
@@ -208,7 +211,8 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                        decoded_img=decoded_batch,
                                        intermediate_features=intermediate_features)
         if self.config.use_ref_net:
-            inferred_batch.img_recon_ref = self.ref_unet(recon_batch, features_batch_recon)
+            inferred_batch.img_recon_ref = self.ref_unet(recon_batch.detach(), features_batch_recon.detach())
+            # inferred_batch.img_recon_ref = self.ref_unet(recon_batch)
             inferred_batch.fft_magnitude_recon_ref = self.forward_magnitude_fft(inferred_batch.img_recon_ref)
 
         if eval_mode:

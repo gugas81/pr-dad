@@ -50,9 +50,6 @@ class EncoderConv(nn.Module):
                 curr_out_ch *= 2
 
             self.conv_down_blocks.append(conv_block)
-        # if last_down:
-        #     self.conv_down_blocks(nn.MaxPool2d(kernel_size=2, stride=2))
-        # self.conv_down_blocks = nn.Sequential(*self.conv_down_blocks)
 
     def forward(self, x: Tensor, use_residual: bool = False) -> Union[Tensor, List[Tensor]]:
         return self.conv_down_blocks(x, use_residual=use_residual)
@@ -63,7 +60,7 @@ class EncoderConv(nn.Module):
 
 class DecoderConv(nn.Module):
     def __init__(self, img_ch: int = 32, output_ch: Optional[int] = None, deep: int = 3,
-                 use_res_blocks: bool = False, skip_connect_ch:  List[int] = None):
+                 use_res_blocks: bool = False, skip_connect_ch:  List[int] = None, mode: str = 'nearest'):
         super(DecoderConv, self).__init__()
         self.deep = deep
         self.conv_layers = BlockList()
@@ -85,7 +82,7 @@ class DecoderConv(nn.Module):
                         conv_layer = ConvBlock(ch_im, ch_out)
             else:
                 ch_out = ch_out // 2
-                up_conv_block = UpConvBlock(ch_in=ch_im, ch_out=ch_out)
+                up_conv_block = UpConvBlock(ch_in=ch_im, ch_out=ch_out, mode=mode)
                 if use_res_blocks:
                     conv_block = ResBlock(ch_out, ch_out)
                 else:
@@ -95,7 +92,6 @@ class DecoderConv(nn.Module):
             ch_im = ch_out
             self.ch_out.append(ch_out)
             self.conv_layers.append(conv_layer)
-        # self.conv_blocks = nn.Sequential(*self.conv_blocks)
 
     def get_layers(self) -> BlockList:
         return self.conv_layers
