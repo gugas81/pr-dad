@@ -12,10 +12,11 @@ from torchvision.transforms import InterpolationMode
 from torchvision import transforms
 from torch.utils.data.dataloader import DataLoader
 from torch.nn import functional as F
+from training.dataset import create_data_loaders
 import logging
-from common import TensorBatch, ConfigTrainer, set_seed, Losses
+from common import TensorBatch, ConfigTrainer, set_seed, Losses, DataBatch
 from common import im_concatenate, square_grid_im_concat, PATHS
-from typing import Optional
+from typing import Optional, Any, Dict
 
 logging.basicConfig(level=logging.INFO)
 
@@ -58,47 +59,39 @@ class TrainerPhaseRetrieval:
         self._init_dbg_data_batches()
 
     def _init_dbg_data_batches(self):
-        self.data_tr_batch = iter(self.train_loader).next()[0].to(device=self.device)
-        self.data_ts_batch = iter(self.test_loader).next()[0].to(device=self.device)
-        self.data_tr_batch = self.data_tr_batch[:min(self.batch_size_train, self._dbg_img_batch)]
-        self.data_ts_batch = self.data_ts_batch[:min(self.batch_size_test, self._dbg_img_batch)]
+        dbg_batch_tr = min(self.batch_size_train, self._dbg_img_batch)
+        dbg_batch_ts = min(self.batch_size_test, self._dbg_img_batch)
+
+        self.data_tr_batch = self.prepare_data_batch(iter(self.train_paired_loader).next()).to(device=self.device)
+        self.data_ts_batch = self.prepare_data_batch(iter(self.test_loader).next()).to(device=self.device)
+
+        self.data_tr_batch.image = self.data_tr_batch.image[:dbg_batch_tr]
+        self.data_tr_batch.fft_magnitude = self.data_tr_batch.fft_magnitude[:dbg_batch_tr]
+        self.data_tr_batch.label = self.data_tr_batch.label[:dbg_batch_tr]
+
+        self.data_ts_batch.image = self.data_ts_batch.image[:dbg_batch_ts]
+        self.data_ts_batch.fft_magnitude = self.data_ts_batch.fft_magnitude[:dbg_batch_ts]
+        self.data_ts_batch.label = self.data_ts_batch.label[:dbg_batch_ts]
 
     def _init_data_loaders(self):
-        data_transforms = [transforms.Resize((self.img_size, self.img_size))]
-        ds_name = self.config.dataset_name.lower()
-        image_dataset = None
-        if ds_name == 'mnist':
-            image_dataset = torchvision.datasets.MNIST
-        elif ds_name == 'emnist':
-            image_dataset = partial(torchvision.datasets.EMNIST, split='balanced')
-        elif ds_name == 'fashion-mnist':
-            image_dataset = torchvision.datasets.FashionMNIST
-        elif ds_name == 'celeba':
-            image_dataset = torchvision.datasets.CelebA
-            data_transforms.append(transforms.Grayscale(num_output_channels=1))
-        else:
-            raise NameError(f'Not valid ds type {ds_name}')
-        # data_transforms.append(transforms.Resize((self.img_size, self.img_size)))
-        if self.config.use_aug:
-            data_transforms_aoug = [transforms.RandomRotation(90.0, interpolation=InterpolationMode.BILINEAR),
-                                    transforms.RandomHorizontalFlip(),
-                                    transforms.RandomVerticalFlip()]
-            data_transforms += data_transforms_aoug
-        data_transforms = data_transforms + [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-        data_transforms = transforms.Compose(data_transforms)
-        ds_path = os.path.join(PATHS.DATASETS, ds_name)
-        self.train_dataset = image_dataset(root=ds_path, train=True, download=True, transform=data_transforms)
-        self.test_dataset = image_dataset(root=ds_path, train=False, download=True, transform=data_transforms)
-        self.train_loader = DataLoader(self.train_dataset,
-                                       batch_size=self.batch_size_train,
-                                       shuffle=True,
-                                       worker_init_fn=np.random.seed(self.seed),
-                                       num_workers=self.config.n_dataloader_workers)
-        self.test_loader = DataLoader(self.test_dataset,
-                                      batch_size=self.batch_size_test,
-                                      shuffle=False,
-                                      worker_init_fn=np.random.seed(self.seed),
-                                      num_workers=self.config.n_dataloader_workers)
+        self.train_paired_loader, self.train_unpaired_loader, self.test_loader = \
+            create_data_loaders(ds_name=self.config.dataset_name,
+                                img_size=self.img_size,
+                                use_aug=self.config.use_aug,
+                                batch_size_train=self.batch_size_train,
+                                batch_size_test=self.batch_size_test,
+                                n_dataloader_workers=self.config.n_dataloader_workers,
+                                paired_part=self.config.part_supervised_pairs,
+                                fft_norm=self._fft_norm,
+                                seed=self.seed,
+                                log=self._log)
+
+    def prepare_data_batch(self, item_data: Dict[str, Any]) -> DataBatch:
+        is_paired = item_data['paired'].cpu().numpy().all()
+        return DataBatch(image=item_data['image'].to(device=self.device),
+                         fft_magnitude=item_data['fft_magnitude'].to(device=self.device),
+                         label=item_data['label'].to(device=self.device),
+                         is_paired=is_paired)
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
         fft_data_batch = torch.fft.fft2(data_batch, norm=self._fft_norm)
@@ -190,6 +183,6 @@ class TrainerPhaseRetrieval:
 
     def _add_losses_tensorboard(self,  tag: str, losses: Losses, step: int = None) -> None:
         for metric_name, value in losses.__dict__.items():
-            if value:
+            if value is not None:
                 self._tensorboard.add_scalar(f"{metric_name}/{tag}", value.mean(), step)
 

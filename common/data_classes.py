@@ -49,10 +49,11 @@ class TensorBatch:
     def to(self, device: str):
         torch_data = {}
         for key, val in dataclasses.asdict(self).items():
-            if val is not None:
-                torch_data[key] = val.to(device)
+            if val is not None and isinstance(val, Tensor):
+                torch_data[key] = val.to(device=device)
             else:
-                torch_data[key] = None
+                torch_data[key] = val
+        return self.__class__(**torch_data)
 
     def reduce(self, merge_func: Callable):
         torch_data = {}
@@ -75,8 +76,16 @@ class TensorBatch:
 
 
 @dataclass
-class InferredBatch(TensorBatch):
+class DataBatch(TensorBatch):
+    image: Optional[Tensor] = None
     fft_magnitude: Optional[Tensor] = None
+    label: Optional[Tensor] = None
+    is_paired: bool = True
+
+
+@dataclass
+class InferredBatch(TensorBatch):
+    # fft_magnitude: Optional[Tensor] = None
     img_recon: Optional[Tensor] = None
     img_recon_ref: Optional[Tensor] = None
     fft_magnitude_recon_ref: Optional[Tensor] = None
@@ -96,7 +105,7 @@ class DiscriminatorBatch(TensorBatch):
 class Losses(TensorBatch):
     def __str__(self) -> str:
         losses_batch_str = [f'{metric_name}: {val_losses.mean().detach().cpu().numpy(): .4f}'
-                            for metric_name, val_losses in self.__dict__.items() if val_losses]
+                            for metric_name, val_losses in self.__dict__.items() if val_losses is not None]
         losses_batch_str = ' '.join(losses_batch_str)
         return losses_batch_str
 
@@ -117,7 +126,9 @@ class LossesPRImages(Losses):
 @dataclass
 class LossesPRFeatures(Losses):
     l2_img: Optional[Tensor] = None
+    l2_img_np: Optional[Tensor] = None
     l2_ref_img: Optional[Tensor] = None
+    l2_ref_img_np: Optional[Tensor] = None
     l2_features: Optional[Tensor] = None
     l2_magnitude: Optional[Tensor] = None
     l2_ref_magnitude: Optional[Tensor] = None
@@ -134,6 +145,14 @@ class LossesPRFeatures(Losses):
     perceptual_disrim_ref_img: Optional[Tensor] = None
     perceptual_disrim_features: Optional[Tensor] = None
     lr:  Optional[Tensor] = None
+    mean_img: Optional[Tensor] = None
+    std_img: Optional[Tensor] = None
+    max_img: Optional[Tensor] = None
+    min_img: Optional[Tensor] = None
+    mean_img_ref: Optional[Tensor] = None
+    std_img_ref: Optional[Tensor] = None
+    max_img_ref: Optional[Tensor] = None
+    min_img_ref: Optional[Tensor] = None
     total: Optional[Tensor] = None
 
 

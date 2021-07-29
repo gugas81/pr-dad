@@ -15,14 +15,16 @@ class Discriminator(nn.Module):
                  n_fc_layers: Optional[List[int]] = None,
                  deep_conv_net: int = 2,
                  reduce_validity: bool = False,
-                 use_res_blocks: bool = False):
+                 use_res_blocks: bool = False,
+                 active_type: str = 'leakly_relu'):
         super(Discriminator, self).__init__()
         self.n_fc_layers = [512, 256, 1] if n_fc_layers is None else n_fc_layers
         self.in_conv_ch = in_conv_ch
         if self.in_conv_ch is not None:
             last_down = True
             self.conv_encoder = EncoderConv(in_ch=input_ch, encoder_ch=self.in_conv_ch, last_down=last_down,
-                                            deep=deep_conv_net, use_res_blocks=use_res_blocks)
+                                            deep=deep_conv_net, use_res_blocks=use_res_blocks, down_pool='max_pool',
+                                            active_type=active_type)
             scale_factor = (2 ** (self.conv_encoder.deep-1)) if last_down else (2 ** (self.conv_encoder.deep-2))
             enc_size = img_size // scale_factor
             out_conv_ch = self.conv_encoder.out_ch[-1]

@@ -20,3 +20,23 @@ def get_norm_layer(input_norm_type: str, input_ch: int, img_size: Optional[int] 
     else:
         raise NameError(f'Non valid type: {input_norm_type}')
     return norm_layer
+
+
+def get_activation(name: str) -> nn.Module:
+    name = name.lower()
+    if name == 'relu':
+        return nn.ReLU(inplace=True)
+    elif name == 'leakly_relu':
+        return nn.LeakyReLU(inplace=True)
+    else:
+        raise NameError(f'Non valid activation type: {name}')
+
+
+def get_pool_2x2(name: str) -> nn.Module:
+    name = name.lower()
+    if name == 'avrg_pool':
+        return nn.AvgPool2d(kernel_size=2, stride=2)
+    elif name == 'max_pool':
+        return nn.MaxPool2d(kernel_size=2, stride=2)
+    else:
+        raise NameError(f'Non valid activation type: {name}')
