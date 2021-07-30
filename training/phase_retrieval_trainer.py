@@ -35,14 +35,13 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
 
         self.adv_loss = nn.MSELoss()
         self.l2_loss = nn.MSELoss()
-        self.features_sigmoid_active = True
         self.n_epochs_ae = config.n_epochs_ae
         self.n_encoder_ch = config.n_features // 4
         self.ae_net = AeConv(n_encoder_ch=self.n_encoder_ch, img_size=self.img_size, deep=self.config.deep_ae,
-                             active_type='leakly_relu',
-                             up_mode='bilinear',
-                             down_pool='avrg_pool',
-                             features_sigmoid_active=self.features_sigmoid_active)
+                             active_type=self.config.activation,
+                             up_mode=self.config.up_sampling,
+                             down_pool=self.config.down_pooling,
+                             features_sigmoid_active=self.config.features_sigmoid_active)
 
         if self.config.predict_out == 'features':
             predict_out_ch = self.ae_net.n_features_ch
@@ -66,8 +65,8 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                                        predict_type=self.config.predict_type,
                                                        im_img_size=self.img_size,
                                                        conv_type=self.config.predict_conv_type,
-                                                       active_type='leakly_relu',
-                                                       features_sigmoid_active=self.features_sigmoid_active)
+                                                       active_type=self.config.activation,
+                                                       features_sigmoid_active=self.config.features_sigmoid_active)
 
         if self.config.use_gan:
             if self.config.predict_out == 'features':
@@ -80,7 +79,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                                             deep_conv_net=1,
                                                             reduce_validity=True,
                                                             use_res_blocks=False,
-                                                            active_type='leakly_relu')
+                                                            active_type=self.config.activation)
             else:
                 self.features_discriminator = None
 
@@ -91,7 +90,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                                    n_fc_layers=self.config.disrim_fc_layers,
                                                    deep_conv_net=3,
                                                    reduce_validity=True,
-                                                   active_type='leakly_relu')
+                                                   active_type=self.config.activation)
         else:
             self.img_discriminator = None
             self.features_discriminator = None
@@ -101,10 +100,10 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                      deep=self.config.deep_ae,
                                      in_ch_features=self.ae_net.n_features_ch,
                                      skip_input=self.config.ref_net_skip_input,
-                                     active_type='leakly_relu',
-                                     up_mode='bilinear',
-                                     down_pool='avrg_pool',
-                                     features_sigmoid_active=self.features_sigmoid_active)
+                                     active_type=self.config.activation,
+                                     up_mode=self.config.up_sampling,
+                                     down_pool=self.config.down_pooling,
+                                     features_sigmoid_active=self.config.features_sigmoid_active)
             self.ref_unet.train()
             self.ref_unet.to(device=self.device)
         else:
@@ -544,7 +543,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                            self.config.clip_discriminator_grad)
         self.optimizer_discr.step()
 
-    def _train_step_generator(self, data_batch: Tensor,
+    def _train_step_generator(self, data_batch: DataBatch,
                               use_adv_loss: bool = False) -> (InferredBatch, LossesPRFeatures):
         self.optimizer_en.zero_grad()
         inferred_batch = self.forward_magnitude_encoder(data_batch)
@@ -580,9 +579,11 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                         inferred_batch: InferredBatch,
                         use_adv_loss: bool = False) -> LossesPRFeatures:
 
-        fft_magnitude_recon = self.forward_magnitude_fft(inferred_batch.img_recon)
-        l2_img_recon_loss = self.l2_loss(data_batch.image, inferred_batch.img_recon)
+        is_paired = data_batch.is_paired
 
+        fft_magnitude_recon = self.forward_magnitude_fft(inferred_batch.img_recon)
+        total_loss = torch.zeros(1, device=self.device)[0]
+        l2_img_recon_loss = self.l2_loss(data_batch.image, inferred_batch.img_recon)
         if self.config.predict_out == 'features':
             l2_features_loss = self.l2_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
             l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
@@ -605,7 +606,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                  device=self.device,
                                  dtype=data_batch.fft_magnitude.dtype)
 
-        total_loss = self.config.lambda_img_recon_loss * l2_img_recon_loss
+        total_loss += self.config.lambda_img_recon_loss * l2_img_recon_loss
         if use_adv_loss:
             gen_img_discrim_batch: DiscriminatorBatch = self.img_discriminator(inferred_batch.img_recon)
             img_adv_loss = self.adv_loss(gen_img_discrim_batch.validity, real_labels)
@@ -675,6 +676,16 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                   perceptual_disrim_features=p_loss_discrim_f,
                                   perceptual_disrim_img=p_loss_discrim_img,
                                   perceptual_disrim_ref_img=p_loss_discrim_ref_img)
+
+        losses.mean_img = inferred_batch.img_recon.mean()
+        losses.std_img = inferred_batch.img_recon.std()
+        losses.min_img = inferred_batch.img_recon.min()
+        losses.max_img = inferred_batch.img_recon.max()
+        if self.config.use_ref_net:
+            losses.mean_img_ref = inferred_batch.img_recon_ref.mean()
+            losses.std_img_ref = inferred_batch.img_recon_ref.std()
+            losses.min_img_ref = inferred_batch.img_recon_ref.min()
+            losses.max_img_ref = inferred_batch.img_recon_ref.max()
 
         return losses
 

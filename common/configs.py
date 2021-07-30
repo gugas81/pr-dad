@@ -180,3 +180,8 @@ class ConfigTrainer(ConfigBase):
     part_supervised_pairs: float = 1.0
     ref_net_skip_input: bool = False
     weights_plos: List[float] = field(default_factory=lambda:  [1.0, 0.0])
+    features_sigmoid_active: bool = False
+    down_pooling: str = 'avrg_pool'  # avrg_pool max_pool
+    activation: str = 'leakly_relu' # relu leakly_relu
+    up_sampling: str = 'bilinear' # 'bilinear' 'nearest'
+
