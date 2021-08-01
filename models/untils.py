@@ -27,7 +27,7 @@ def get_activation(name: str) -> nn.Module:
     if name == 'relu':
         return nn.ReLU(inplace=True)
     elif name == 'leakly_relu':
-        return nn.LeakyReLU(inplace=True)
+        return nn.LeakyReLU(negative_slope=0.2, inplace=True)
     else:
         raise NameError(f'Non valid activation type: {name}')
 

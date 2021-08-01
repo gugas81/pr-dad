@@ -181,7 +181,11 @@ class ConfigTrainer(ConfigBase):
     ref_net_skip_input: bool = False
     weights_plos: List[float] = field(default_factory=lambda:  [1.0, 0.0])
     features_sigmoid_active: bool = False
-    down_pooling: str = 'avrg_pool'  # avrg_pool max_pool
-    activation: str = 'leakly_relu' # relu leakly_relu
+    down_pooling_ae: str = 'avrg_pool'  # avrg_pool max_pool
+    down_pooling_refnet: str = 'avrg_pool'  # avrg_pool max_pool
+    activation_ae: str = 'leakly_relu' # relu leakly_relu
+    activation_refnet: str = 'leakly_relu'  # relu leakly_relu
+    activation_enc: str = 'leakly_relu'  # relu leakly_relu
+    activation_discrim: str = 'leakly_relu'  # relu leakly_relu
     up_sampling: str = 'bilinear' # 'bilinear' 'nearest'
 

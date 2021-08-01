@@ -38,9 +38,9 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         self.n_epochs_ae = config.n_epochs_ae
         self.n_encoder_ch = config.n_features // 4
         self.ae_net = AeConv(n_encoder_ch=self.n_encoder_ch, img_size=self.img_size, deep=self.config.deep_ae,
-                             active_type=self.config.activation,
+                             active_type=self.config.activation_ae,
                              up_mode=self.config.up_sampling,
-                             down_pool=self.config.down_pooling,
+                             down_pool=self.config.down_pooling_ae,
                              features_sigmoid_active=self.config.features_sigmoid_active)
 
         if self.config.predict_out == 'features':
@@ -65,7 +65,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                                        predict_type=self.config.predict_type,
                                                        im_img_size=self.img_size,
                                                        conv_type=self.config.predict_conv_type,
-                                                       active_type=self.config.activation,
+                                                       active_type=self.config.activation_enc,
                                                        features_sigmoid_active=self.config.features_sigmoid_active)
 
         if self.config.use_gan:
@@ -79,7 +79,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                                             deep_conv_net=1,
                                                             reduce_validity=True,
                                                             use_res_blocks=False,
-                                                            active_type=self.config.activation)
+                                                            active_type=self.config.activation_discrim)
             else:
                 self.features_discriminator = None
 
@@ -90,7 +90,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                                    n_fc_layers=self.config.disrim_fc_layers,
                                                    deep_conv_net=3,
                                                    reduce_validity=True,
-                                                   active_type=self.config.activation)
+                                                   active_type=self.config.activation_discrim)
         else:
             self.img_discriminator = None
             self.features_discriminator = None
@@ -100,9 +100,9 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                      deep=self.config.deep_ae,
                                      in_ch_features=self.ae_net.n_features_ch,
                                      skip_input=self.config.ref_net_skip_input,
-                                     active_type=self.config.activation,
+                                     active_type=self.config.activation_refnet,
                                      up_mode=self.config.up_sampling,
-                                     down_pool=self.config.down_pooling,
+                                     down_pool=self.config.down_pooling_refnet,
                                      features_sigmoid_active=self.config.features_sigmoid_active)
             self.ref_unet.train()
             self.ref_unet.to(device=self.device)
