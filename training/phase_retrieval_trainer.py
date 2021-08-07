@@ -11,9 +11,8 @@ from tqdm import tqdm
 from models import PhaseRetrievalPredictor,  Discriminator, AeConv, UNetConv
 from torch.optim.lr_scheduler import MultiStepLR
 from dataclasses import dataclass
-import itertools
 from common import LossesPRFeatures, InferredBatch, ConfigTrainer, l2_grad_norm,  LossesGradNorms,  DiscriminatorBatch
-from common import im_concatenate, S3FileSystem, l2_perceptual_loss, PATHS, DataBatch
+from common import im_concatenate, l2_perceptual_loss, PATHS, DataBatch, S3FileSystem
 
 from training.base_phase_retrieval_trainer import TrainerPhaseRetrieval
 
@@ -166,8 +165,8 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                    ((self.config.load_modules[0] == 'all') or (name in self.config.load_modules))
 
         if self.config.path_pretrained is not None:
-            if S3FileSystem.is_s3_url(self.config.path_pretrained):
-                loaded_sate = S3FileSystem().load_object(self.config.path_pretrained, torch.load)
+            if self._s3.is_s3_url(self.config.path_pretrained):
+                loaded_sate = self._s3.load_object(self.config.path_pretrained, torch.load)
             else:
                 assert os.path.isfile(self.config.path_pretrained)
                 loaded_sate = torch.load(self.config.path_pretrained)
@@ -349,7 +348,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         return tr_losses, ts_losses
 
     def _save_gan_models(self, step: int) -> None:
-        if self.save_path is not None:
+        if self.models_path is not None:
             save_state = {'ae_model': self.ae_net.state_dict(),
                           'magnitude_encoder': self.phase_predictor.state_dict(),
                           'opt_magnitude_encoder': self.optimizer_en.state_dict()}
@@ -362,7 +361,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                 save_state['opt_ae'] = self.optimizer_ae.state_dict()
             if self.config.use_ref_net:
                 save_state[self.ModulesNames.ref_net] = self.ref_unet.state_dict()
-            torch.save(save_state, os.path.join(self.save_path, f'phase-retrieval-gan-model.pt'))
+            torch.save(save_state, os.path.join(self.models_path, f'phase-retrieval-gan-model.pt'))
 
     def train_epoch_ae(self, epoch: int = 0) -> LossesPRFeatures:
         train_losses = []
@@ -385,6 +384,10 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                f'[{batch_idx * len(data_batch)}/{len(self.train_paired_loader)} '
                                 f'({100. * batch_idx / len(self.train_paired_loader):.0f}%)], ae_losses: {ae_losses}')
                 self._add_losses_tensorboard('ae/train', ae_losses, self._global_step)
+
+            if batch_idx % self.config.log_image_interval == 0:
+                with torch.no_grad():
+                    self._log_ae_train_dbg_images(self._global_step)
 
             self._global_step += 1
 
@@ -732,15 +735,16 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
 
             self._lr_scheduler_ae.step()
             self._add_losses_tensorboard('ae/test', ts_losses_epoch, self._global_step)
-            self._log.info(f' AE training: Epoch {epoch}, l2_recon_err_tr: {tr_losses_epoch}, '
+            self._log.info(f'AE training: Epoch {epoch}, '
+                           f'l2_recon_err_tr: {tr_losses_epoch}, '
                             f'l2_recon_err_ts: {ts_losses_epoch}')
             with torch.no_grad():
-                self._log_ae_train_dbg_images(epoch)
+                self._log_ae_train_dbg_images(self._global_step)
 
-                if self.save_path is not None:
+                if self.models_path is not None:
                     ae_state = {'ae_model': self.ae_net.state_dict(),
                                 'opt_ae': self.optimizer_ae.state_dict()}
-                    torch.save(ae_state, os.path.join(self.save_path, f'ae_model.pt'))
+                    torch.save(ae_state, os.path.join(self.models_path, f'ae_model.pt'))
             tr_losses.append(tr_losses_epoch)
             ts_losses.append(ts_losses_epoch)
         tr_losses = LossesPRFeatures.merge(tr_losses)
@@ -806,6 +810,7 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
     config = config.update(**kwargs)
 
     trainer = TrainerPhaseRetrievalAeFeatures(config=config, experiment_name=experiment_name)
+    task_s3_path = trainer.get_task_s3_path()
 
     if train_model:
         train_en_losses, test_en_losses, test_ae_losses = trainer.train()
@@ -821,6 +826,7 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
                                                            lr_milestones=[250, 5000, 750],
                                                            lr_reduce_rate=0.5,
                                                            name=str(num_img_fit))
+    return task_s3_path
 
 
 if __name__ == '__main__':

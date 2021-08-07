@@ -4,18 +4,14 @@ import os
 import clearml
 import tensorboardX
 import torch
-import torchvision
 from functools import partial
 from datetime import datetime
 from torch import Tensor
-from torchvision.transforms import InterpolationMode
-from torchvision import transforms
-from torch.utils.data.dataloader import DataLoader
 from torch.nn import functional as F
 from training.dataset import create_data_loaders
 import logging
-from common import TensorBatch, ConfigTrainer, set_seed, Losses, DataBatch
-from common import im_concatenate, square_grid_im_concat, PATHS
+from common import TensorBatch, ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
+from common import im_concatenate, square_grid_im_concat, PATHS, im_save
 from typing import Optional, Any, Dict
 
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +28,7 @@ class TrainerPhaseRetrieval:
         self._create_log_dir(experiment_name)
         self._create_loggers()
         self._init_trains(experiment_name)
+        self._s3 = S3FileSystem()
 
         self.device = 'cuda' if torch.cuda.is_available() and self.config.cuda else 'cpu'
         self.seed = self.config.seed
@@ -84,7 +81,8 @@ class TrainerPhaseRetrieval:
                                 paired_part=self.config.part_supervised_pairs,
                                 fft_norm=self._fft_norm,
                                 seed=self.seed,
-                                log=self._log)
+                                log=self._log,
+                                s3=self._s3)
 
     def prepare_data_batch(self, item_data: Dict[str, Any]) -> DataBatch:
         is_paired = item_data['paired'].cpu().numpy().all()
@@ -152,7 +150,7 @@ class TrainerPhaseRetrieval:
 
     def _log_images(self, image_batch: Tensor, step: int, tag_name: str, num_images: Optional[int] = None,
                     image_size: Optional[int] = None, grid_ch: bool = False) -> None:
-        add_images = partial(self._tensorboard.add_images, global_step=step, dataformats='HWC')
+        add_images_to_tensorboard = partial(self._tensorboard.add_images, global_step=step, dataformats='HWC')
 
         if isinstance(image_batch, Tensor):
             image_batch_np = self.prepare_dbg_batch(image_batch,
@@ -161,7 +159,11 @@ class TrainerPhaseRetrieval:
                                                     grid_ch=grid_ch)
         else:
             image_batch_np = image_batch
-        add_images(tag_name, image_batch_np)
+        add_images_to_tensorboard(tag_name, image_batch_np)
+        task_s3_path = self.get_task_s3_path()
+        if task_s3_path:
+            s3_img_path = os.path.join(task_s3_path, 'images', tag_name, f'{step}.png')
+            self._s3.save_object(url=s3_img_path, saver=im_save, obj=image_batch_np)
 
     def __del__(self):
         if self._task is not None:
@@ -176,8 +178,8 @@ class TrainerPhaseRetrieval:
                                      self.config.dataset_name,
                                      log_dir_name)
         os.makedirs(self._log_dir, exist_ok=True)
-        self.save_path = os.path.join(self._log_dir, 'models')
-        os.makedirs(self.save_path, exist_ok=True)
+        self.models_path = os.path.join(self._log_dir, 'models')
+        os.makedirs(self.models_path, exist_ok=True)
         self.config.to_yaml(os.path.join(self._log_dir, 'config_params.yaml'))
         self.config.to_json(os.path.join(self._log_dir, 'config_params.json'))
 
@@ -185,4 +187,14 @@ class TrainerPhaseRetrieval:
         for metric_name, value in losses.__dict__.items():
             if value is not None:
                 self._tensorboard.add_scalar(f"{metric_name}/{tag}", value.mean(), step)
+
+    def get_task_name_id(self) -> str:
+        return f'{self._task.name}.{self._task.task_id}'
+
+    def get_task_s3_path(self) -> Optional[str]:
+        path_task = os.path.join(self._task.logger.get_default_upload_destination(),
+                                 self._task.get_project_name(),
+                                 self.get_task_name_id())
+        path_task = path_task if self._s3.exists(path_task) else None
+        return path_task
 

@@ -91,7 +91,7 @@ class UpConvBlock(nn.Module):
         # Default: ``'nearest'``
         super(UpConvBlock, self).__init__()
         self.up = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode=up_mode),
+            nn.Upsample(scale_factor=2, mode=up_mode, align_corners=True),
             nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(ch_out),
             get_activation(active_type)

@@ -1,22 +1,23 @@
-import numpy as np
+import logging
 import os
+from functools import partial
+from typing import Union, Tuple, Dict, Any, Optional
 import fire
+import numpy as np
 import torch
 import torchvision
-from functools import partial
 from torch import Tensor
-from torchvision.transforms import InterpolationMode
-from torchvision import transforms
 from torch.utils.data.dataloader import DataLoader
-import logging
-from common import PATHS
-from typing import Optional, Union, Tuple, Dict, Any
 from torch.utils.data.dataset import Dataset
+from torchvision import transforms
+from torchvision.transforms import InterpolationMode
+
+from common import PATHS, S3FileSystem
 
 
 class PhaseRetrievalDataset(Dataset):
     def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool,
-                 paired_part: float, fft_norm: str, log: logging.Logger, seed:  int):
+                 paired_part: float, fft_norm: str, log: logging.Logger, seed: int, s3: Optional[S3FileSystem] = None):
         np.random.seed(seed=seed)
 
         self._ds_name = ds_name
@@ -26,6 +27,7 @@ class PhaseRetrievalDataset(Dataset):
         self._is_train = train
         self._use_aug = use_aug
         self._log = log
+        self._s3 = S3FileSystem() if s3 is None else s3
 
         data_transforms = [transforms.Resize((self.img_size, self.img_size))]
 
@@ -37,12 +39,24 @@ class PhaseRetrievalDataset(Dataset):
         elif ds_name == 'fashion-mnist':
             ds_type = torchvision.datasets.FashionMNIST
         elif ds_name == 'celeba':
-            ds_type = torchvision.datasets.CelebA
+            ds_type = lambda root, train, download, transform:  torchvision.datasets.CelebA(root=root,
+                                                                                            split='train' if self._is_train else 'test',
+                                                                                            download=download,
+                                                                                            transform=transform)
+            transform_celeba = transforms.Compose([
+                                               transforms.Resize(self.img_size),
+                                               transforms.CenterCrop(self.img_size),
+
+                                               transforms.ToTensor(),
+                                               transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5),),
+                                               transforms.Grayscale(num_output_channels=1),
+                                           ])
+
             data_transforms.append(transforms.Grayscale(num_output_channels=1))
         else:
             raise NameError(f'Not valid ds type {ds_name}')
 
-        if self._use_aug :
+        if self._use_aug:
             data_transforms_aoug = [transforms.RandomRotation(90.0, interpolation=InterpolationMode.BILINEAR),
                                     transforms.RandomHorizontalFlip(),
                                     transforms.RandomVerticalFlip()]
@@ -51,11 +65,18 @@ class PhaseRetrievalDataset(Dataset):
         data_transforms = transforms.Compose(data_transforms)
         ds_path = os.path.join(PATHS.DATASETS, ds_name)
 
+        if ds_name == 'celeba':
+            s3_ds_path = os.path.join(PATHS.DATASETS_S3, ds_name)
+            if not os.path.exists(os.path(ds_path, ds_name)):
+                self._log.debug(f'ds {ds_name} not exist in local path: {ds_path}, download from {s3_ds_path}')
+                s3.download(rpath=s3_ds_path, lpath=ds_path, recursive=True)
+            data_transforms = transform_celeba
+
         self.image_dataset = ds_type(root=ds_path,
-                                           train=self._is_train,
-                                           download=True,
-                                           transform=data_transforms)
-        self.len_ds = len( self.image_dataset )
+                                     train=self._is_train,
+                                     download=True,
+                                     transform=data_transforms)
+        self.len_ds = len(self.image_dataset)
         if paired_part < 1.0:
             paired_len = int(paired_part * self.len_ds)
             inds = np.random.permutation(self.len_ds)
@@ -64,10 +85,6 @@ class PhaseRetrievalDataset(Dataset):
         else:
             self.paired_ind = list(range(self.len_ds))
             self.unpaired_paired_ind = []
-        #
-        # self.paired_ds, self.unpaired_ds = torch.utils.data.random_split(image_dataset, [paired_len, unpaired_len])
-
-        # torch.utils.data.random_split()
 
     def __len__(self):
         return self.len_ds
@@ -95,13 +112,15 @@ class PhaseRetrievalDataset(Dataset):
         return fft_magnitude
 
 
-def create_data_loaders(ds_name: str, img_size: int, use_aug: bool, batch_size_train: int, batch_size_test: int, seed: int,
-                         n_dataloader_workers: int, paired_part: float, fft_norm: str, log: logging.Logger):
+def create_data_loaders(ds_name: str, img_size: int, use_aug: bool, batch_size_train: int, batch_size_test: int,
+                        seed: int,
+                        n_dataloader_workers: int, paired_part: float, fft_norm: str, log: logging.Logger,
+                        s3: Optional[S3FileSystem] = None):
     train_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=True, use_aug=use_aug,
-                                          paired_part=paired_part, fft_norm=fft_norm, log=log, seed=seed)
+                                          paired_part=paired_part, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
 
     test_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=False, use_aug=use_aug,
-                                          paired_part=1.0, fft_norm=fft_norm, log=log, seed=seed)
+                                         paired_part=1.0, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
 
     paired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.paired_ind)
     unpaired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.unpaired_paired_ind)
@@ -111,8 +130,8 @@ def create_data_loaders(ds_name: str, img_size: int, use_aug: bool, batch_size_t
                                      sampler=paired_tr_sampler)
 
     train_unpaired_loader = DataLoader(train_dataset, batch_size=batch_size_train,
-                                     worker_init_fn=np.random.seed(seed), num_workers=n_dataloader_workers,
-                                     sampler=unpaired_tr_sampler)
+                                       worker_init_fn=np.random.seed(seed), num_workers=n_dataloader_workers,
+                                       sampler=unpaired_tr_sampler)
 
     test_loader = DataLoader(test_dataset, batch_size=batch_size_test, shuffle=False,
                              worker_init_fn=np.random.seed(seed),
@@ -125,16 +144,16 @@ def example_mnist_upiared():
     logging.basicConfig(level=logging.DEBUG)
     log = logging.getLogger('exmaple_mnist_upiared')
     train_paired_loader, train_unpaired_loader, test_loader = create_data_loaders(ds_name='mnist',
-                                                                                 img_size=32,
-                                                                                 use_aug=False,
-                                                                                 batch_size_train = 128,
-                                                                                 batch_size_test= 256,
-                                                                                 n_dataloader_workers = 0,
-                                                                                 paired_part=1.0,
-                                                                                 fft_norm='ortho',
-                                                                                 seed=1,
-                                                                                 log=log)
-    from itertools import chain, permutations, islice, zip_longest
+                                                                                  img_size=32,
+                                                                                  use_aug=False,
+                                                                                  batch_size_train=128,
+                                                                                  batch_size_test=256,
+                                                                                  n_dataloader_workers=0,
+                                                                                  paired_part=1.0,
+                                                                                  fft_norm='ortho',
+                                                                                  seed=1,
+                                                                                  log=log)
+    from itertools import chain, islice
 
     def shuffle(generator, buffer_size):
         while True:
@@ -152,4 +171,4 @@ def example_mnist_upiared():
 
 
 if __name__ == '__main__':
-    fire.Fire(example_mnist_upiared)
+    fire.Fire()
