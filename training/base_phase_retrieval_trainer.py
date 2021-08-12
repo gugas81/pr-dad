@@ -7,6 +7,7 @@ import torch
 from functools import partial
 from datetime import datetime
 from torch import Tensor
+import torchvision
 from torch.nn import functional as F
 from training.dataset import create_data_loaders
 import logging
@@ -25,10 +26,10 @@ class TrainerPhaseRetrieval:
         self._global_step = 0
         self._log = logging.getLogger(self.__class__.__name__)
         self._log.setLevel(logging.DEBUG)
+        self._s3 = S3FileSystem()
         self._create_log_dir(experiment_name)
         self._create_loggers()
         self._init_trains(experiment_name)
-        self._s3 = S3FileSystem()
 
         self.device = 'cuda' if torch.cuda.is_available() and self.config.cuda else 'cpu'
         self.seed = self.config.seed
@@ -164,6 +165,10 @@ class TrainerPhaseRetrieval:
         if task_s3_path:
             s3_img_path = os.path.join(task_s3_path, 'images', tag_name, f'{step}.png')
             self._s3.save_object(url=s3_img_path, saver=im_save, obj=image_batch_np)
+            if isinstance(image_batch, Tensor):
+                s3_img_tensors_path = os.path.join(task_s3_path, 'images-tensors', tag_name, f'{step}.png')
+                self._s3.save_object(url=s3_img_tensors_path,
+                                     saver=lambda path_: torchvision.utils.save_image(image_batch, path_))
 
     def __del__(self):
         if self._task is not None:

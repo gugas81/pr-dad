@@ -85,7 +85,6 @@ class DataBatch(TensorBatch):
 
 @dataclass
 class InferredBatch(TensorBatch):
-    # fft_magnitude: Optional[Tensor] = None
     img_recon: Optional[Tensor] = None
     img_recon_ref: Optional[Tensor] = None
     fft_magnitude_recon_ref: Optional[Tensor] = None
@@ -149,6 +148,12 @@ class LossesPRFeatures(Losses):
     std_img: Optional[Tensor] = None
     max_img: Optional[Tensor] = None
     min_img: Optional[Tensor] = None
+
+    mean_features: Optional[Tensor] = None
+    std_features: Optional[Tensor] = None
+    max_features: Optional[Tensor] = None
+    min_features: Optional[Tensor] = None
+
     mean_img_ref: Optional[Tensor] = None
     std_img_ref: Optional[Tensor] = None
     max_img_ref: Optional[Tensor] = None

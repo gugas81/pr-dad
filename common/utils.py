@@ -4,6 +4,7 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 from typing import List
+import torchvision
 
 
 def set_seed(seed: int):
@@ -29,4 +30,21 @@ def l2_perceptual_loss(x: List[Tensor], y: List[Tensor], weights: List[float]) -
         loss_out += w * F.mse_loss(x_layer, y_layer)
 
     return loss_out
+
+
+class NormalizeInverse(torchvision.transforms.Normalize):
+    """
+    Undoes the normalization and returns the reconstructed images in the input domain.
+    """
+
+    def __init__(self, mean, std):
+        mean = torch.as_tensor(mean)
+        std = torch.as_tensor(std)
+        std_inv = 1 / (std + 1e-7)
+        mean_inv = -mean * std_inv
+        super().__init__(mean=mean_inv, std=std_inv)
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        return super().__call__(tensor.clone())
+
 

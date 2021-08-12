@@ -10,9 +10,10 @@ from typing import Optional, List
 from tqdm import tqdm
 from models import PhaseRetrievalPredictor,  Discriminator, AeConv, UNetConv
 from torch.optim.lr_scheduler import MultiStepLR
+import torchvision
 from dataclasses import dataclass
 from common import LossesPRFeatures, InferredBatch, ConfigTrainer, l2_grad_norm,  LossesGradNorms,  DiscriminatorBatch
-from common import im_concatenate, l2_perceptual_loss, PATHS, DataBatch, S3FileSystem
+from common import im_concatenate, l2_perceptual_loss, PATHS, DataBatch, S3FileSystem, NormalizeInverse
 
 from training.base_phase_retrieval_trainer import TrainerPhaseRetrieval
 
@@ -571,10 +572,7 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                   l2_magnitude=l2_magnitude_loss,
                                   l1_sparsity_features=l1_sparsity_features)
 
-        losses.mean_img = inferred_batch.img_recon.mean()
-        losses.std_img = inferred_batch.img_recon.std()
-        losses.min_img = inferred_batch.img_recon.min()
-        losses.max_img = inferred_batch.img_recon.max()
+        self._recon_statistics_metrics(inferred_batch, losses)
 
         return losses
 
@@ -680,10 +678,8 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
                                   perceptual_disrim_img=p_loss_discrim_img,
                                   perceptual_disrim_ref_img=p_loss_discrim_ref_img)
 
-        losses.mean_img = inferred_batch.img_recon.mean()
-        losses.std_img = inferred_batch.img_recon.std()
-        losses.min_img = inferred_batch.img_recon.min()
-        losses.max_img = inferred_batch.img_recon.max()
+        self._recon_statistics_metrics(inferred_batch, losses)
+
         if self.config.use_ref_net:
             losses.mean_img_ref = inferred_batch.img_recon_ref.mean()
             losses.std_img_ref = inferred_batch.img_recon_ref.std()
@@ -691,6 +687,17 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
             losses.max_img_ref = inferred_batch.img_recon_ref.max()
 
         return losses
+
+    @staticmethod
+    def _recon_statistics_metrics(inferred_batch: InferredBatch, losses: LossesPRFeatures):
+        losses.mean_img = inferred_batch.img_recon.mean()
+        losses.std_img = inferred_batch.img_recon.std()
+        losses.min_img = inferred_batch.img_recon.min()
+        losses.max_img = inferred_batch.img_recon.max()
+        losses.mean_features = inferred_batch.feature_recon.mean()
+        losses.std_features = inferred_batch.feature_recon.std()
+        losses.min_features = inferred_batch.feature_recon.min()
+        losses.max_features = inferred_batch.feature_recon.max()
 
     def test_eval_ae(self) -> LossesPRFeatures:
         ae_losses = []
@@ -751,22 +758,81 @@ class TrainerPhaseRetrievalAeFeatures(TrainerPhaseRetrieval):
         ts_losses = LossesPRFeatures.merge(ts_losses)
         return tr_losses, ts_losses
 
+    def grid_images(slef, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
+        img_grid = [NormalizeInverse(0.5, 0.5)(data_batch.image)]
+        if inferred_batch.decoded_img is not None:
+            img_grid.append(NormalizeInverse(0.5, 0.5)(data_batch.image))
+        if inferred_batch.img_recon is not None:
+            img_grid.append(NormalizeInverse(0.5, 0.5)(data_batch.img_recon))
+        if inferred_batch.img_recon_ref is not None:
+            img_grid.append(NormalizeInverse(0.5, 0.5)(data_batch.img_recon_ref))
+
+        img_grid = torch.cat(img_grid, dim=-2)
+        img_grid = torchvision.utils.make_grid(img_grid, normalize=True)
+        return img_grid
+
     def _log_ae_train_dbg_images(self, step: Optional[int] = None) -> None:
+
+        def grid_features(inferred_batch: InferredBatch) -> Tensor:
+            features_batch = inferred_batch.feature_recon[:self.config.dbg_features_batch]
+            n_sqrt = int(np.sqrt(features_batch.shape[1]))
+            features_grid = [torchvision.utils.make_grid(torch.unsqueeze(features, 1),
+                                                         normalize=True, nrow=n_sqrt)[None]
+                             for features in features_batch]
+            features_grid = torchvision.utils.make_grid(torch.cat(features_grid))
+            return features_grid
+
+        def log_image(image_grid, tag_name):
+            s3_tensors_path = os.path.join(self.get_task_s3_path(), 'images-tensors', tag_name, f'{step}.png')
+            # add_images_to_tensorboard = partial(self._tensorboard.add_images, global_step=step, dataformats='CHW')
+            # add_images_to_tensorboard(tag_name, image_grid)
+
+            self._tensorboard.add_images(tag=tag_name, img_tensor=image_grid, global_step=step, dataformats='CHW')
+            self._s3.save_object(url=s3_tensors_path,
+                                 saver=lambda path_: torchvision.utils.save_image(image_grid, path_))
+
+
         if not step:
             step = self._global_step
-        with torch.no_grad():
-            recon_data_tr_batch = self.forward_ae(self.data_tr_batch, eval_mode=False)
-            recon_data_ts_batch = self.forward_ae(self.data_ts_batch, eval_mode=False)
-            recon_tr_batch_dbg = self.get_dbg_batch(self.data_tr_batch, recon_data_tr_batch)
-            recon_ts_batch_dbg = self.get_dbg_batch(self.data_ts_batch, recon_data_ts_batch)
-            features_tr = self.prepare_dbg_batch(recon_data_tr_batch.feature_recon[:self.config.dbg_features_batch],
-                                                 grid_ch=True)
-            features_ts = self.prepare_dbg_batch(recon_data_ts_batch.feature_recon[:self.config.dbg_features_batch],
-                                                 grid_ch=True)
-            self._log_images(recon_tr_batch_dbg, tag_name='train-ae/recon', step=step)
-            self._log_images(recon_ts_batch_dbg, tag_name='test-ae/recon', step=step)
-            self._log_images(features_tr, tag_name='train-ae/features', step=step)
-            self._log_images(features_ts, tag_name='test-ae/features', step=step)
+
+        # with torch.no_grad():
+        recon_data_tr_batch = self.forward_ae(self.data_tr_batch, eval_mode=False)
+        recon_data_ts_batch = self.forward_ae(self.data_ts_batch, eval_mode=False)
+        # recon_tr_batch_dbg = self.get_dbg_batch(self.data_tr_batch, recon_data_tr_batch)
+        # recon_ts_batch_dbg = self.get_dbg_batch(self.data_ts_batch, recon_data_ts_batch)
+        # features_tr = self.prepare_dbg_batch(recon_data_tr_batch.feature_recon[:self.config.dbg_features_batch],
+        #                                      grid_ch=True)
+        # features_ts = self.prepare_dbg_batch(recon_data_ts_batch.feature_recon[:self.config.dbg_features_batch],
+        #                                      grid_ch=True)
+
+
+        img_grid_tr = self.grid_images(self.data_tr_batch, recon_data_tr_batch)
+        img_grid_ts = self.grid_images(self.data_ts_batch, recon_data_ts_batch)
+        features_grid_tr = grid_features(recon_data_tr_batch)
+        features_grid_ts = grid_features(recon_data_ts_batch)
+
+        torch.cuda.synchronize()
+        log_image(img_grid_tr, 'train-ae/recon')
+        log_image(img_grid_ts, 'test-ae/recon')
+        log_image(features_grid_tr, 'train-ae/features')
+        log_image(features_grid_ts, 'test-ae/features')
+
+
+
+            # img_grid_tr = torch.cat((self.data_tr_batch.image, recon_data_tr_batch.img_recon), dim=-1)
+            # img_grid_tr = torch.cat((NormalizeInverse(0.5, 0.5)(self.data_tr_batch.image),
+            #                          NormalizeInverse(0.5, 0.5)(recon_data_tr_batch.img_recon)), dim=-2)
+            # img_grid_tr = torchvision.utils.make_grid(img_grid_tr, normalize=True)
+            #
+            # features_grid_tr = [torchvision.utils.make_grid(torch.unsqueeze(features, 1),
+            #                                                 normalize=True)[None] for features in
+            #                     recon_data_tr_batch.feature_recon[:self.config.dbg_features_batch]]
+            # features_grid_tr = torchvision.utils.make_grid(torch.cat(features_grid_tr))
+
+            # self._log_images(recon_tr_batch_dbg, tag_name='train-ae/recon', step=step)
+            # self._log_images(recon_ts_batch_dbg, tag_name='test-ae/recon', step=step)
+            # self._log_images(features_tr, tag_name='train-ae/features', step=step)
+            # self._log_images(features_ts, tag_name='test-ae/features', step=step)
 
     def get_dbg_data(self, inferred_batch_tr: InferredBatch,
                      inferred_batch_ts: InferredBatch) -> (np.ndarray, np.ndarray):
@@ -797,6 +863,7 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
                             train_model: bool = True,
                             fit_batch: bool = False,
                             **kwargs):
+
 
     if config_path is None:
         config = ConfigTrainer()
