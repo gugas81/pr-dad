@@ -95,11 +95,6 @@ class BaseTrainerPhaseRetrieval:
                          label=item_data['label'].to(device=self.device),
                          is_paired=is_paired)
 
-    def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
-        fft_data_batch = torch.fft.fft2(data_batch, norm=self._fft_norm)
-        magnitude_batch = torch.abs(fft_data_batch)
-        return magnitude_batch
-
     def prepare_dbg_batch(self,
                           data_batch: Tensor,
                           num_images: Optional[int] = None,

@@ -265,7 +265,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         for ind_iter in tqdm(range(n_iter)):
             fit_optimizer.zero_grad()
             inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
-            fft_magnitude_recon = self.forward_magnitude_fft(inferred_batch.img_recon)
+            fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
 
             l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
             l2_realness_features = 0.5 * torch.mean(torch.square(inferred_batch.intermediate_features.imag.abs()))
@@ -381,7 +381,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         return inferred_batch, tr_losses
 
     def _ae_losses(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> LossesPRFeatures:
-        fft_magnitude_recon = self.forward_magnitude_fft(inferred_batch.img_recon)
+        fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
         l2_img_loss = self.l2_loss(data_batch.image, inferred_batch.img_recon)
         l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
         l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
@@ -403,7 +403,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         is_paired = data_batch.is_paired
 
-        fft_magnitude_recon = self.forward_magnitude_fft(inferred_batch.img_recon)
+        fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
         total_loss = torch.zeros(1, device=self.device)[0]
         l2_img_recon_loss = self.l2_loss(data_batch.image, inferred_batch.img_recon)
         if self.config.predict_out == 'features':
