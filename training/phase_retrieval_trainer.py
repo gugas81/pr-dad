@@ -100,41 +100,6 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         self.load_models()
 
-    def load_models(self):
-        def is_load_module(name: str, sate_dist):
-            return (name in sate_dist) and \
-                   ((self.config.load_modules[0] == 'all') or (name in self.config.load_modules))
-
-        if self.config.path_pretrained is not None:
-            if self._s3.is_s3_url(self.config.path_pretrained):
-                loaded_sate = self._s3.load_object(self.config.path_pretrained, torch.load)
-            else:
-                assert os.path.isfile(self.config.path_pretrained)
-                loaded_sate = torch.load(self.config.path_pretrained)
-
-            self._generator_model.load_modules(loaded_sate)
-
-            if is_load_module(ModulesNames.img_discriminator, loaded_sate) and self.config.use_gan:
-                self._log.info(f'Load weights of {ModulesNames.img_discriminator}')
-                self.img_discriminator.load_state_dict(loaded_sate[self.ModulesNames.img_discriminator])
-
-            if is_load_module(self.ModulesNames.features_discriminator, loaded_sate) and \
-                    self.config.use_gan and self.config.predict_out == 'features':
-                self._log.info(f'Load weights of {ModulesNames.features_discriminator}')
-                self.features_discriminator.load_state_dict(loaded_sate[self.ModulesNames.features_discriminator])
-
-            if is_load_module(self.ModulesNames.opt_magnitude_encoder, loaded_sate):
-                self._log.info(f'Load weights of {ModulesNames.opt_magnitude_encoder}')
-                self.optimizer_en.load_state_dict(loaded_sate[ModulesNames.opt_magnitude_encoder])
-
-            if is_load_module(self.ModulesNames.opt_discriminators, loaded_sate) and self.config.use_gan:
-                self._log.info(f'Load weights of {ModulesNames.opt_maopt_discriminatorsgnitude_encoder}')
-                self.optimizer_en.load_state_dict(loaded_sate[ModulesNames.opt_discriminators])
-
-            if is_load_module(self.ModulesNames.opt_ae, loaded_sate):
-                self._log.info(f'Load weights of {ModulesNames.opt_ae}')
-                self.optimizer_ae.load_state_dict(loaded_sate[ModulesNames.opt_ae])
-
     def train(self) -> (LossesPRFeatures, LossesPRFeatures, LossesPRFeatures):
         train_en_losses, test_en_losses, test_ae_losses = [], [], []
         if self.config.debug_mode:
@@ -252,6 +217,41 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         train_losses = LossesPRFeatures.merge(train_losses).mean()
         return train_losses
+
+    def load_models(self):
+        def is_load_module(name: str, sate_dist):
+            return (name in sate_dist) and \
+                   ((self.config.load_modules[0] == 'all') or (name in self.config.load_modules))
+
+        if self.config.path_pretrained is not None:
+            if self._s3.is_s3_url(self.config.path_pretrained):
+                loaded_sate = self._s3.load_object(self.config.path_pretrained, torch.load)
+            else:
+                assert os.path.isfile(self.config.path_pretrained)
+                loaded_sate = torch.load(self.config.path_pretrained)
+
+            self._generator_model.load_modules(loaded_sate)
+
+            if is_load_module(ModulesNames.img_discriminator, loaded_sate) and self.config.use_gan:
+                self._log.info(f'Load weights of {ModulesNames.img_discriminator}')
+                self.img_discriminator.load_state_dict(loaded_sate[self.ModulesNames.img_discriminator])
+
+            if is_load_module(self.ModulesNames.features_discriminator, loaded_sate) and \
+                    self.config.use_gan and self.config.predict_out == 'features':
+                self._log.info(f'Load weights of {ModulesNames.features_discriminator}')
+                self.features_discriminator.load_state_dict(loaded_sate[self.ModulesNames.features_discriminator])
+
+            if is_load_module(self.ModulesNames.opt_magnitude_encoder, loaded_sate):
+                self._log.info(f'Load weights of {ModulesNames.opt_magnitude_encoder}')
+                self.optimizer_en.load_state_dict(loaded_sate[ModulesNames.opt_magnitude_encoder])
+
+            if is_load_module(self.ModulesNames.opt_discriminators, loaded_sate) and self.config.use_gan:
+                self._log.info(f'Load weights of {ModulesNames.opt_maopt_discriminatorsgnitude_encoder}')
+                self.optimizer_en.load_state_dict(loaded_sate[ModulesNames.opt_discriminators])
+
+            if is_load_module(self.ModulesNames.opt_ae, loaded_sate):
+                self._log.info(f'Load weights of {ModulesNames.opt_ae}')
+                self.optimizer_ae.load_state_dict(loaded_sate[ModulesNames.opt_ae])
 
     def fit(self, data_batch: DataBatch, lr: float, lr_milestones: List[int], lr_reduce_rate: float, n_iter: int,
             name: str) -> (InferredBatch, LossesPRFeatures):
