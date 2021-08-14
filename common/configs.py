@@ -173,6 +173,7 @@ class ConfigTrainer(ConfigBase):
     disrim_in_conv_ch: Optional[int] = None
     disrim_input_norm: Optional[str] = None
     disrim_fc_layers: List[int] = field(default_factory=lambda:  [1024, 512, 128])
+    disrim_features_fc_layers: List[int] = field(default_factory=lambda: [2048, 1024, 512, 128, 64])
     disrim_fc_norm: Optional[str] = None
     image_size: int = 32
     n_dataloader_workers: int = 1

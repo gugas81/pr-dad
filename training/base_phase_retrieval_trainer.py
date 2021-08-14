@@ -10,15 +10,18 @@ from torch import Tensor
 import torchvision
 from torch.nn import functional as F
 from training.dataset import create_data_loaders
-import logging
-from common import TensorBatch, ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
-from common import im_concatenate, square_grid_im_concat, PATHS, im_save
 from typing import Optional, Any, Dict
+import logging
+
+from common import ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
+from common import im_concatenate, square_grid_im_concat, PATHS, im_save
+from common import TensorBatch, InferredBatch
+
 
 logging.basicConfig(level=logging.INFO)
 
 
-class TrainerPhaseRetrieval:
+class BaseTrainerPhaseRetrieval:
     _task = None
 
     def __init__(self, config: ConfigTrainer, experiment_name: str):
@@ -72,7 +75,7 @@ class TrainerPhaseRetrieval:
         self.data_ts_batch.label = self.data_ts_batch.label[:dbg_batch_ts]
 
     def _init_data_loaders(self):
-        self.train_paired_loader, self.train_unpaired_loader, self.test_loader = \
+        self.train_paired_loader, self.train_unpaired_loader, self.test_loader, self.train_ds, self.test_ds = \
             create_data_loaders(ds_name=self.config.dataset_name,
                                 img_size=self.img_size,
                                 use_aug=self.config.use_aug,
@@ -169,6 +172,39 @@ class TrainerPhaseRetrieval:
                 s3_img_tensors_path = os.path.join(task_s3_path, 'images-tensors', tag_name, f'{step}.png')
                 self._s3.save_object(url=s3_img_tensors_path,
                                      saver=lambda path_: torchvision.utils.save_image(image_batch, path_))
+
+    def _grid_images(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
+        inv_norm_transform = self.test_ds.get_inv_normalize_transform()
+        img_grid = [inv_norm_transform(data_batch.image)]
+        if inferred_batch.decoded_img is not None:
+            img_grid.append(inv_norm_transform(data_batch.image))
+        if inferred_batch.img_recon is not None:
+            img_grid.append(inv_norm_transform(data_batch.img_recon))
+        if inferred_batch.img_recon_ref is not None:
+            img_grid.append(inv_norm_transform(data_batch.img_recon_ref))
+
+        img_grid = torch.cat(img_grid, dim=-2)
+        img_grid = torchvision.utils.make_grid(img_grid, normalize=True)
+        return img_grid
+
+    def _grid_features(self, inferred_batch: InferredBatch) -> Tensor:
+        features_batch = [inferred_batch.feature_recon[:self.config.dbg_features_batch]]
+        if inferred_batch.feature_encoder:
+            features_batch.append(inferred_batch.feature_encoder[:self.config.dbg_features_batch])
+        features_batch = torch.cat(features_batch, dim=-2)
+
+        n_sqrt = int(np.sqrt(features_batch.shape[1]))
+        features_grid = [torchvision.utils.make_grid(torch.unsqueeze(features, 1),
+                                                     normalize=True, nrow=n_sqrt)[None]
+                         for features in features_batch]
+        features_grid = torchvision.utils.make_grid(torch.cat(features_grid))
+        return features_grid
+
+    def log_image_grid(self, image_grid: Tensor, tag_name: str, step: int):
+        s3_tensors_path = os.path.join(self.get_task_s3_path(), 'images', tag_name, f'{step}.png')
+        self._tensorboard.add_images(tag=tag_name, img_tensor=image_grid, global_step=step, dataformats='CHW')
+        self._s3.save_object(url=s3_tensors_path,
+                             saver=lambda path_: torchvision.utils.save_image(image_grid, path_))
 
     def __del__(self):
         if self._task is not None:

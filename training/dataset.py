@@ -151,13 +151,14 @@ def create_data_loaders(ds_name: str, img_size: int, use_aug: bool, batch_size_t
                              worker_init_fn=np.random.seed(seed),
                              num_workers=n_dataloader_workers)
 
-    return train_paired_loader, train_unpaired_loader, test_loader
+    return train_paired_loader, train_unpaired_loader, test_loader, train_dataset, test_dataset
 
 
 def example_mnist_upiared():
     logging.basicConfig(level=logging.DEBUG)
     log = logging.getLogger('exmaple_mnist_upiared')
-    train_paired_loader, train_unpaired_loader, test_loader = create_data_loaders(ds_name='mnist',
+    train_paired_loader, train_unpaired_loader, test_loader, train_dataset, test_dataset\
+        = create_data_loaders(ds_name='mnist',
                                                                                   img_size=32,
                                                                                   use_aug=False,
                                                                                   batch_size_train=128,
