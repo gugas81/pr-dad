@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, OrderedDict, List
+from typing import Dict, OrderedDict, List, Any
 import torch
 from torch import Tensor
 
@@ -78,8 +78,9 @@ class PhaseRetrievalAeModel:
             self._log.info(f'Load weights of {ModulesNames.magnitude_encoder}')
             self.phase_predictor.load_state_dict(state_dict[ModulesNames.magnitude_encoder])
 
-    def get_state_dict(self) -> Dict[str, Tensor]:
-        save_state = {ModulesNames.ae_model: self.ae_net.state_dict(),
+    def get_state_dict(self) -> Dict[str, Any]:
+        save_state = {ModulesNames.config: self._config.as_dict(),
+                      ModulesNames.ae_model: self.ae_net.state_dict(),
                       ModulesNames.magnitude_encoder: self.phase_predictor.state_dict()}
         if self._config.use_ref_net:
             save_state[ModulesNames.ref_net] = self.ref_unet.state_dict()

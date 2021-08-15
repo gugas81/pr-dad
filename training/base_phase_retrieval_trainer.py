@@ -25,7 +25,7 @@ class BaseTrainerPhaseRetrieval:
     _task = None
 
     def __init__(self, config: ConfigTrainer, experiment_name: str):
-        self.config: ConfigTrainer = config
+        self._config: ConfigTrainer = config
         self._global_step = 0
         self._log = logging.getLogger(self.__class__.__name__)
         self._log.setLevel(logging.DEBUG)
@@ -34,24 +34,24 @@ class BaseTrainerPhaseRetrieval:
         self._create_loggers()
         self._init_trains(experiment_name)
 
-        self.device = 'cuda' if torch.cuda.is_available() and self.config.cuda else 'cpu'
-        self.seed = self.config.seed
-        self._fft_norm = self.config.fft_norm
-        self._dbg_img_batch = self.config.dbg_img_batch
-        self.log_interval = self.config.log_interval
-        self.n_epochs = self.config.n_epochs_pr
-        self.batch_size_train = self.config.batch_size_train
-        self.batch_size_test = self.config.batch_size_test
-        self.learning_rate = self.config.learning_rate
+        self.device = 'cuda' if torch.cuda.is_available() and self._config.cuda else 'cpu'
+        self.seed = self._config.seed
+        self._fft_norm = self._config.fft_norm
+        self._dbg_img_batch = self._config.dbg_img_batch
+        self.log_interval = self._config.log_interval
+        self.n_epochs = self._config.n_epochs_pr
+        self.batch_size_train = self._config.batch_size_train
+        self.batch_size_test = self._config.batch_size_test
+        self.learning_rate = self._config.learning_rate
         self.img_size = config.image_size
 
         self._log.debug(f'Config params: {config}')
 
         set_seed(self.seed)
 
-        if self.config.debug_mode:
+        if self._config.debug_mode:
             torch.autograd.set_detect_anomaly(True)
-            self.config.n_dataloader_workers = 0
+            self._config.n_dataloader_workers = 0
             if self._task:
                 self._task.add_tags(['DEBUG'])
 
@@ -76,13 +76,13 @@ class BaseTrainerPhaseRetrieval:
 
     def _init_data_loaders(self):
         self.train_paired_loader, self.train_unpaired_loader, self.test_loader, self.train_ds, self.test_ds = \
-            create_data_loaders(ds_name=self.config.dataset_name,
+            create_data_loaders(ds_name=self._config.dataset_name,
                                 img_size=self.img_size,
-                                use_aug=self.config.use_aug,
+                                use_aug=self._config.use_aug,
                                 batch_size_train=self.batch_size_train,
                                 batch_size_test=self.batch_size_test,
-                                n_dataloader_workers=self.config.n_dataloader_workers,
-                                paired_part=self.config.part_supervised_pairs,
+                                n_dataloader_workers=self._config.n_dataloader_workers,
+                                paired_part=self._config.part_supervised_pairs,
                                 fft_norm=self._fft_norm,
                                 seed=self.seed,
                                 log=self._log,
@@ -114,7 +114,7 @@ class BaseTrainerPhaseRetrieval:
         if image_size:
             data_batch = resize_tensor(data_batch)
 
-        num_images = min(num_images, self.config.batch_size_train) if num_images else self.config.batch_size_train
+        num_images = min(num_images, self._config.batch_size_train) if num_images else self._config.batch_size_train
 
         data_batch_np = np.transpose(data_batch[: num_images].detach().cpu().numpy(), axes=(0, 2, 3, 1))
         data_batch_np = im_concatenate(data_batch_np)
@@ -132,20 +132,25 @@ class BaseTrainerPhaseRetrieval:
 
     def _create_loggers(self) -> None:
         self._tensorboard = tensorboardX.SummaryWriter(self._log_dir, flush_secs=60)
-        self._tensorboard.add_hparams(self.config.as_dict(), metric_dict={}, global_step=0)
+        self._tensorboard.add_hparams(self._config.as_dict(), metric_dict={}, global_step=0)
 
     def _init_trains(self, experiment_name: str) -> None:
-        if self.config.use_tensor_board:
+        if self._config.use_tensor_board:
             time_str = datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
-            config_name = self.config.task_name.replace('_', '-').replace(' ', '-')
-            ds_name = self.config.dataset_name.replace('_', '-').replace(' ', '-')
+            config_name = self._config.task_name.replace('_', '-').replace(' ', '-')
+            ds_name = self._config.dataset_name.replace('_', '-').replace(' ', '-')
             task_name = f'{time_str}-{config_name}-{ds_name}-{experiment_name}'
-            self._task = clearml.Task.init(task_name=task_name, project_name=self.config.project_name)
-            self._task.connect_configuration(self.config.as_dict(), name='config_trainer')
+            self._task = clearml.Task.init(task_name=task_name, project_name=self._config.project_name)
+            self._task.connect_configuration(self._config.as_dict(), name='config_trainer')
             clearml.Logger.current_logger().set_default_upload_destination(PATHS.CLEARML_BUCKET)
-            self._task.upload_artifact('config-trainer', self.config.as_dict())
+            self._task.upload_artifact('config-trainer', self._config.as_dict())
         else:
             self._task = None
+
+    def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
+        fft_data_batch = torch.fft.fft2(data_batch, norm=self._config.fft_norm)
+        magnitude_batch = torch.abs(fft_data_batch)
+        return magnitude_batch
 
     def _log_images(self, image_batch: Tensor, step: int, tag_name: str, num_images: Optional[int] = None,
                     image_size: Optional[int] = None, grid_ch: bool = False) -> None:
@@ -172,20 +177,52 @@ class BaseTrainerPhaseRetrieval:
         inv_norm_transform = self.test_ds.get_inv_normalize_transform()
         img_grid = [inv_norm_transform(data_batch.image)]
         if inferred_batch.decoded_img is not None:
-            img_grid.append(inv_norm_transform(data_batch.image))
+            img_grid.append(inv_norm_transform(inferred_batch.decoded_img))
         if inferred_batch.img_recon is not None:
-            img_grid.append(inv_norm_transform(data_batch.img_recon))
+            img_grid.append(inv_norm_transform(inferred_batch.img_recon))
         if inferred_batch.img_recon_ref is not None:
-            img_grid.append(inv_norm_transform(data_batch.img_recon_ref))
+            img_grid.append(inv_norm_transform(inferred_batch.img_recon_ref))
 
         img_grid = torch.cat(img_grid, dim=-2)
         img_grid = torchvision.utils.make_grid(img_grid, normalize=True)
         return img_grid
 
+    def _grid_diff_images(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
+        inv_norm_transform = self.test_ds.get_inv_normalize_transform()
+        norm_orig_img = inv_norm_transform(data_batch.image)
+        img_grid = [norm_orig_img]
+        if inferred_batch.decoded_img is not None:
+            diff_decoded = torch.abs(norm_orig_img - inv_norm_transform(inferred_batch.decoded_img))
+            img_grid.append(diff_decoded)
+        if inferred_batch.img_recon is not None:
+            diff_recon = torch.abs(norm_orig_img - inv_norm_transform(inferred_batch.img_recon))
+            img_grid.append(diff_recon)
+        if inferred_batch.img_recon_ref is not None:
+            diff_recon_ref = torch.abs(norm_orig_img - inv_norm_transform(inferred_batch.img_recon_ref))
+            img_grid.append(diff_recon_ref)
+
+        img_grid = torch.cat(img_grid, dim=-2)
+        img_grid = torchvision.utils.make_grid(img_grid, normalize=False)
+        return img_grid
+
+    def _grid_fft_magnitude(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
+        img_grid = []
+        if data_batch.fft_magnitude is not None:
+            img_grid.append(torch.fft.fftshift(data_batch.fft_magnitude, dim=(-2, -1)))
+        if inferred_batch.img_recon is not None:
+            fft_magnitude_recon = torch.fft.fftshift(self.forward_magnitude_fft(inferred_batch.img_recon), dim=(-2, -1))
+            img_grid.append(fft_magnitude_recon)
+        if inferred_batch.fft_magnitude_recon_ref is not None:
+            img_grid.append(torch.fft.fftshift(inferred_batch.fft_magnitude_recon_ref, dim=(-2, -1)))
+
+        img_grid = torch.cat(img_grid, dim=-2)
+        img_grid = torchvision.utils.make_grid(img_grid, normalize=False)
+        return img_grid
+
     def _grid_features(self, inferred_batch: InferredBatch) -> Tensor:
-        features_batch = [inferred_batch.feature_recon[:self.config.dbg_features_batch]]
-        if inferred_batch.feature_encoder:
-            features_batch.append(inferred_batch.feature_encoder[:self.config.dbg_features_batch])
+        features_batch = [inferred_batch.feature_recon[:self._config.dbg_features_batch]]
+        if inferred_batch.feature_encoder is not None:
+            features_batch.append(inferred_batch.feature_encoder[:self._config.dbg_features_batch])
         features_batch = torch.cat(features_batch, dim=-2)
 
         n_sqrt = int(np.sqrt(features_batch.shape[1]))
@@ -209,15 +246,15 @@ class BaseTrainerPhaseRetrieval:
     def _create_log_dir(self, experiment_name: str) -> None:
         time_str = datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
         log_dir_name = f'{time_str}_{experiment_name}'
-        self._log_dir = os.path.join(self.config.log_path,
-                                     self.config.task_name,
-                                     self.config.dataset_name,
+        self._log_dir = os.path.join(self._config.log_path,
+                                     self._config.task_name,
+                                     self._config.dataset_name,
                                      log_dir_name)
         os.makedirs(self._log_dir, exist_ok=True)
         self.models_path = os.path.join(self._log_dir, 'models')
         os.makedirs(self.models_path, exist_ok=True)
-        self.config.to_yaml(os.path.join(self._log_dir, 'config_params.yaml'))
-        self.config.to_json(os.path.join(self._log_dir, 'config_params.json'))
+        self._config.to_yaml(os.path.join(self._log_dir, 'config_params.yaml'))
+        self._config.to_json(os.path.join(self._log_dir, 'config_params.json'))
 
     def _add_losses_tensorboard(self,  tag: str, losses: Losses, step: int = None) -> None:
         for metric_name, value in losses.__dict__.items():

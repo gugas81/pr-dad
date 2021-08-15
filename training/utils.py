@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ModulesNames:
+    config = 'config'
     ae_model = 'ae_model'
     magnitude_encoder = 'magnitude_encoder'
     ref_net = 'ref_net'

@@ -1,7 +1,7 @@
 import logging
 import os
 from functools import partial
-from typing import Union, Tuple, Dict, Any, Optional
+from typing import Union, Tuple, Dict, Any, Optional, Callable
 import fire
 import numpy as np
 import torch
@@ -18,6 +18,12 @@ from common import PATHS, S3FileSystem, NormalizeInverse
 class PhaseRetrievalDataset(Dataset):
     def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool,
                  paired_part: float, fft_norm: str, log: logging.Logger, seed: int, s3: Optional[S3FileSystem] = None):
+        def celeba_ds(root:str, train: bool, download: bool, transform: Optional[Callable] = None):
+            return torchvision.datasets.CelebA(root=root,
+                                        split='train' if train else 'test',
+                                        download=download,
+                                        transform=transform)
+
         np.random.seed(seed=seed)
 
         self._ds_name = ds_name
@@ -39,7 +45,6 @@ class PhaseRetrievalDataset(Dataset):
         is_rgb = False
         if ds_name == 'mnist':
             ds_class = torchvision.datasets.MNIST
-
         elif ds_name == 'emnist':
             ds_class = partial(torchvision.datasets.EMNIST, split='balanced')
         elif ds_name == 'fashion-mnist':
@@ -49,16 +54,12 @@ class PhaseRetrievalDataset(Dataset):
             self.norm_mean = 0.5
             self.norm_std = 0.5
             is_rgb = True
-            ds_class = lambda root, is_train_, download, transform:  \
-                torchvision.datasets.CelebA(root=root,
-                                         split='train' if is_train_ else 'test',
-                                         download=download,
-                                         transform=transform)
+            ds_class = celeba_ds
             alignment_transform = transforms.Compose([
                                                transforms.Resize(self.img_size),
                                                transforms.CenterCrop(self.img_size)])
             normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
-                                                                    (self.norm_std, self.norm_std, self.norm_std),),
+                                                       (self.norm_std, self.norm_std, self.norm_std))
         else:
             raise NameError(f'Not valid ds type {ds_name}')
 
