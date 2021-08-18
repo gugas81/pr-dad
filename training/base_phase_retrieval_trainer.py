@@ -88,6 +88,14 @@ class BaseTrainerPhaseRetrieval:
                                 log=self._log,
                                 s3=self._s3)
 
+    def load_state(self) -> Dict[str, Any]:
+        if self._s3.is_s3_url(self._config.path_pretrained):
+            loaded_sate = self._s3.load_object(self._config.path_pretrained, torch.load)
+        else:
+            assert os.path.isfile(self._config.path_pretrained)
+            loaded_sate = torch.load(self._config.path_pretrained)
+        return loaded_sate
+
     def prepare_data_batch(self, item_data: Dict[str, Any]) -> DataBatch:
         is_paired = item_data['paired'].cpu().numpy().all()
         return DataBatch(image=item_data['image'].to(device=self.device),

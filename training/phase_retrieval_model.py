@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, OrderedDict, List, Any
 import torch
+from torch import nn
 from torch import Tensor
 
 from common import InferredBatch, ConfigTrainer
@@ -11,6 +12,9 @@ from models import PhaseRetrievalPredictor,   AeConv, UNetConv
 
 
 class PhaseRetrievalAeModel:
+
+    _log = logging.getLogger('PhaseRetrievalAeModel')
+
     def __init__(self, config: ConfigTrainer, log: logging.Logger, s3: S3FileSystem):
         self._config = config
         self._log = log
@@ -61,22 +65,35 @@ class PhaseRetrievalAeModel:
         else:
             self.ref_unet = None
 
-    def load_modules(self, state_dict: OrderedDict[str, Tensor]):
-        def is_load_module(name: str, sate_dist):
-            return (name in sate_dist) and \
+    def load_module(self, state_dict: Dict[str, Tensor], module: nn.Module, name: str, force: bool = False) -> bool:
+        def is_load_module():
+            return (name in state_dict) and \
                    ((self._config.load_modules[0] == 'all') or (name in self._config.load_modules))
 
-        if is_load_module(ModulesNames.ae_model, state_dict):
-            self._log.info(f'Load weights of {ModulesNames.ae_model}')
-            self.ae_net.load_state_dict(state_dict[ModulesNames.ae_model])
+        if is_load_module():
+            self._log.info(f'Load weights of {name}')
+            module.load_state_dict(state_dict[name])
+            self._log.debug(f'Weights of {name} was been loaded')
+            return True
+        elif force:
+            self._log.exception(f'Cannot {name} module')
+            return False
+        else:
+            self._log.warning(f'Cannot {name} module')
+            return False
 
-        if is_load_module(ModulesNames.ref_net, state_dict) and self._config.use_ref_net:
-            self._log.info(f'Load weights of {ModulesNames.ref_net}')
-            self.ref_unet.load_state_dict(state_dict[ModulesNames.ref_net])
+    def load_modules(self, state_dict: OrderedDict[str, Tensor], force: bool = False) -> List[str]:
+        loaded_models = []
+        if self.load_module(state_dict, self.ae_net, ModulesNames.ae_mode, force):
+            loaded_models.append(ModulesNames.ae_mode)
 
-        if is_load_module(ModulesNames.magnitude_encoder, state_dict):
-            self._log.info(f'Load weights of {ModulesNames.magnitude_encoder}')
-            self.phase_predictor.load_state_dict(state_dict[ModulesNames.magnitude_encoder])
+        if self.load_module(state_dict, self.ref_unet, ModulesNames.ref_net, force):
+            loaded_models.append(ModulesNames.ref_net)
+
+        if self.load_module(state_dict, self.phase_predictor, ModulesNames.magnitude_encoder, force):
+            loaded_models.append(ModulesNames.magnitude_encoder)
+
+        return loaded_models
 
     def get_state_dict(self) -> Dict[str, Any]:
         save_state = {ModulesNames.config: self._config.as_dict(),

@@ -1,13 +1,14 @@
 import torch
 from torch import Tensor
+import numpy as np
 import dataclasses
-from typing import Optional, List, Callable, Dict
+from typing import Optional, List, Callable, Dict, Any
 from collections import defaultdict
 from dataclasses import dataclass
 
 
-@dataclasses.dataclass
-class TensorBatch:
+@dataclass
+class DataBatch:
     def __len__(self):
         v = dataclasses.astuple(self)[0]
         return v.size()[0]
@@ -42,6 +43,46 @@ class TensorBatch:
                 torch_data[key] = None
         return self.__class__(**torch_data)
 
+    def reduce(self, merge_func: Callable):
+        torch_data = {}
+        for key, val in self.__dict__.items():
+            if val is not None:
+                torch_data[key] = merge_func(val)
+            else:
+                torch_data[key] = None
+
+        return self.__class__(**torch_data)
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dataclasses.asdict(self)
+
+    def get_keys(self) -> List[str]:
+        return list(self.__dict__.keys())
+
+
+@dataclass
+class NumpyBatch(DataBatch):
+
+    @staticmethod
+    def merge(params: List['NumpyBatch']) -> 'NumpyBatch':
+        return DataBatch._merge(params, np.concatenate)
+
+    def mean(self):
+        return self.reduce(np.mean)
+
+    def std(self):
+        return self.reduce(np.std)
+
+    def min(self):
+        return self.reduce(np.min)
+
+    def max(self):
+        return self.reduce(np.max)
+
+
+@dataclass
+class TensorBatch(DataBatch):
+
     @staticmethod
     def merge(params: List['TensorBatch']):
         return TensorBatch._merge(params, torch.stack)
@@ -55,25 +96,11 @@ class TensorBatch:
                 torch_data[key] = val
         return self.__class__(**torch_data)
 
-    def reduce(self, merge_func: Callable):
-        torch_data = {}
-        for key, val in self.__dict__.items():
-            if val is not None:
-                torch_data[key] = merge_func(val)
-            else:
-                torch_data[key] = None
-
-        return self.__class__(**torch_data)
-
     def mean(self):
         return self.reduce(torch.mean)
 
     def detach(self):
         return self.reduce(torch.detach)
-
-    def as_dict(self) -> Dict[str, Tensor]:
-        return dataclasses.asdict(self)
-
 
 @dataclass
 class DataBatch(TensorBatch):

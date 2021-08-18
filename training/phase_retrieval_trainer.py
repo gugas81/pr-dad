@@ -218,40 +218,91 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         train_losses = LossesPRFeatures.merge(train_losses).mean()
         return train_losses
 
-    def load_models(self):
-        def is_load_module(name: str, sate_dist):
-            return (name in sate_dist) and \
-                   ((self._config.load_modules[0] == 'all') or (name in self._config.load_modules))
+    def test_eval_ae(self) -> LossesPRFeatures:
+        ae_losses = []
+        self._generator_model.set_eval_mode()
+        with torch.no_grad():
+            for batch_idx, data_batch in enumerate(self.test_loader):
+                data_batch = self.prepare_data_batch(data_batch)
+                inferred_batch = self._generator_model.forward_ae(data_batch)
+                ae_losses_batch = self._ae_losses(data_batch, inferred_batch)
+                ae_losses.append(ae_losses_batch)
+            ae_losses = LossesPRFeatures.merge(ae_losses)
+        self._generator_model.set_train_mode()
+        return ae_losses
 
+    def test_eval_en_magnitude(self, use_adv_loss: bool = False) -> LossesPRFeatures:
+        losses_ts = []
+        with torch.no_grad():
+            for batch_idx, data_batch in enumerate(self.test_loader):
+                data_batch = self.prepare_data_batch(data_batch)
+                inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=False)
+                losses_ts_ = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
+                losses_ts.append(losses_ts_.detach())
+
+            losses_ts = LossesPRFeatures.merge(losses_ts).mean()
+            return losses_ts
+
+    def train_ae(self) -> (LossesPRFeatures, LossesPRFeatures):
+        self._global_step = 0
+        tr_losses = []
+        ts_losses = []
+        init_ae_losses = self.test_eval_ae()
+        init_ae_losses = init_ae_losses.mean()
+        self._log.info(f' AE training: init ts losses: {init_ae_losses}')
+        self._log_ae_train_dbg_batch(0)
+        self._add_losses_tensorboard('ae/test', init_ae_losses, self._global_step)
+        for epoch in range(1, self.n_epochs_ae + 1):
+            tr_losses_epoch = self.train_epoch_ae(epoch)
+            tr_losses_epoch = tr_losses_epoch.mean()
+
+            ts_losses_epoch = self.test_eval_ae()
+            ts_losses_epoch.lr = torch.tensor(self._lr_scheduler_ae.get_last_lr()[0])
+
+            self._lr_scheduler_ae.step()
+            self._add_losses_tensorboard('ae/test', ts_losses_epoch, self._global_step)
+            self._log.info(f'AE training: Epoch {epoch}, '
+                           f'l2_recon_err_tr: {tr_losses_epoch}, '
+                            f'l2_recon_err_ts: {ts_losses_epoch}')
+            with torch.no_grad():
+                self._log_ae_train_dbg_batch(self._global_step)
+
+                if self.models_path is not None:
+                    ae_state = {ModulesNames.config: self._config.as_dict(),
+                                ModulesNames.ae_model: self._generator_model.ae_net.state_dict(),
+                                ModulesNames.opt_ae: self.optimizer_ae.state_dict()}
+                    torch.save(ae_state, os.path.join(self.models_path, f'ae_model.pt'))
+            tr_losses.append(tr_losses_epoch)
+            ts_losses.append(ts_losses_epoch)
+        tr_losses = LossesPRFeatures.merge(tr_losses)
+        ts_losses = LossesPRFeatures.merge(ts_losses)
+        return tr_losses, ts_losses
+
+    def load_models(self):
         if self._config.path_pretrained is not None:
-            if self._s3.is_s3_url(self._config.path_pretrained):
-                loaded_sate = self._s3.load_object(self._config.path_pretrained, torch.load)
-            else:
-                assert os.path.isfile(self._config.path_pretrained)
-                loaded_sate = torch.load(self._config.path_pretrained)
+            loaded_sate = self.load_state()
 
             self._generator_model.load_modules(loaded_sate)
 
-            if is_load_module(ModulesNames.img_discriminator, loaded_sate) and self._config.use_gan:
-                self._log.info(f'Load weights of {ModulesNames.img_discriminator}')
-                self.img_discriminator.load_state_dict(loaded_sate[self.ModulesNames.img_discriminator])
+            if self._config.use_gan:
+                self._generator_model.load_module(loaded_sate,
+                                                  self.img_discriminator,
+                                                  ModulesNames.img_discriminator)
+                self._generator_model.load_module(loaded_sate,
+                                                  self.optimizer_discr,
+                                                  ModulesNames.opt_discriminators)
+                if self._config.predict_out == 'features':
+                    self._generator_model.load_module(loaded_sate,
+                                                      self.features_discriminator,
+                                                      ModulesNames.features_discriminator)
 
-            if is_load_module(ModulesNames.features_discriminator, loaded_sate) and \
-                    self._config.use_gan and self._config.predict_out == 'features':
-                self._log.info(f'Load weights of {ModulesNames.features_discriminator}')
-                self.features_discriminator.load_state_dict(loaded_sate[self.ModulesNames.features_discriminator])
+            self._generator_model.load_module(loaded_sate,
+                                              self.optimizer_en,
+                                              ModulesNames.opt_magnitude_encoder)
 
-            if is_load_module(ModulesNames.opt_magnitude_encoder, loaded_sate):
-                self._log.info(f'Load weights of {ModulesNames.opt_magnitude_encoder}')
-                self.optimizer_en.load_state_dict(loaded_sate[ModulesNames.opt_magnitude_encoder])
-
-            if is_load_module(ModulesNames.opt_discriminators, loaded_sate) and self._config.use_gan:
-                self._log.info(f'Load weights of {ModulesNames.opt_maopt_discriminatorsgnitude_encoder}')
-                self.optimizer_en.load_state_dict(loaded_sate[ModulesNames.opt_discriminators])
-
-            if is_load_module(ModulesNames.opt_ae, loaded_sate):
-                self._log.info(f'Load weights of {ModulesNames.opt_ae}')
-                self.optimizer_ae.load_state_dict(loaded_sate[ModulesNames.opt_ae])
+            self._generator_model.load_module(loaded_sate,
+                                              self.opt_ae,
+                                              ModulesNames.opt_ae)
 
     def fit(self, data_batch: DataBatch, lr: float, lr_milestones: List[int], lr_reduce_rate: float, n_iter: int,
             name: str) -> (InferredBatch, LossesPRFeatures):
@@ -517,66 +568,6 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         losses.std_features = inferred_batch.feature_recon.std()
         losses.min_features = inferred_batch.feature_recon.min()
         losses.max_features = inferred_batch.feature_recon.max()
-
-    def test_eval_ae(self) -> LossesPRFeatures:
-        ae_losses = []
-        self._generator_model.set_eval_mode()
-        with torch.no_grad():
-            for batch_idx, data_batch in enumerate(self.test_loader):
-                data_batch = self.prepare_data_batch(data_batch)
-                inferred_batch = self._generator_model.forward_ae(data_batch)
-                ae_losses_batch = self._ae_losses(data_batch, inferred_batch)
-                ae_losses.append(ae_losses_batch)
-            ae_losses = LossesPRFeatures.merge(ae_losses)
-        self._generator_model.set_train_mode()
-        return ae_losses
-
-    def test_eval_en_magnitude(self, use_adv_loss: bool = False) -> LossesPRFeatures:
-        losses_ts = []
-        with torch.no_grad():
-            for batch_idx, data_batch in enumerate(self.test_loader):
-                data_batch = self.prepare_data_batch(data_batch)
-                inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=False)
-                losses_ts_ = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
-                losses_ts.append(losses_ts_.detach())
-
-            losses_ts = LossesPRFeatures.merge(losses_ts).mean()
-            return losses_ts
-
-    def train_ae(self) -> (LossesPRFeatures, LossesPRFeatures):
-        self._global_step = 0
-        tr_losses = []
-        ts_losses = []
-        init_ae_losses = self.test_eval_ae()
-        init_ae_losses = init_ae_losses.mean()
-        self._log.info(f' AE training: init ts losses: {init_ae_losses}')
-        self._log_ae_train_dbg_batch(0)
-        self._add_losses_tensorboard('ae/test', init_ae_losses, self._global_step)
-        for epoch in range(1, self.n_epochs_ae + 1):
-            tr_losses_epoch = self.train_epoch_ae(epoch)
-            tr_losses_epoch = tr_losses_epoch.mean()
-
-            ts_losses_epoch = self.test_eval_ae()
-            ts_losses_epoch.lr = torch.tensor(self._lr_scheduler_ae.get_last_lr()[0])
-
-            self._lr_scheduler_ae.step()
-            self._add_losses_tensorboard('ae/test', ts_losses_epoch, self._global_step)
-            self._log.info(f'AE training: Epoch {epoch}, '
-                           f'l2_recon_err_tr: {tr_losses_epoch}, '
-                            f'l2_recon_err_ts: {ts_losses_epoch}')
-            with torch.no_grad():
-                self._log_ae_train_dbg_batch(self._global_step)
-
-                if self.models_path is not None:
-                    ae_state = {ModulesNames.config: self._config.as_dict(),
-                                ModulesNames.ae_model: self._generator_model.ae_net.state_dict(),
-                                ModulesNames.opt_ae: self.optimizer_ae.state_dict()}
-                    torch.save(ae_state, os.path.join(self.models_path, f'ae_model.pt'))
-            tr_losses.append(tr_losses_epoch)
-            ts_losses.append(ts_losses_epoch)
-        tr_losses = LossesPRFeatures.merge(tr_losses)
-        ts_losses = LossesPRFeatures.merge(ts_losses)
-        return tr_losses, ts_losses
 
     def _save_gan_models(self, step: int) -> None:
         if self.models_path is not None:

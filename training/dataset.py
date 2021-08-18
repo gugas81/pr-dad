@@ -18,11 +18,11 @@ from common import PATHS, S3FileSystem, NormalizeInverse
 class PhaseRetrievalDataset(Dataset):
     def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool,
                  paired_part: float, fft_norm: str, log: logging.Logger, seed: int, s3: Optional[S3FileSystem] = None):
-        def celeba_ds(root:str, train: bool, download: bool, transform: Optional[Callable] = None):
+        def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None):
             return torchvision.datasets.CelebA(root=root,
-                                        split='train' if train else 'test',
-                                        download=download,
-                                        transform=transform)
+                                               split='train' if train else 'test',
+                                               download=download,
+                                               transform=transform)
 
         np.random.seed(seed=seed)
 
@@ -37,7 +37,6 @@ class PhaseRetrievalDataset(Dataset):
 
         ds_name = ds_name.lower()
         ds_path = os.path.join(PATHS.DATASETS, ds_name)
-        data_transforms = [transforms.Resize((self.img_size, self.img_size))]
         alignment_transform = transforms.Resize(self.img_size)
         self.norm_mean = 0.1307
         self.norm_std = 0.3081

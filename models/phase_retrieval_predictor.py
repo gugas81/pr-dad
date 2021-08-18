@@ -7,8 +7,6 @@ from models.conv_unet import UNetConv
 
 
 class PhaseRetrievalPredictor(nn.Module):
-    # class TypeRecon(Enum):
-
     def __init__(self, use_dropout: bool = False, im_img_size: int = 28, inter_ch: int = 1, out_ch: int = 1,
                  out_img_size: int = 32,
                  fc_multy_coeff: int = 1, use_bn: bool = False, fft_norm: str = "ortho", deep_fc: int = 4,
