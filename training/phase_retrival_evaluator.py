@@ -102,6 +102,8 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         return eval_df
 
 
+if __name__ == '__main__':
+    fire.Fire(TrainerPhaseRetrievalEvaluator)
 
 
 
