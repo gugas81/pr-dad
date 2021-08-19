@@ -88,12 +88,14 @@ class BaseTrainerPhaseRetrieval:
                                 log=self._log,
                                 s3=self._s3)
 
-    def load_state(self) -> Dict[str, Any]:
-        if self._s3.is_s3_url(self._config.path_pretrained):
-            loaded_sate = self._s3.load_object(self._config.path_pretrained, torch.load)
+    def load_state(self, model_path: str = None) -> Dict[str, Any]:
+        if model_path is None:
+            model_path = self._config.path_pretrained
+        if self._s3.is_s3_url(model_path):
+            loaded_sate = self._s3.load_object(model_path, torch.load)
         else:
-            assert os.path.isfile(self._config.path_pretrained)
-            loaded_sate = torch.load(self._config.path_pretrained)
+            assert os.path.isfile(model_path)
+            loaded_sate = torch.load(model_path)
         return loaded_sate
 
     def prepare_data_batch(self, item_data: Dict[str, Any]) -> DataBatch:
@@ -102,6 +104,17 @@ class BaseTrainerPhaseRetrieval:
                          fft_magnitude=item_data['fft_magnitude'].to(device=self.device),
                          label=item_data['label'].to(device=self.device),
                          is_paired=is_paired)
+
+    @staticmethod
+    def load_config(config_path) -> ConfigTrainer:
+        if config_path is None:
+            config = ConfigTrainer()
+        elif S3FileSystem.is_s3_url(config_path):
+            config = S3FileSystem().load_object(config_path, ConfigTrainer.from_data_file)
+        else:
+            assert os.path.exists(config_path)
+            config = ConfigTrainer.from_data_file(config_path)
+        return config
 
     def prepare_dbg_batch(self,
                           data_batch: Tensor,

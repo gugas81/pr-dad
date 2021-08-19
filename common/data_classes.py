@@ -65,7 +65,7 @@ class NumpyBatch(DataBatch):
 
     @staticmethod
     def merge(params: List['NumpyBatch']) -> 'NumpyBatch':
-        return DataBatch._merge(params, np.concatenate)
+        return DataBatch._merge(params, np.array)
 
     def mean(self):
         return self.reduce(np.mean)

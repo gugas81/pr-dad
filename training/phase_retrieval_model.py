@@ -84,8 +84,8 @@ class PhaseRetrievalAeModel:
 
     def load_modules(self, state_dict: OrderedDict[str, Tensor], force: bool = False) -> List[str]:
         loaded_models = []
-        if self.load_module(state_dict, self.ae_net, ModulesNames.ae_mode, force):
-            loaded_models.append(ModulesNames.ae_mode)
+        if self.load_module(state_dict, self.ae_net, ModulesNames.ae_model, force):
+            loaded_models.append(ModulesNames.ae_model)
 
         if self.load_module(state_dict, self.ref_unet, ModulesNames.ref_net, force):
             loaded_models.append(ModulesNames.ref_net)
