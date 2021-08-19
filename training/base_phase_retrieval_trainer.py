@@ -106,7 +106,7 @@ class BaseTrainerPhaseRetrieval:
                          is_paired=is_paired)
 
     @staticmethod
-    def load_config(config_path) -> ConfigTrainer:
+    def load_config(config_path,  **kwargs) -> ConfigTrainer:
         if config_path is None:
             config = ConfigTrainer()
         elif S3FileSystem.is_s3_url(config_path):
@@ -114,6 +114,8 @@ class BaseTrainerPhaseRetrieval:
         else:
             assert os.path.exists(config_path)
             config = ConfigTrainer.from_data_file(config_path)
+        config.log_path = PATHS.LOG
+        config = config.update(**kwargs)
         return config
 
     def prepare_dbg_batch(self,
@@ -230,6 +232,10 @@ class BaseTrainerPhaseRetrieval:
         img_grid = []
         if data_batch.fft_magnitude is not None:
             img_grid.append(torch.fft.fftshift(data_batch.fft_magnitude, dim=(-2, -1)))
+        if inferred_batch.decoded_img is not None:
+            fft_magnitude_ae_decoded = torch.fft.fftshift(self.forward_magnitude_fft(inferred_batch.decoded_img),
+                                                          dim=(-2, -1))
+            img_grid.append(fft_magnitude_ae_decoded)
         if inferred_batch.img_recon is not None:
             fft_magnitude_recon = torch.fft.fftshift(self.forward_magnitude_fft(inferred_batch.img_recon), dim=(-2, -1))
             img_grid.append(fft_magnitude_recon)
@@ -253,11 +259,21 @@ class BaseTrainerPhaseRetrieval:
         features_grid = torchvision.utils.make_grid(torch.cat(features_grid))
         return features_grid
 
+    def _save_img_to_s3(self, img: Tensor, path_url):
+        self._s3.save_object(url=path_url,
+                             saver=lambda path_: torchvision.utils.save_image(img, path_))
+
     def log_image_grid(self, image_grid: Tensor, tag_name: str, step: int):
         s3_tensors_path = os.path.join(self.get_task_s3_path(), 'images', tag_name, f'{step}.png')
         self._tensorboard.add_images(tag=tag_name, img_tensor=image_grid, global_step=step, dataformats='CHW')
-        self._s3.save_object(url=s3_tensors_path,
-                             saver=lambda path_: torchvision.utils.save_image(image_grid, path_))
+        self._save_img_to_s3(image_grid, s3_tensors_path)
+
+    def _debug_images_grids(self, data_batch: DataBatch, inferred_batch: InferredBatch):
+        img_grid_grid = self._grid_images(data_batch, inferred_batch)
+        img_diff_grid = self._grid_diff_images(data_batch, inferred_batch)
+        fft_magnitude_grid_grid = self._grid_fft_magnitude(data_batch, inferred_batch)
+        features_grid_grid = self._grid_features(inferred_batch)
+        return img_grid_grid, img_diff_grid, fft_magnitude_grid_grid, features_grid_grid
 
     def __del__(self):
         if self._task is not None:
@@ -292,3 +308,5 @@ class BaseTrainerPhaseRetrieval:
         path_task = path_task if self._s3.exists(path_task) else None
         return path_task
 
+    def get_log(self) -> logging.Logger:
+        return self._log

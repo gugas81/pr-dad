@@ -67,7 +67,7 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         loaded_sate = self.load_state(model_path)
         self._generator_model.load_modules(loaded_sate, force=True)
 
-    def benchmark_dataset(self, test_ds: bool = True, save_out_url: Optional[str] = None):
+    def benchmark_dataset(self, save_out_url: str, test_ds: bool = True):
         if test_ds:
             p_bar_data_loader = tqdm(self.test_loader)
             inv_norm = self.test_ds.get_inv_normalize_transform()
@@ -99,10 +99,40 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
 
         self._log.debug(f'\n{eval_df}')
         if save_out_url is not None:
-            self._s3.save_object(save_out_url, saver=lambda save_path: eval_df.to_csv(save_path))
+            save_out_url_csv = os.path(save_out_url, 'eval-metrics.csv')
+            self._s3.save_object(save_out_url_csv, saver=lambda save_path: eval_df.to_csv(save_path))
+            self.eval_dbg_batch(save_out_url)
             return save_out_url
         else:
             return eval_df
+
+    def eval_dbg_batch(self, save_url: str):
+        inferred_batch_tr = self._generator_model.forward_magnitude_encoder(self.data_tr_batch, eval_mode=False)
+        inferred_batch_ts = self._generator_model.forward_magnitude_encoder(self.data_ts_batch, eval_mode=False)
+
+        img_grid_grid_tr, img_diff_grid_grid_tr, fft_magnitude_grid_tr, features_grid_grid_tr = \
+            self._debug_images_grids(self.data_tr_batch, inferred_batch_tr)
+
+        img_grid_grid_ts, img_diff_grid_grid_ts, fft_magnitude_grid_ts, features_grid_grid_ts = \
+            self._debug_images_grids(self.data_ts_batch, inferred_batch_ts)
+
+        self._save_img_to_s3(img_grid_grid_tr, os.path.join(save_url, f'tr-img-origin-ae-recon-ref.png'))
+        self._save_img_to_s3(img_grid_grid_ts, os.path.join(save_url, f'ts-img-origin-ae-recon-ref.png'))
+
+        self._save_img_to_s3(fft_magnitude_grid_tr,
+                             os.path.join(save_url, f'tr-fft_magnitude-origin-ae-recon.png'))
+        self._save_img_to_s3(fft_magnitude_grid_ts,
+                             os.path.join(save_url, f'ts-fft_magnitude-origin-ae-recon.png'))
+
+        self._save_img_to_s3(img_diff_grid_grid_tr,
+                             os.path.join(save_url, f'tr-img-diff-origin-ae-recon-ref.png'))
+        self._save_img_to_s3(img_diff_grid_grid_ts,
+                             os.path.join(save_url, f'ts-img-diff-origin-ae-recon-ref.png'))
+
+        self._save_img_to_s3(features_grid_grid_tr,
+                             os.path.join(save_url, f'tr-features-origin-recon.png'))
+        self._save_img_to_s3(features_grid_grid_ts,
+                             os.path.join(save_url, f'ts-features-origin-recon.png'))
 
 
 if __name__ == '__main__':
