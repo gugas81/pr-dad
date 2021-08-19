@@ -19,7 +19,7 @@ from training.phase_retrieval_model import PhaseRetrievalAeModel
 from training.utils import ModulesNames
 from collections import defaultdict
 
-from skimage.measure import compare_ssim as _ssim
+from skimage.metrics import structural_similarity as _ssim
 import dataclasses
 from dataclasses import dataclass, field
 
@@ -53,17 +53,18 @@ class CalculateMetrics:
 
 
 class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
-    def __init__(self, config: ConfigTrainer):
+    def __init__(self, model_path: str, config_path: str):
+        config = self.load_config(config_path)
         config.use_tensor_board = False
         config.part_supervised_pairs = 1.0
+        config.batch_size_test = 128
+        config.load_modules = ['all']
         experiment_name = 'TrainerPhaseRetrievalEvaluator'
         super(TrainerPhaseRetrievalEvaluator, self).__init__(config=config, experiment_name=experiment_name)
-
         self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
         self._generator_model.set_eval_mode()
         self._generator_model.set_device(self.device)
-
-        loaded_sate = self.load_state()
+        loaded_sate = self.load_state(model_path)
         self._generator_model.load_modules(loaded_sate, force=True)
 
     def benchmark_dataset(self, test_ds: bool = True, save_out_url: Optional[str] = None):
@@ -90,16 +91,18 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         std_metrics = evaluation_metrics.std()
         min_metrics = evaluation_metrics.min()
         max_metrics = evaluation_metrics.max()
-        for key in evaluation_metrics.as_dict().items():
+        for key in keys:
             eval_df.loc[key]['mean'] = mean_metrics.as_dict()[key]
             eval_df.loc[key]['std'] = std_metrics.as_dict()[key]
             eval_df.loc[key]['min'] = min_metrics.as_dict()[key]
             eval_df.loc[key]['max'] = max_metrics.as_dict()[key]
 
-        self._log.debug(eval_df)
+        self._log.debug(f'\n{eval_df}')
         if save_out_url is not None:
             self._s3.save_object(save_out_url, saver=lambda save_path: eval_df.to_csv(save_path))
-        return eval_df
+            return save_out_url
+        else:
+            return eval_df
 
 
 if __name__ == '__main__':
