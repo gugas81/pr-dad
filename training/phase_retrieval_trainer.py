@@ -611,20 +611,14 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             inferred_batch_tr = self._generator_model.forward_magnitude_encoder(self.data_tr_batch, eval_mode=False)
             inferred_batch_ts = self._generator_model.forward_magnitude_encoder(self.data_ts_batch, eval_mode=False)
 
+            img_grid_grid_tr, img_diff_grid_grid_tr, fft_magnitude_grid_tr, features_grid_grid_tr = \
+                self._debug_images_grids(self.data_tr_batch, inferred_batch_tr)
+
+            img_grid_grid_ts, img_diff_grid_grid_ts, fft_magnitude_grid_ts, features_grid_grid_ts = \
+                self._debug_images_grids(self.data_ts_batch, inferred_batch_ts)
+
             tr_losses = self._encoder_losses(self.data_tr_batch, inferred_batch_tr, use_adv_loss=use_adv_loss)
             ts_losses = self._encoder_losses(self.data_ts_batch, inferred_batch_ts, use_adv_loss=use_adv_loss)
-
-            img_grid_grid_tr = self._grid_images(self.data_tr_batch, inferred_batch_tr)
-            img_grid_grid_ts = self._grid_images(self.data_ts_batch, inferred_batch_ts)
-
-            img_diff_grid_grid_tr = self._grid_diff_images(self.data_tr_batch, inferred_batch_tr)
-            img_diff_grid_grid_ts = self._grid_diff_images(self.data_ts_batch, inferred_batch_ts)
-
-            fft_magnitude_grid_grid_tr = self._grid_fft_magnitude(self.data_tr_batch, inferred_batch_tr)
-            fft_magnitude__grid_grid_ts = self._grid_fft_magnitude(self.data_ts_batch, inferred_batch_ts)
-
-            features_grid_grid_tr = self._grid_features(inferred_batch_tr)
-            features_grid_grid_ts = self._grid_features(inferred_batch_ts)
 
             self.log_image_grid(img_grid_grid_tr,
                                 tag_name='train_en_magnitude/img-origin-autoencoded-recon-ref', step=step)
@@ -636,9 +630,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self.log_image_grid(img_diff_grid_grid_ts,
                                 tag_name='test_en_magnitude/img-diff-origin-autoencoded-recon-ref', step=step)
 
-            self.log_image_grid(fft_magnitude_grid_grid_tr,
+            self.log_image_grid(fft_magnitude_grid_tr,
                                 tag_name='train_en_magnitude/fft_magnitude-origin-autoencoded-recon', step=step)
-            self.log_image_grid(fft_magnitude__grid_grid_ts,
+            self.log_image_grid(fft_magnitude_grid_ts,
                                 tag_name='test_en_magnitude/fft_magnitude-origin-autoencoded-recon', step=step)
 
             self.log_image_grid(features_grid_grid_tr, tag_name='train_en_magnitude/features-origin-recon', step=step)
@@ -668,17 +662,7 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
                             fit_batch: bool = False,
                             **kwargs):
 
-
-    if config_path is None:
-        config = ConfigTrainer()
-    elif S3FileSystem.is_s3_url(config_path):
-        config = S3FileSystem().load_object(config_path, ConfigTrainer.from_data_file)
-    else:
-        assert os.path.exists(config_path)
-        config = ConfigTrainer.from_data_file(config_path)
-
-    config.log_path = PATHS.LOG
-    config = config.update(**kwargs)
+    config = TrainerPhaseRetrievalAeFeatures.load_config(config_path, **kwargs)
 
     trainer = TrainerPhaseRetrievalAeFeatures(config=config, experiment_name=experiment_name)
     task_s3_path = trainer.get_task_s3_path()
@@ -687,10 +671,10 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
         train_en_losses, test_en_losses, test_ae_losses = trainer.train()
 
     if fit_batch:
-        trainer._log.info(f'FITTING TEST BATCH')
+        trainer.get_log().info(f'FITTING TEST BATCH')
 
         for num_img_fit in range(len(trainer.data_ts_batch)):
-            trainer._log.info(f'fit ts batch num - {num_img_fit}')
+            trainer.get_log().info(f'fit ts batch num - {num_img_fit}')
             fit_batch = torch.unsqueeze(trainer.data_ts_batch[num_img_fit], 0)
             data_ts_batch_fitted, losses_fit = trainer.fit(fit_batch,
                                                            lr=0.00001, n_iter=1000,
