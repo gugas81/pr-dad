@@ -44,7 +44,7 @@ class BaseTrainerPhaseRetrieval:
         self.learning_rate = self._config.learning_rate
         self.img_size = config.image_size
 
-        self._log.debug(f'Config params: {config}')
+        self._log.debug(f'Config params: \n {config} \n')
 
         set_seed(self.seed)
 
@@ -54,6 +54,7 @@ class BaseTrainerPhaseRetrieval:
             if self._task:
                 self._task.add_tags(['DEBUG'])
 
+        self._log.debug('init data loaders')
         self._init_data_loaders()
 
         self._init_dbg_data_batches()

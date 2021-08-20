@@ -130,23 +130,28 @@ def create_data_loaders(ds_name: str, img_size: int, use_aug: bool, batch_size_t
                         seed: int,
                         n_dataloader_workers: int, paired_part: float, fft_norm: str, log: logging.Logger,
                         s3: Optional[S3FileSystem] = None):
+    log.debug('Create train dataset')
     train_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=True, use_aug=use_aug,
                                           paired_part=paired_part, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
 
+    log.debug('Create test dataset')
     test_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=False, use_aug=use_aug,
                                          paired_part=1.0, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
 
     paired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.paired_ind)
     unpaired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.unpaired_paired_ind)
 
+    log.debug('Create train  paired loader')
     train_paired_loader = DataLoader(train_dataset, batch_size=batch_size_train,
                                      worker_init_fn=np.random.seed(seed), num_workers=n_dataloader_workers,
                                      sampler=paired_tr_sampler)
 
+    log.debug('Create train  unnpaired loader')
     train_unpaired_loader = DataLoader(train_dataset, batch_size=batch_size_train,
                                        worker_init_fn=np.random.seed(seed), num_workers=n_dataloader_workers,
                                        sampler=unpaired_tr_sampler)
 
+    log.debug('Create test loader')
     test_loader = DataLoader(test_dataset, batch_size=batch_size_test, shuffle=False,
                              worker_init_fn=np.random.seed(seed),
                              num_workers=n_dataloader_workers)
