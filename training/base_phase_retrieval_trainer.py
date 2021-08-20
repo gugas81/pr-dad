@@ -1,5 +1,4 @@
 import numpy as np
-import torch.nn as nn
 import os
 import clearml
 import tensorboardX
@@ -15,7 +14,7 @@ import logging
 
 from common import ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
 from common import im_concatenate, square_grid_im_concat, PATHS, im_save
-from common import TensorBatch, InferredBatch
+from common import InferredBatch
 
 
 logging.basicConfig(level=logging.INFO)
@@ -196,7 +195,7 @@ class BaseTrainerPhaseRetrieval:
                 self._s3.save_object(url=s3_img_tensors_path,
                                      saver=lambda path_: torchvision.utils.save_image(image_batch, path_))
 
-    def _grid_images(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
+    def _grid_images(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize: bool = True) -> Tensor:
         inv_norm_transform = self.test_ds.get_inv_normalize_transform()
         img_grid = [inv_norm_transform(data_batch.image)]
         if inferred_batch.decoded_img is not None:
@@ -207,7 +206,7 @@ class BaseTrainerPhaseRetrieval:
             img_grid.append(inv_norm_transform(inferred_batch.img_recon_ref))
 
         img_grid = torch.cat(img_grid, dim=-2)
-        img_grid = torchvision.utils.make_grid(img_grid, normalize=True)
+        img_grid = torchvision.utils.make_grid(img_grid, normalize=normalize)
         return img_grid
 
     def _grid_diff_images(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
@@ -268,8 +267,8 @@ class BaseTrainerPhaseRetrieval:
         self._tensorboard.add_images(tag=tag_name, img_tensor=image_grid, global_step=step, dataformats='CHW')
         self._save_img_to_s3(image_grid, s3_tensors_path)
 
-    def _debug_images_grids(self, data_batch: DataBatch, inferred_batch: InferredBatch):
-        img_grid_grid = self._grid_images(data_batch, inferred_batch)
+    def _debug_images_grids(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize_img: bool = True):
+        img_grid_grid = self._grid_images(data_batch, inferred_batch, normalize=normalize_img)
         img_diff_grid = self._grid_diff_images(data_batch, inferred_batch)
         fft_magnitude_grid_grid = self._grid_fft_magnitude(data_batch, inferred_batch)
         features_grid_grid = self._grid_features(inferred_batch)
