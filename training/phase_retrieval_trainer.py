@@ -280,7 +280,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
     def load_models(self):
         if self._config.path_pretrained is not None:
-            loaded_sate = self.load_state()
+            loaded_sate = self.load_state(self._config.path_pretrained)
 
             self._generator_model.load_modules(loaded_sate)
 

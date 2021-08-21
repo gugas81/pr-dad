@@ -9,30 +9,30 @@ from torch import Tensor
 import torchvision
 from torch.nn import functional as F
 from training.dataset import create_data_loaders
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Union
 import logging
 
 from common import ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
 from common import im_concatenate, square_grid_im_concat, PATHS, im_save
 from common import InferredBatch
 
-
 logging.basicConfig(level=logging.INFO)
 
 
 class BaseTrainerPhaseRetrieval:
     _task = None
+    _log = logging.getLogger('BaseTrainerPhaseRetrieval')
+    _s3 = S3FileSystem()
 
-    def __init__(self, config: ConfigTrainer, experiment_name: str):
-        self._config: ConfigTrainer = config
+    def __init__(self, config: ConfigTrainer, experiment_name: Optional[str] = None):
+        self._base_init()
+
+        if experiment_name is not None:
+            self._init_experiment(experiment_name)
+
         self._global_step = 0
-        self._log = logging.getLogger(self.__class__.__name__)
-        self._log.setLevel(logging.DEBUG)
-        self._s3 = S3FileSystem()
-        self._create_log_dir(experiment_name)
-        self._create_loggers()
-        self._init_trains(experiment_name)
-
+        self._config: ConfigTrainer = config
+        self._log.debug(f'Config params: \n {config} \n')
         self.device = 'cuda' if torch.cuda.is_available() and self._config.cuda else 'cpu'
         self.seed = self._config.seed
         self._fft_norm = self._config.fft_norm
@@ -43,8 +43,6 @@ class BaseTrainerPhaseRetrieval:
         self.batch_size_test = self._config.batch_size_test
         self.learning_rate = self._config.learning_rate
         self.img_size = config.image_size
-
-        self._log.debug(f'Config params: \n {config} \n')
 
         set_seed(self.seed)
 
@@ -58,6 +56,20 @@ class BaseTrainerPhaseRetrieval:
         self._init_data_loaders()
 
         self._init_dbg_data_batches()
+
+    def _init_experiment(self, experiment_name: str):
+        self._create_log_dir(experiment_name)
+        self._create_loggers()
+        self._init_trains(experiment_name)
+
+    def _base_init(self):
+        self._log = self.set_logger()
+        self._log.setLevel(logging.DEBUG)
+        self._s3 = S3FileSystem()
+
+    @classmethod
+    def set_logger(cls):
+        return logging.getLogger(__class__.__name__)
 
     def _init_dbg_data_batches(self):
         dbg_batch_tr = min(self.batch_size_train, self._dbg_img_batch)
@@ -88,9 +100,7 @@ class BaseTrainerPhaseRetrieval:
                                 log=self._log,
                                 s3=self._s3)
 
-    def load_state(self, model_path: str = None) -> Dict[str, Any]:
-        if model_path is None:
-            model_path = self._config.path_pretrained
+    def load_state(self, model_path: str) -> Dict[str, Any]:
         if self._s3.is_s3_url(model_path):
             loaded_sate = self._s3.load_object(model_path, torch.load)
         else:
@@ -106,16 +116,26 @@ class BaseTrainerPhaseRetrieval:
                          is_paired=is_paired)
 
     @staticmethod
-    def load_config(config_path,  **kwargs) -> ConfigTrainer:
-        if config_path is None:
-            config = ConfigTrainer()
-        elif S3FileSystem.is_s3_url(config_path):
-            config = S3FileSystem().load_object(config_path, ConfigTrainer.from_data_file)
+    def load_config(config_obj: Union[str, dict], **kwargs) -> ConfigTrainer:
+        if config_obj is None:
+            config = ConfigTrainer
+        elif isinstance(config_obj, str):
+            config = BaseTrainerPhaseRetrieval.load_from_path(config_obj)
+        elif isinstance(config_obj, dict):
+            config = ConfigTrainer.from_dict(config_obj)
+        config.log_path = PATHS.LOG
+        config = config.update(**kwargs)
+        return config
+
+    @staticmethod
+    def load_from_path(config_path: str) -> ConfigTrainer:
+        s3 = S3FileSystem()
+        if s3.is_s3_url(config_path):
+            assert s3.isfile(config_path)
+            config = s3.load_object(config_path, ConfigTrainer.from_data_file)
         else:
             assert os.path.exists(config_path)
             config = ConfigTrainer.from_data_file(config_path)
-        config.log_path = PATHS.LOG
-        config = config.update(**kwargs)
         return config
 
     def prepare_dbg_batch(self,

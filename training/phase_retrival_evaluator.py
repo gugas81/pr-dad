@@ -2,7 +2,7 @@ import numpy as np
 import fire
 import os
 from tqdm import tqdm
-from typing import List
+from typing import List, Optional
 import pandas as pd
 from dataclasses import dataclass, field
 from skimage.metrics import structural_similarity as _ssim
@@ -44,14 +44,17 @@ class CalculateMetrics:
 class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
     eval_mode = True
 
-    def __init__(self, model_path: str, config_path: str):
-        config = self.load_config(config_path)
+    def __init__(self, model_path: str, config_path: Optional[str] = None):
+        loaded_sate = self.load_state(model_path)
+        assert ('config' in loaded_sate) or (config_path is not None)
+        config_obj = loaded_sate['config'] if 'config' in loaded_sate else config_path
+        config = self.load_config(config_obj)
         config.use_tensor_board = False
         config.part_supervised_pairs = 1.0
         config.batch_size_test = 128
         config.load_modules = ['all']
-        experiment_name = 'TrainerPhaseRetrievalEvaluator'
-        super(TrainerPhaseRetrievalEvaluator, self).__init__(config=config, experiment_name=experiment_name)
+
+        super(TrainerPhaseRetrievalEvaluator, self).__init__(config=config)
         self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
         if self.eval_mode:
             self._generator_model.set_eval_mode()
@@ -61,7 +64,7 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         self._generator_model.set_device(self.device)
 
         self._log.debug(f'loaded_sate from {model_path}')
-        loaded_sate = self.load_state(model_path)
+
         self._generator_model.load_modules(loaded_sate, force=True)
 
     def benchmark_evaluation(self, save_out_url: str):
