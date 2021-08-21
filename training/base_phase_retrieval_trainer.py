@@ -101,7 +101,9 @@ class BaseTrainerPhaseRetrieval:
                                 s3=self._s3)
 
     def load_state(self, model_path: str) -> Dict[str, Any]:
+        self._log.debug(f'Load state dict from: {model_path}')
         if self._s3.is_s3_url(model_path):
+            assert self._s3.isfile(model_path)
             loaded_sate = self._s3.load_object(model_path, torch.load)
         else:
             assert os.path.isfile(model_path)
