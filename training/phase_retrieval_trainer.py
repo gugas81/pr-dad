@@ -299,10 +299,10 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self._generator_model.load_module(loaded_sate,
                                               self.optimizer_en,
                                               ModulesNames.opt_magnitude_encoder)
-
-            self._generator_model.load_module(loaded_sate,
-                                              self.opt_ae,
-                                              ModulesNames.opt_ae)
+            if self._config.is_train_ae:
+                self._generator_model.load_module(loaded_sate,
+                                                  self.opt_ae,
+                                                  ModulesNames.opt_ae)
 
     def fit(self, data_batch: DataBatch, lr: float, lr_milestones: List[int], lr_reduce_rate: float, n_iter: int,
             name: str) -> (InferredBatch, LossesPRFeatures):
