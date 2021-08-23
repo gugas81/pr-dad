@@ -26,13 +26,13 @@ class BaseTrainerPhaseRetrieval:
 
     def __init__(self, config: ConfigTrainer, experiment_name: Optional[str] = None):
         self._base_init()
+        self._config: ConfigTrainer = config
+        self._log.debug(f'Config params: \n {config} \n')
 
         if experiment_name is not None:
             self._init_experiment(experiment_name)
 
         self._global_step = 0
-        self._config: ConfigTrainer = config
-        self._log.debug(f'Config params: \n {config} \n')
         self.device = 'cuda' if torch.cuda.is_available() and self._config.cuda else 'cpu'
         self.seed = self._config.seed
         self._fft_norm = self._config.fft_norm
@@ -63,7 +63,7 @@ class BaseTrainerPhaseRetrieval:
         self._init_trains(experiment_name)
 
     def _base_init(self):
-        self._log = self.set_logger()
+        self._log = logging.getLogger(self.__class__.__name__)
         self._log.setLevel(logging.DEBUG)
         self._s3 = S3FileSystem()
 
