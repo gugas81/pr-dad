@@ -48,6 +48,8 @@ class PhaseRetrievalDataset(Dataset):
             ds_class = partial(torchvision.datasets.EMNIST, split='balanced')
         elif ds_name == 'fashion-mnist':
             ds_class = torchvision.datasets.FashionMNIST
+        elif ds_name == 'kmnist':
+            ds_class = torchvision.datasets.KMNIST
         elif ds_name == 'celeba':
             self._download_ds_from_s3(ds_name, ds_path)
             self.norm_mean = 0.5
