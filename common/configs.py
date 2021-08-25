@@ -189,4 +189,6 @@ class ConfigTrainer(ConfigBase):
     activation_enc: str = 'leakly_relu'  # relu leakly_relu
     activation_discrim: str = 'leakly_relu'  # relu leakly_relu
     up_sampling: str = 'bilinear' # 'bilinear' 'nearest'
+    rot_degrees: float = 0.0
+    use_aug_test: bool = False
 

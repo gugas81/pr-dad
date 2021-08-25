@@ -91,6 +91,8 @@ class BaseTrainerPhaseRetrieval:
             create_data_loaders(ds_name=self._config.dataset_name,
                                 img_size=self.img_size,
                                 use_aug=self._config.use_aug,
+                                use_aug_test=self._config.use_aug_test,
+                                rot_degrees=self._config.rot_degrees,
                                 batch_size_train=self.batch_size_train,
                                 batch_size_test=self.batch_size_test,
                                 n_dataloader_workers=self._config.n_dataloader_workers,

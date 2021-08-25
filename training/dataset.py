@@ -16,7 +16,7 @@ from common import PATHS, S3FileSystem, NormalizeInverse
 
 
 class PhaseRetrievalDataset(Dataset):
-    def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool,
+    def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool, rot_degrees: float,
                  paired_part: float, fft_norm: str, log: logging.Logger, seed: int, s3: Optional[S3FileSystem] = None):
         def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None):
             return torchvision.datasets.CelebA(root=root,
@@ -66,7 +66,8 @@ class PhaseRetrievalDataset(Dataset):
 
         data_transforms = [alignment_transform]
         if self._use_aug:
-            argumentation_transforms = [transforms.RandomRotation(90.0, interpolation=InterpolationMode.BILINEAR),
+            argumentation_transforms = [transforms.RandomRotation(rot_degrees,
+                                                                  interpolation=InterpolationMode.BILINEAR),
                                         transforms.RandomHorizontalFlip(),
                                         transforms.RandomVerticalFlip()]
             data_transforms += argumentation_transforms
@@ -128,16 +129,20 @@ class PhaseRetrievalDataset(Dataset):
         return NormalizeInverse((self.norm_mean,), (self.norm_std,))
 
 
-def create_data_loaders(ds_name: str, img_size: int, use_aug: bool, batch_size_train: int, batch_size_test: int,
+def create_data_loaders(ds_name: str, img_size: int,
+                        use_aug: bool, use_aug_test: bool, rot_degrees: float,
+                        batch_size_train: int, batch_size_test: int,
                         seed: int,
                         n_dataloader_workers: int, paired_part: float, fft_norm: str, log: logging.Logger,
                         s3: Optional[S3FileSystem] = None):
     log.debug('Create train dataset')
-    train_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=True, use_aug=use_aug,
+    train_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=True,
+                                          use_aug=use_aug, rot_degrees=rot_degrees,
                                           paired_part=paired_part, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
 
     log.debug('Create test dataset')
-    test_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=False, use_aug=use_aug,
+    test_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=False,
+                                         use_aug=use_aug_test, rot_degrees=rot_degrees,
                                          paired_part=1.0, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
 
     paired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.paired_ind)
