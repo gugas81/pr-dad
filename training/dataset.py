@@ -66,13 +66,16 @@ class PhaseRetrievalDataset(Dataset):
 
         data_transforms = [alignment_transform]
         if self._use_aug:
-            argumentation_transforms = [transforms.RandomRotation(rot_degrees,
-                                                                  interpolation=InterpolationMode.BILINEAR),
-                                        transforms.RandomHorizontalFlip(),
+            argumentation_transforms = [transforms.RandomHorizontalFlip(),
                                         transforms.RandomVerticalFlip()]
+            if rot_degrees > 0.0:
+                argumentation_transforms = [transforms.RandomRotation(rot_degrees,
+                                                                      nterpolation=InterpolationMode.BILINEAR)] + \
+                                           argumentation_transforms
+
             data_transforms += argumentation_transforms
 
-        data_transforms = data_transforms + [transforms.ToTensor(),normalize_transform]
+        data_transforms = data_transforms + [transforms.ToTensor(), normalize_transform]
         if is_rgb:
             data_transforms.append(transforms.Grayscale(num_output_channels=1))
         data_transforms = transforms.Compose(data_transforms)
