@@ -301,7 +301,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                               ModulesNames.opt_magnitude_encoder)
             if self._config.is_train_ae:
                 self._generator_model.load_module(loaded_sate,
-                                                  self.opt_ae,
+                                                  self.optimizer_ae,
                                                   ModulesNames.opt_ae)
 
     def fit(self, data_batch: DataBatch, lr: float, lr_milestones: List[int], lr_reduce_rate: float, n_iter: int,
