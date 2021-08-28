@@ -14,7 +14,7 @@ class DataBatch:
         return v.size()[0]
 
     @staticmethod
-    def _merge(params: List['ParamsMeta'], merge_func: Callable):
+    def _merge(params: List['DataBatch'], merge_func: Callable):
         new_obj = defaultdict(list)
 
         for p in params:
@@ -58,6 +58,10 @@ class DataBatch:
 
     def get_keys(self) -> List[str]:
         return list(self.__dict__.keys())
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> 'DataBatch':
+        return cls(**d)
 
 
 @dataclass

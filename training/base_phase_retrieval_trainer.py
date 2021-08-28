@@ -113,12 +113,14 @@ class BaseTrainerPhaseRetrieval:
             loaded_sate = torch.load(model_path)
         return loaded_sate
 
-    def prepare_data_batch(self, item_data: Dict[str, Any]) -> DataBatch:
-        is_paired = item_data['paired'].cpu().numpy().all()
-        return DataBatch(image=item_data['image'].to(device=self.device),
-                         fft_magnitude=item_data['fft_magnitude'].to(device=self.device),
-                         label=item_data['label'].to(device=self.device),
-                         is_paired=is_paired)
+    @staticmethod
+    def prepare_data_batch(item_data: Dict[str, Any]) -> DataBatch:
+        item_data['is_paired'] = item_data['is_paired'].cpu().numpy().all()
+        return DataBatch.from_dict(item_data)
+        # return DataBatch(image=item_data['image'].to(device=self.device),
+        #                  fft_magnitude=item_data['fft_magnitude'].to(device=self.device),
+        #                  label=item_data['label'].to(device=self.device),
+        #                  is_paired=is_paired)
 
     @staticmethod
     def load_config(config_obj: Union[str, dict], **kwargs) -> ConfigTrainer:
