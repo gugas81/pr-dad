@@ -6,6 +6,7 @@ from typing import Optional, List, Callable, Iterable, Dict
 from dataclasses import dataclass, field
 from .paths import PATHS
 
+
 class NumpyEncoder(json.JSONEncoder):
     """
     A JSONEncoder capable of converting numpy types to simple python builtin types.

@@ -109,11 +109,11 @@ class TensorBatch(DataBatch):
 
 @dataclass
 class DataBatch(TensorBatch):
-    image: Optional[Tensor] = torch.tensor([float('nan')])
-    image_discrim: Optional[Tensor] = torch.tensor([float('nan')])
-    fft_magnitude: Optional[Tensor] = torch.tensor([float('nan')])
-    label: Optional[Tensor] = torch.tensor([float('nan')])
-    label_discrim: Optional[Tensor] = torch.tensor([float('nan')])
+    image: Tensor = torch.tensor([float('nan')])
+    image_discrim: Tensor = torch.tensor([float('nan')])
+    fft_magnitude: Tensor = torch.tensor([float('nan')])
+    label: Tensor = torch.tensor([float('nan')])
+    label_discrim: Tensor = torch.tensor([float('nan')])
     is_paired: bool = True
 
 

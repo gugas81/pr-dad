@@ -329,10 +329,13 @@ class BaseTrainerPhaseRetrieval:
         return f'{self._task.name}.{self._task.task_id}'
 
     def get_task_s3_path(self) -> Optional[str]:
-        path_task = os.path.join(self._task.logger.get_default_upload_destination(),
-                                 self._task.get_project_name(),
-                                 self.get_task_name_id())
-        path_task = path_task if self._s3.exists(path_task) else None
+        if self._task is not None:
+            path_task = os.path.join(self._task.logger.get_default_upload_destination(),
+                                     self._task.get_project_name(),
+                                     self.get_task_name_id())
+            path_task = path_task if self._s3.exists(path_task) else None
+        else:
+            path_task = None
         return path_task
 
     def get_log(self) -> logging.Logger:
