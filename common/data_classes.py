@@ -4,7 +4,7 @@ import numpy as np
 import dataclasses
 from typing import Optional, List, Callable, Dict, Any
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -109,11 +109,11 @@ class TensorBatch(DataBatch):
 
 @dataclass
 class DataBatch(TensorBatch):
-    image: Optional[Tensor] = None
-    image_discrim: Optional[Tensor] = None
-    fft_magnitude: Optional[Tensor] = None
-    label: Optional[Tensor] = None
-    label_discrim: Optional[Tensor] = None
+    image: Optional[Tensor] = torch.tensor([float('nan')])
+    image_discrim: Optional[Tensor] = torch.tensor([float('nan')])
+    fft_magnitude: Optional[Tensor] = torch.tensor([float('nan')])
+    label: Optional[Tensor] = torch.tensor([float('nan')])
+    label_discrim: Optional[Tensor] = torch.tensor([float('nan')])
     is_paired: bool = True
 
 
