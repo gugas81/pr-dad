@@ -122,7 +122,7 @@ class PhaseRetrievalDataset(Dataset):
             image_data = self.image_dataset[np.random.choice(self.paired_ind)][0]
         item_batch = DataBatch(image=image_data, fft_magnitude=fft_magnitude, label=label, is_paired=is_paired)
         if self._is_gan:
-            img_discrim_item = self.image_dataset[np.random.choice(self.paired_ind)][0]
+            img_discrim_item = self.image_dataset[np.random.choice(self.paired_ind)]
             item_batch.image_discrim = img_discrim_item[0]
             item_batch.label_discrim = img_discrim_item[1]
         return item_batch
