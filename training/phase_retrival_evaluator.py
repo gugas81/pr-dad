@@ -50,6 +50,7 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         config_obj = loaded_sate['config'] if 'config' in loaded_sate else config_path
         config = self.load_config(config_obj)
         config.use_tensor_board = False
+        config.use_gan = False
         config.part_supervised_pairs = 1.0
         config.batch_size_test = 128
         config.load_modules = ['all']

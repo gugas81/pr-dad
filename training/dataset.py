@@ -12,11 +12,11 @@ from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from torchvision.transforms import InterpolationMode
 
-from common import PATHS, S3FileSystem, NormalizeInverse
+from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
 
 
 class PhaseRetrievalDataset(Dataset):
-    def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool, rot_degrees: float,
+    def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool, rot_degrees: float, is_gan: bool,
                  paired_part: float, fft_norm: str, log: logging.Logger, seed: int, s3: Optional[S3FileSystem] = None):
         def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None):
             return torchvision.datasets.CelebA(root=root,
@@ -31,6 +31,7 @@ class PhaseRetrievalDataset(Dataset):
         self._fft_norm = fft_norm
         self._img_size = img_size
         self._is_train = train
+        self._is_gan = is_gan
         self._use_aug = use_aug
         self._log = log
         self._s3 = S3FileSystem() if s3 is None else s3
@@ -106,19 +107,25 @@ class PhaseRetrievalDataset(Dataset):
     def __getitem__(self, idx: Union[int, Tuple[int, int, int]]) -> Dict[str, Any]:
         while True:
             try:
-                return self._get_item(idx)
+                item_batch = self._get_item(idx)
+                return item_batch.as_dict()
             except Exception as e:
                 self._log.error(f'Error loading item {idx} from the dataset: {e}')
 
-    def _get_item(self, idx: Union[int, Tuple[int, int, int]]) -> Dict[str, Tensor]:
+    def _get_item(self, idx: Union[int, Tuple[int, int, int]]) -> DataBatch:
         is_paired = idx in self.paired_ind
-        image_data = self.image_dataset[idx][0]
-        label = self.image_dataset[idx][1]
+        img_item = self.image_dataset[idx]
+        image_data = img_item[0]
+        label = img_item[1]
         fft_magnitude = self._forward_magnitude_fft(image_data)
         if not is_paired:
             image_data = self.image_dataset[np.random.choice(self.paired_ind)][0]
-        item = {'image': image_data, 'fft_magnitude': fft_magnitude, 'label': label, 'paired': is_paired}
-        return item
+        item_batch = DataBatch(image=image_data, fft_magnitude=fft_magnitude, label=label, is_paired=is_paired)
+        if self._is_gan:
+            img_discrim_item = self.image_dataset[np.random.choice(self.paired_ind)][0]
+            item_batch.image_discrim = img_discrim_item[0]
+            item_batch.label_discrim = img_discrim_item[1]
+        return item_batch
 
     def _forward_magnitude_fft(self, image_data: Tensor) -> Tensor:
         fft_data_batch = torch.fft.fft2(image_data, norm=self._fft_norm)
@@ -135,17 +142,17 @@ class PhaseRetrievalDataset(Dataset):
 def create_data_loaders(ds_name: str, img_size: int,
                         use_aug: bool, use_aug_test: bool, rot_degrees: float,
                         batch_size_train: int, batch_size_test: int,
-                        seed: int,
+                        seed: int, use_gan: bool,
                         n_dataloader_workers: int, paired_part: float, fft_norm: str, log: logging.Logger,
                         s3: Optional[S3FileSystem] = None):
     log.debug('Create train dataset')
     train_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=True,
-                                          use_aug=use_aug, rot_degrees=rot_degrees,
+                                          use_aug=use_aug, rot_degrees=rot_degrees, is_gan=use_gan,
                                           paired_part=paired_part, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
 
     log.debug('Create test dataset')
     test_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=False,
-                                         use_aug=use_aug_test, rot_degrees=rot_degrees,
+                                         use_aug=use_aug_test, rot_degrees=rot_degrees, is_gan=False,
                                          paired_part=1.0, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
 
     paired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.paired_ind)

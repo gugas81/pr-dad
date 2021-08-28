@@ -368,10 +368,12 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         return inferred_batch, losses_fit
 
-    def _discrim_ls_loss(self, discriminator: nn.Module, real_img: Tensor, generated_img: Tensor,
+    def _discrim_ls_loss(self, discriminator: nn.Module, real_img: Tensor, generated_imgs: List[Tensor],
                          real_labels: Tensor, fake_labels: Tensor) -> Tensor:
         real_loss = self.adv_loss(discriminator(real_img.detach()).validity, real_labels)
-        fake_loss = self.adv_loss(discriminator(generated_img.detach()).validity, fake_labels)
+        fake_loss = torch.zeros_like(real_loss)
+        for gen_img in generated_imgs:
+            fake_loss += self.adv_loss(discriminator(gen_img.detach()).validity, fake_labels)
         disrm_loss = 0.5 * (real_loss + fake_loss)
         return disrm_loss
 
@@ -382,27 +384,31 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         real_labels = torch.ones((batch_size, 1), device=self.device, dtype=data_batch.image.dtype)
         fake_labels = torch.zeros((batch_size, 1), device=self.device, dtype=data_batch.image.dtype)
 
+        generated_img = [inferred_batch.img_recon]
+        if self._config.use_ref_net:
+            generated_img.append(inferred_batch.img_recon_ref)
+
         img_disrm_loss = self._discrim_ls_loss(self.img_discriminator,
-                                               real_img=inferred_batch.decoded_img,
-                                               generated_img=inferred_batch.img_recon,
+                                               real_img=data_batch.image_discrim,
+                                               generated_imgs=generated_img,
                                                real_labels=real_labels,
                                                fake_labels=fake_labels)
         tr_losses.disrm_loss = self._config.lambda_discrim_img * img_disrm_loss
 
-        if self._config.use_ref_net:
-            ref_img_disrm_loss = self._discrim_ls_loss(self.img_discriminator,
-                                                       real_img=inferred_batch.decoded_img,
-                                                       generated_img=inferred_batch.img_recon_ref,
-                                                       real_labels=real_labels,
-                                                       fake_labels=fake_labels)
-            tr_losses.disrm_loss += self._config.lambda_discrim_ref_img * ref_img_disrm_loss
-        else:
-            ref_img_disrm_loss = None
+        # if self._config.use_ref_net:
+        #     ref_img_disrm_loss = self._discrim_ls_loss(self.img_discriminator,
+        #                                                real_img=data_batch.image_discrim,
+        #                                                generated_img=inferred_batch.img_recon_ref,
+        #                                                real_labels=real_labels,
+        #                                                fake_labels=fake_labels)
+        #     tr_losses.disrm_loss += self._config.lambda_discrim_ref_img * ref_img_disrm_loss
+        # else:
+        #     ref_img_disrm_loss = None
 
         if self._config.predict_out == 'features':
             feature_disrm_loss = self._discrim_ls_loss(self.features_discriminator,
                                                        real_img=inferred_batch.feature_encoder,
-                                                       generated_img=inferred_batch.feature_recon,
+                                                       generated_imgs=[inferred_batch.feature_recon],
                                                        real_labels=real_labels,
                                                        fake_labels=fake_labels)
             tr_losses.disrm_loss += self._config.lambda_discrim_features * feature_disrm_loss
@@ -410,7 +416,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             feature_disrm_loss = None
 
         tr_losses.img_disrm_loss = img_disrm_loss
-        tr_losses.ref_img_disrm_loss = ref_img_disrm_loss
+        # tr_losses.ref_img_disrm_loss = ref_img_disrm_loss
         tr_losses.features_disrm_loss = feature_disrm_loss
         tr_losses.disrm_loss.backward()
         if self._config.clip_discriminator_grad:

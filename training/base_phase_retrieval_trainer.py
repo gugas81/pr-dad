@@ -92,6 +92,7 @@ class BaseTrainerPhaseRetrieval:
                                 img_size=self.img_size,
                                 use_aug=self._config.use_aug,
                                 use_aug_test=self._config.use_aug_test,
+                                use_gan=self._config.use_gan,
                                 rot_degrees=self._config.rot_degrees,
                                 batch_size_train=self.batch_size_train,
                                 batch_size_test=self.batch_size_test,

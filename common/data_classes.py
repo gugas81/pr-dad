@@ -102,11 +102,14 @@ class TensorBatch(DataBatch):
     def detach(self):
         return self.reduce(torch.detach)
 
+
 @dataclass
 class DataBatch(TensorBatch):
     image: Optional[Tensor] = None
+    image_discrim: Optional[Tensor] = None
     fft_magnitude: Optional[Tensor] = None
     label: Optional[Tensor] = None
+    label_discrim: Optional[Tensor] = None
     is_paired: bool = True
 
 
