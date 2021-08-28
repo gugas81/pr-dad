@@ -75,8 +75,8 @@ class BaseTrainerPhaseRetrieval:
         dbg_batch_tr = min(self.batch_size_train, self._dbg_img_batch)
         dbg_batch_ts = min(self.batch_size_test, self._dbg_img_batch)
 
-        self.data_tr_batch = self.prepare_data_batch(iter(self.train_paired_loader).next()).to(device=self.device)
-        self.data_ts_batch = self.prepare_data_batch(iter(self.test_loader).next()).to(device=self.device)
+        self.data_tr_batch = self.prepare_data_batch(iter(self.train_paired_loader).next())
+        self.data_ts_batch = self.prepare_data_batch(iter(self.test_loader).next())
 
         self.data_tr_batch.image = self.data_tr_batch.image[:dbg_batch_tr]
         self.data_tr_batch.fft_magnitude = self.data_tr_batch.fft_magnitude[:dbg_batch_tr]
@@ -113,14 +113,9 @@ class BaseTrainerPhaseRetrieval:
             loaded_sate = torch.load(model_path)
         return loaded_sate
 
-    @staticmethod
-    def prepare_data_batch(item_data: Dict[str, Any]) -> DataBatch:
+    def prepare_data_batch(self, item_data: Dict[str, Any]) -> DataBatch:
         item_data['is_paired'] = item_data['is_paired'].cpu().numpy().all()
-        return DataBatch.from_dict(item_data)
-        # return DataBatch(image=item_data['image'].to(device=self.device),
-        #                  fft_magnitude=item_data['fft_magnitude'].to(device=self.device),
-        #                  label=item_data['label'].to(device=self.device),
-        #                  is_paired=is_paired)
+        return DataBatch.from_dict(item_data).to(device=self.device)
 
     @staticmethod
     def load_config(config_obj: Union[str, dict], **kwargs) -> ConfigTrainer:
