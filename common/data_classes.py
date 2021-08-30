@@ -158,10 +158,13 @@ class LossesPRImages(Losses):
 
 @dataclass
 class LossesPRFeatures(Losses):
+    l1_img: Optional[Tensor] = None
     l2_img: Optional[Tensor] = None
     l2_img_np: Optional[Tensor] = None
+    l1_ref_img: Optional[Tensor] = None
     l2_ref_img: Optional[Tensor] = None
     l2_ref_img_np: Optional[Tensor] = None
+    l1_features: Optional[Tensor] = None
     l2_features: Optional[Tensor] = None
     l2_magnitude: Optional[Tensor] = None
     l2_ref_magnitude: Optional[Tensor] = None

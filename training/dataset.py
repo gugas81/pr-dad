@@ -147,7 +147,7 @@ def create_data_loaders(ds_name: str, img_size: int,
                         s3: Optional[S3FileSystem] = None):
     log.debug('Create train dataset')
     train_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=True,
-                                          use_aug=use_aug, rot_degrees=rot_degrees, is_gan=use_gan,
+                                          use_aug=use_aug, rot_degrees=rot_degrees, is_gan=False,
                                           paired_part=paired_part, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
 
     log.debug('Create test dataset')
