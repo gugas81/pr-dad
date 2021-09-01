@@ -441,14 +441,21 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
     def _ae_losses(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> LossesPRFeatures:
         fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
+        l1_img_loss = self.l1_loss(data_batch.image, inferred_batch.img_recon)
         l2_img_loss = self.l2_loss(data_batch.image, inferred_batch.img_recon)
         l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
+        l1_magnitude_loss = self.l1_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
         l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
+        l1_features_loss = self.l1_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
         l2_features_loss = self.l2_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
-        total_loss = l2_img_loss + l2_features_loss + 0.5 * self._config.lambda_sparsity_features * l1_sparsity_features
+        total_loss = l1_img_loss + l2_img_loss + l2_features_loss + \
+                      0.5 * self._config.lambda_sparsity_features * l1_sparsity_features
         losses = LossesPRFeatures(total=total_loss,
+                                  l1_img=l1_img_loss,
                                   l2_img=l2_img_loss,
+                                  l1_features=l1_features_loss,
                                   l2_features=l2_features_loss,
+                                  l1_magnitude=l1_magnitude_loss,
                                   l2_magnitude=l2_magnitude_loss,
                                   l1_sparsity_features=l1_sparsity_features)
 
@@ -474,17 +481,21 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             l2_features_loss = None
             l1_sparsity_features = None
 
+        l1_magnitude_loss = self.l1_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
         l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
         l2_features_realness = 0.5 * torch.mean(torch.square(inferred_batch.intermediate_features.imag.abs()))
 
         if self._config.use_ref_net:
             l1_ref_img_recon_loss = self.l1_loss(data_batch.image, inferred_batch.img_recon_ref)
             l2_ref_img_recon_loss = self.l2_loss(data_batch.image, inferred_batch.img_recon_ref)
+            l1_ref_magnitude_loss = self.l1_loss(data_batch.fft_magnitude.detach(),
+                                                 inferred_batch.fft_magnitude_recon_ref)
             l2_ref_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(),
                                                  inferred_batch.fft_magnitude_recon_ref)
         else:
             l2_ref_img_recon_loss = None
             l2_ref_magnitude_loss = None
+            l1_ref_magnitude_loss = None
 
         real_labels = torch.ones((data_batch.fft_magnitude.shape[0], 1),
                                  device=self.device,
@@ -535,6 +546,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             p_loss_discrim_ref_img = None
 
         total_loss += self._config.lambda_magnitude_recon_loss * l2_magnitude_loss + \
+                      self._config.lambda_magnitude_recon_loss_l1 * l1_magnitude_loss + \
                       self._config.lambda_features_realness * l2_features_realness
 
         if self._config.predict_out == 'features':
@@ -543,7 +555,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                           self._config.lambda_sparsity_features * l1_sparsity_features
 
         if self._config.use_ref_net:
-            total_loss += self._config.lambda_ref_magnitude_recon_loss * l2_ref_magnitude_loss + \
+            total_loss += self._config.lambda_ref_magnitude_recon_loss_l1 * l1_ref_magnitude_loss + \
+                          self._config.lambda_ref_magnitude_recon_loss * l2_ref_magnitude_loss + \
                           self._config.lambda_img_recon_loss * l2_ref_img_recon_loss + \
                           self._config.lambda_img_recon_loss_l1 * l1_ref_img_recon_loss
 
@@ -554,7 +567,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                   l2_ref_img=l2_ref_img_recon_loss,
                                   l1_features=l1_features_loss,
                                   l2_features=l2_features_loss,
+                                  l1_magnitude=l1_magnitude_loss,
                                   l2_magnitude=l2_magnitude_loss,
+                                  l1_ref_magnitude=l1_ref_magnitude_loss,
                                   l2_ref_magnitude=l2_ref_magnitude_loss,
                                   l1_sparsity_features=l1_sparsity_features,
                                   realness_features=l2_features_realness,
