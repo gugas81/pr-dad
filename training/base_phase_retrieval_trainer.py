@@ -288,9 +288,10 @@ class BaseTrainerPhaseRetrieval:
     def log_image_grid(self, image_grid: Optional[Tensor], tag_name: str, step: int):
         if image_grid is None:
             return
-        s3_tensors_path = os.path.join(self.get_task_s3_path(), 'images', tag_name, f'{step}.png')
         self._tensorboard.add_images(tag=tag_name, img_tensor=image_grid, global_step=step, dataformats='CHW')
-        self._save_img_to_s3(image_grid, s3_tensors_path)
+        if self._config.use_tensor_board:
+            s3_tensors_path = os.path.join(self.get_task_s3_path(), 'images', tag_name, f'{step}.png')
+            self._save_img_to_s3(image_grid, s3_tensors_path)
 
     def _debug_images_grids(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize_img: bool = True):
         img_grid_grid = self._grid_images(data_batch, inferred_batch, normalize=normalize_img)
