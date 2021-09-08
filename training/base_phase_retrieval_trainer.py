@@ -285,7 +285,9 @@ class BaseTrainerPhaseRetrieval:
         self._s3.save_object(url=path_url,
                              saver=lambda path_: torchvision.utils.save_image(img, path_))
 
-    def log_image_grid(self, image_grid: Tensor, tag_name: str, step: int):
+    def log_image_grid(self, image_grid: Optional[Tensor], tag_name: str, step: int):
+        if image_grid is None:
+            return
         s3_tensors_path = os.path.join(self.get_task_s3_path(), 'images', tag_name, f'{step}.png')
         self._tensorboard.add_images(tag=tag_name, img_tensor=image_grid, global_step=step, dataformats='CHW')
         self._save_img_to_s3(image_grid, s3_tensors_path)
@@ -294,7 +296,10 @@ class BaseTrainerPhaseRetrieval:
         img_grid_grid = self._grid_images(data_batch, inferred_batch, normalize=normalize_img)
         img_diff_grid = self._grid_diff_images(data_batch, inferred_batch)
         fft_magnitude_grid_grid = self._grid_fft_magnitude(data_batch, inferred_batch)
-        features_grid_grid = self._grid_features(inferred_batch)
+        if self._config.predict_out == 'features':
+            features_grid_grid = self._grid_features(inferred_batch)
+        else:
+            features_grid_grid = None
         return img_grid_grid, img_diff_grid, fft_magnitude_grid_grid, features_grid_grid
 
     def __del__(self):

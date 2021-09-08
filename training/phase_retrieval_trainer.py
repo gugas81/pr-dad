@@ -61,7 +61,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self._generator_model.set_train_mode()
         self._generator_model.set_device(self.device)
 
-        if self._config.is_train_ae:
+        if self._config.is_train_ae and (self._generator_model.ae_net is not None):
             self.optimizer_ae = optim.Adam(params=self._generator_model.ae_net.parameters(), lr=self.learning_rate)
         else:
             self.optimizer_ae = None
@@ -109,11 +109,13 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                                                         self._global_step)
 
         if self._config.is_train_ae:
+            assert self._config.predict_out == 'features'
             train_ae_losses, test_ae_losses = self.train_ae()
 
         if self._config.is_train_encoder:
-            test_ae_losses = self.test_eval_ae()
-            self._log.info(f' AE training: ts err: {test_ae_losses.mean()}')
+            if self._config.predict_out == 'features':
+                test_ae_losses = self.test_eval_ae()
+                self._log.info(f' AE training: ts err: {test_ae_losses.mean()}')
             train_en_losses, test_en_losses = self.train_en_magnitude()
 
         return train_en_losses, test_en_losses, test_ae_losses
@@ -596,10 +598,11 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         losses.std_img = inferred_batch.img_recon.std()
         losses.min_img = inferred_batch.img_recon.min()
         losses.max_img = inferred_batch.img_recon.max()
-        losses.mean_features = inferred_batch.feature_recon.mean()
-        losses.std_features = inferred_batch.feature_recon.std()
-        losses.min_features = inferred_batch.feature_recon.min()
-        losses.max_features = inferred_batch.feature_recon.max()
+        if inferred_batch.feature_recon is not None:
+            losses.mean_features = inferred_batch.feature_recon.mean()
+            losses.std_features = inferred_batch.feature_recon.std()
+            losses.min_features = inferred_batch.feature_recon.min()
+            losses.max_features = inferred_batch.feature_recon.max()
 
     def _save_gan_models(self, step: int) -> None:
         if self.models_path is not None:

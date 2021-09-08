@@ -20,13 +20,16 @@ class PhaseRetrievalAeModel:
         self._log = log
         self._s3 = s3
         self.n_encoder_ch = config.n_features // 4
-        self.ae_net = AeConv(n_encoder_ch=self.n_encoder_ch,
-                             img_size=self._config.image_size,
-                             deep=self._config.deep_ae,
-                             active_type=self._config.activation_ae,
-                             up_mode=self._config.up_sampling,
-                             down_pool=self._config.down_pooling_ae,
-                             features_sigmoid_active=self._config.features_sigmoid_active)
+        if self._config.predict_out == 'features':
+            self.ae_net = AeConv(n_encoder_ch=self.n_encoder_ch,
+                                 img_size=self._config.image_size,
+                                 deep=self._config.deep_ae,
+                                 active_type=self._config.activation_ae,
+                                 up_mode=self._config.up_sampling,
+                                 down_pool=self._config.down_pooling_ae,
+                                 features_sigmoid_active=self._config.features_sigmoid_active)
+        else:
+            self.ae_net = None
 
         if self._config.predict_out == 'features':
             predict_out_ch = self.ae_net.n_features_ch
@@ -88,7 +91,7 @@ class PhaseRetrievalAeModel:
 
     def load_modules(self, state_dict: OrderedDict[str, Tensor], force: bool = False) -> List[str]:
         loaded_models = []
-        if self.load_module(state_dict, self.ae_net, ModulesNames.ae_model, force):
+        if self.load_module(state_dict, self.ae_net, ModulesNames.ae_model, force) and (self.ae_net is not None):
             loaded_models.append(ModulesNames.ae_model)
 
         if self.load_module(state_dict, self.ref_unet, ModulesNames.ref_net, force):
@@ -109,7 +112,8 @@ class PhaseRetrievalAeModel:
         return save_state
 
     def set_device(self, device: str):
-        self.ae_net.to(device=device)
+        if self.ae_net is not None:
+            self.ae_net.to(device=device)
         self.phase_predictor.to(device=device)
         if self.ref_unet is not None:
             self.ref_unet.to(device=device)
@@ -129,8 +133,12 @@ class PhaseRetrievalAeModel:
         elif self._config.predict_out == 'images':
             recon_batch = features_batch_recon
 
-        feature_encoder = self.ae_net.encode(data_batch.image)
-        decoded_batch = self.ae_net.decode(feature_encoder)
+        if self._config.predict_out == 'features':
+            feature_encoder = self.ae_net.encode(data_batch.image)
+            decoded_batch = self.ae_net.decode(feature_encoder)
+        else:
+            feature_encoder = None
+            decoded_batch = None
 
         inferred_batch = InferredBatch(img_recon=recon_batch,
                                        feature_recon=features_batch_recon,
@@ -161,13 +169,15 @@ class PhaseRetrievalAeModel:
 
     def set_eval_mode(self):
         self.phase_predictor.eval()
-        self.ae_net.eval()
+        if self.ae_net is not None:
+            self.ae_net.eval()
         if self._config.use_ref_net:
             self.ref_unet.eval()
 
     def set_train_mode(self):
         self.phase_predictor.train()
-        self.ae_net.train()
+        if self.ae_net is not None:
+            self.ae_net.train()
         if self._config.use_ref_net:
             self.ref_unet.train()
 
