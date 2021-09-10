@@ -99,17 +99,26 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
             gt_images = inv_norm(data_batch.image).detach().cpu().numpy()
             recon_ref_images = inv_norm(inferred_batch.img_recon_ref).detach().cpu().numpy()
             recon_images = inv_norm(inferred_batch.img_recon).detach().cpu().numpy()
-            ae_images = inv_norm(inferred_batch.decoded_img).detach().cpu().numpy()
+            if self._config.predict_out == 'features':
+                ae_images = inv_norm(inferred_batch.decoded_img).detach().cpu().numpy()
+            else:
+                ae_images = np.zeros_like(gt_images)
             for gt_img, recon_ref_img, recon_img, ae_img in zip(gt_images, recon_ref_images, recon_images, ae_images):
                 eval_metrics_recon_ref_net.append(CalculateMetrics.metrics(gt_img, recon_ref_img))
                 eval_metrics_recon.append(CalculateMetrics.metrics(gt_img, recon_img))
-                eval_metrics_ae.append(CalculateMetrics.metrics(gt_img, ae_img))
+                if self._config.predict_out == 'features':
+                    eval_metrics_ae.append(CalculateMetrics.metrics(gt_img, ae_img))
 
         eval_recon_ref_net_df = self._get_eval_df(eval_metrics_recon_ref_net)
         eval_recon_df = self._get_eval_df(eval_metrics_recon)
-        eval_ae_df = self._get_eval_df(eval_metrics_ae)
-        eval_df = pd.concat([eval_recon_ref_net_df, eval_recon_df, eval_ae_df],
-                            keys=['recon_ref_net', 'recon', 'ae'])
+        eval_df = [eval_recon_ref_net_df, eval_recon_df]
+        keys = ['recon_ref_net', 'recon']
+        if self._config.predict_out == 'features':
+            eval_ae_df = self._get_eval_df(eval_metrics_ae)
+            eval_df.append(eval_ae_df)
+            keys.append('ae')
+
+        eval_df = pd.concat(eval_df, keys=keys)
 
         self._log.debug(f'\n{eval_df}')
 
@@ -152,8 +161,9 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
                              os.path.join(save_url, f'{prefix}-fft_magnitude-origin-ae-recon.png'))
         self._save_img_to_s3(img_diff_grid_grid,
                              os.path.join(save_url, f'{prefix}-img-diff-origin-ae-recon-ref.png'))
-        self._save_img_to_s3(features_grid_grid,
-                             os.path.join(save_url, f'{prefix}-features-origin-recon.png'))
+        if features_grid_grid is not None:
+            self._save_img_to_s3(features_grid_grid,
+                                 os.path.join(save_url, f'{prefix}-features-origin-recon.png'))
 
 
 if __name__ == '__main__':
