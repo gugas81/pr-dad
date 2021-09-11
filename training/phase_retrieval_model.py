@@ -19,7 +19,7 @@ class PhaseRetrievalAeModel:
         self._config = config
         self._log = log
         self._s3 = s3
-        self.n_encoder_ch = config.n_features // 4
+        self.n_encoder_ch = config.n_features // 2**(self._config.deep_ae-1)
         if self._config.predict_out == 'features':
             self.ae_net = AeConv(n_encoder_ch=self.n_encoder_ch,
                                  img_size=self._config.image_size,

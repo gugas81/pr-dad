@@ -10,11 +10,11 @@ class AeConv(nn.Module):
                  down_pool: str = 'avrg_pool', active_type: str = 'leakly_relu', up_mode: str = 'bilinear',
                  features_sigmoid_active: bool = True):
         super(AeConv, self).__init__()
-        assert deep == 3
         self.features_sigmoid_active = features_sigmoid_active
         self.n_encoder_ch = n_encoder_ch
-        self.n_features_ch = self.n_encoder_ch * 4
-        self.n_features_size = int(np.ceil(img_size / (2 * (deep-1))))
+        scale_factor = 2 ** (deep-1)
+        self.n_features_ch = self.n_encoder_ch * scale_factor
+        self.n_features_size = int(np.ceil(img_size / scale_factor))
         self._encoder = EncoderConv(in_ch=img_ch, encoder_ch=self.n_encoder_ch, deep=deep,
                                     active_type=active_type, down_pool=down_pool)
         self._decoder = DecoderConv(output_ch=None, img_ch=self.n_features_ch, deep=deep,
