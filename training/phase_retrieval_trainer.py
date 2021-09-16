@@ -33,8 +33,10 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         if self._config.use_gan:
             if self._config.predict_out == 'features':
+                in_conv_ch = self._generator_model.ae_net.n_features_ch \
+                    if self._config.discrim_features_ch is None else self._config.discrim_features_ch
                 self.features_discriminator = Discriminator(input_ch=self._generator_model.ae_net.n_features_ch,
-                                                            in_conv_ch=self._generator_model.ae_net.n_features_ch,
+                                                            in_conv_ch=in_conv_ch,
                                                             input_norm_type=self._config.disrim_input_norm,
                                                             fc_norm_type=self._config.disrim_fc_norm,
                                                             img_size=self._generator_model.ae_net.n_features_size,
@@ -51,7 +53,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                    fc_norm_type=self._config.disrim_fc_norm,
                                                    img_size=self.img_size,
                                                    n_fc_layers=self._config.disrim_fc_layers,
-                                                   deep_conv_net=3,
+                                                   deep_conv_net=self._config.deep_ae,
                                                    reduce_validity=True,
                                                    active_type=self._config.activation_discrim)
         else:

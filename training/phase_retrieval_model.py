@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Dict, OrderedDict, List, Any
 import torch
 from torch import nn
@@ -40,21 +41,26 @@ class PhaseRetrievalAeModel:
         else:
             raise NameError(f'Nonna valid predict_out type: {self._config.predict_out}')
 
-        if self._config.predict_type == 'phase':
-            inter_ch = predict_out_ch
-        else:
-            inter_ch = 2 * predict_out_ch
+        inter_ch = predict_out_ch if self._config.n_inter_features is None else self._config.n_inter_features
+        if self._config.predict_type == 'spectral':
+            inter_ch *= 2
 
+        deep_fc = int(math.floor(math.log(inter_ch * (predict_out_size ** 2) / (self._config.image_size ** 2),
+                                          self._config.predict_fc_multy_coeff))) + 1
+        deep_fc = max(3, deep_fc)
         self.phase_predictor = PhaseRetrievalPredictor(out_ch=predict_out_ch,
                                                        inter_ch=inter_ch,
                                                        out_img_size=predict_out_size,
                                                        fc_multy_coeff=self._config.predict_fc_multy_coeff,
+                                                       conv_multy_coeff=1,
+                                                       deep_conv=1,
                                                        fft_norm=self._config.fft_norm,
                                                        predict_type=self._config.predict_type,
                                                        im_img_size=self._config.image_size,
                                                        conv_type=self._config.predict_conv_type,
                                                        active_type=self._config.activation_enc,
-                                                       features_sigmoid_active=self._config.features_sigmoid_active)
+                                                       features_sigmoid_active=self._config.features_sigmoid_active,
+                                                       deep_fc=deep_fc)
 
         if self._config.use_ref_net:
             if self._config.predict_out == 'features':

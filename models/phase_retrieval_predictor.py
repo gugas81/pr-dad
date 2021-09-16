@@ -9,7 +9,8 @@ from models.conv_unet import UNetConv
 class PhaseRetrievalPredictor(nn.Module):
     def __init__(self, use_dropout: bool = False, im_img_size: int = 28, inter_ch: int = 1, out_ch: int = 1,
                  out_img_size: int = 32,
-                 fc_multy_coeff: int = 1, use_bn: bool = False, fft_norm: str = "ortho", deep_fc: int = 4,
+                 fc_multy_coeff: int = 1, conv_multy_coeff: int = 1,
+                 use_bn: bool = False, fft_norm: str = "ortho", deep_fc: int = 4,
                  deep_conv: int = 2,
                  predict_type: str = 'spectral', conv_type: str = 'ConvBlock',
                  active_type: str = 'leakly_relu', features_sigmoid_active: bool = False):
@@ -22,6 +23,7 @@ class PhaseRetrievalPredictor(nn.Module):
         self.out_ch = out_ch
         self.int_ch = inter_ch
         self.fc_multy_coeff = fc_multy_coeff
+        self.conv_multy_coeff  = conv_multy_coeff
         self.in_features = self.im_img_size ** 2
         self.inter_features = self.int_ch * self.out_img_size ** 2
 
@@ -39,12 +41,13 @@ class PhaseRetrievalPredictor(nn.Module):
         in_fc = self.in_features
         self.fc_blocks = []
         for ind in range(deep_fc):
+            out_fc *= self.fc_multy_coeff
             if ind == deep_fc - 1:
                 out_fc = out_fc_features
             fc_block = FcBlock(in_fc, out_fc, use_dropout=use_dropout, use_bn=use_bn)
             in_fc = out_fc
 
-            out_fc *= self.fc_multy_coeff
+            # out_fc *= self.fc_multy_coeff
             self.fc_blocks.append(fc_block)
 
         self.fc_blocks = nn.Sequential(*self.fc_blocks)
@@ -66,9 +69,10 @@ class PhaseRetrievalPredictor(nn.Module):
                                         up_mode='bilinear', active_type=active_type, down_pool='avrg_pool')
         else:
             in_conv = self.int_ch
-            out_conv = 2 * in_conv
+
             self.conv_blocks = []
             for ind in range(deep_conv):
+                out_conv = self.conv_multy_coeff * in_conv
                 conv_block = conv_block_class(in_conv, out_conv, active_type=active_type)
                 in_conv = out_conv
                 self.conv_blocks.append(conv_block)
