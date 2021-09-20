@@ -108,6 +108,7 @@ class PhaseRetrievalPredictor(nn.Module):
 
         spectral = fc_features.view(-1, self.int_ch, self.out_img_size, self.out_img_size, 2)
         spectral = torch.view_as_complex(spectral)
+        #TODO:  irfft
         intermediate_features = torch.fft.ifft2(spectral, norm=self._fft_norm)
 
         out_features = self.conv_blocks(intermediate_features.real)

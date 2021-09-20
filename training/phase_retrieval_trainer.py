@@ -28,6 +28,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self.l1_loss = nn.L1Loss()
 
         self.n_epochs_ae = config.n_epochs_ae
+        self._scaler = torch.cuda.amp.GradScaler()
 
         self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
 
@@ -234,7 +235,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                 ae_losses_batch = self._ae_losses(data_batch, inferred_batch)
                 ae_losses.append(ae_losses_batch)
             ae_losses = LossesPRFeatures.merge(ae_losses)
-        self._generator_model.set_train_mode()
+        self._generator_model.set_train_mode(tran_ae=True)
         return ae_losses
 
     def test_eval_en_magnitude(self, use_adv_loss: bool = False) -> LossesPRFeatures:
@@ -438,13 +439,16 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def _train_step_generator(self, data_batch: DataBatch,
                               use_adv_loss: bool = False) -> (InferredBatch, LossesPRFeatures):
         self.optimizer_en.zero_grad()
-        inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
-        tr_losses = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
-        tr_losses.total.backward()
+        with torch.cuda.amp.autocast():
+            inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
+            tr_losses = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
+        self._scaler.scale(tr_losses).backward()
+        # tr_losses.total.backward()
         if self._config.clip_encoder_grad is not None:
             torch.nn.utils.clip_grad_norm_(self._generator_model.phase_predictor.parameters(),
                                            self._config.clip_encoder_grad)
         self.optimizer_en.step()
+        self._scaler.step(self.optimizer_en)
 
         return inferred_batch, tr_losses
 
@@ -505,6 +509,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         else:
             l2_ref_img_recon_loss = None
             l2_ref_magnitude_loss = None
+            l1_ref_img_recon_loss = None
             l1_ref_magnitude_loss = None
 
         real_labels = torch.ones((data_batch.fft_magnitude.shape[0], 1),
