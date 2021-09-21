@@ -12,20 +12,28 @@ class PhaseRetrievalPredictor(nn.Module):
                  fc_multy_coeff: int = 1, use_bn: bool = False, fft_norm: str = "ortho", deep_fc: int = 4,
                  deep_conv: int = 2,
                  predict_type: str = 'spectral', conv_type: str = 'ConvBlock',
-                 active_type: str = 'leakly_relu', features_sigmoid_active: bool = False):
+                 active_type: str = 'leakly_relu', features_sigmoid_active: bool = False,
+                 use_rfft: bool = False):
         super(PhaseRetrievalPredictor, self).__init__()
         self.features_sigmoid_active = features_sigmoid_active
         self.im_img_size = im_img_size
         self.out_img_size = out_img_size
         self._predict_type = predict_type
-
+        self._use_rfft = use_rfft
         self.out_ch = out_ch
         self.int_ch = inter_ch
         self.fc_multy_coeff = fc_multy_coeff
-        self.in_features = self.im_img_size ** 2
-        self.inter_features = self.int_ch * self.out_img_size ** 2
 
-        self.out_features = self.out_ch * self.out_img_size ** 2
+        if use_rfft:
+            self.fft_in_freq = (torch.fft.rfftfreq(im_img_size) * im_img_size).numpy().astype(int)
+            self.fft_out_freq = (torch.fft.rfftfreq(out_img_size) * out_img_size).numpy().astype(int)
+        else:
+            self.fft_int_freq = (torch.fft.fftfreq(im_img_size) * im_img_size).numpy().astype(int)
+            self.fft_out_freq = (torch.fft.fftfreq(out_img_size) * out_img_size).numpy().astype(int)
+
+        self.in_features = self.fft_in_freq.shape[0] ** 2
+        self.inter_features = self.int_ch * self.fft_out_freq.shape[0] ** 2
+        self.out_features = self.out_ch * self.fft_out_freq.shape[0] ** 2
         self._fft_norm = fft_norm
 
         if self._predict_type == 'spectral':
@@ -101,12 +109,17 @@ class PhaseRetrievalPredictor(nn.Module):
     def _spectral_pred(self, magnitude: Tensor) -> (Tensor, Tensor):
         x_float = magnitude.view(-1, self.in_features)
         fc_features = self.fc_blocks(x_float)
-
-        spectral = fc_features.view(-1, self.int_ch, self.out_img_size, self.out_img_size, 2)
+        out_fft_size = self.fft_out_freq.shape[0]
+        spectral = fc_features.view(-1, self.int_ch, out_fft_size, out_fft_size, 2)
         spectral = torch.view_as_complex(spectral)
-        intermediate_features = torch.fft.ifft2(spectral, norm=self._fft_norm)
+        if self._use_rfft:
+            intermediate_features = torch.fft.irfft2(spectral, (self.out_img_size, self.out_img_size),
+                                                     norm=self._fft_norm)
+            out_features = self.conv_blocks(intermediate_features)
 
-        out_features = self.conv_blocks(intermediate_features.real)
+        else:
+            intermediate_features = torch.fft.ifft2(spectral, norm=self._fft_norm)
+            out_features = self.conv_blocks(intermediate_features.real)
 
         return out_features, intermediate_features
 

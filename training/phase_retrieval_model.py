@@ -54,7 +54,8 @@ class PhaseRetrievalAeModel:
                                                        im_img_size=self._config.image_size,
                                                        conv_type=self._config.predict_conv_type,
                                                        active_type=self._config.activation_enc,
-                                                       features_sigmoid_active=self._config.features_sigmoid_active)
+                                                       features_sigmoid_active=self._config.features_sigmoid_active,
+                                                       use_rfft=self._config.use_rfft)
 
         if self._config.use_ref_net:
             if self._config.predict_out == 'features':
@@ -165,7 +166,10 @@ class PhaseRetrievalAeModel:
         return InferredBatch(img_recon=recon_batch, feature_encoder=features_batch, feature_recon=feature_recon)
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
-        fft_data_batch = torch.fft.fft2(data_batch, norm=self._config.fft_norm)
+        if self._config.use_rfft:
+            fft_data_batch = torch.fft.rfft2(data_batch, norm=self._config.fft_norm)
+        else:
+            fft_data_batch = torch.fft.fft2(data_batch, norm=self._config.fft_norm)
         magnitude_batch = torch.abs(fft_data_batch)
         return magnitude_batch
 

@@ -491,7 +491,10 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         l1_magnitude_loss = self.l1_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
         l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
-        l2_features_realness = 0.5 * torch.mean(torch.square(inferred_batch.intermediate_features.imag.abs()))
+        if not self._config.use_rfft:
+            l2_features_realness = 0.5 * torch.mean(torch.square(inferred_batch.intermediate_features.imag.abs()))
+        else:
+            l2_features_realness = None
 
         if self._config.use_ref_net:
             l1_ref_img_recon_loss = self.l1_loss(data_batch.image, inferred_batch.img_recon_ref)

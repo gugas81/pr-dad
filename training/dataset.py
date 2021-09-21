@@ -17,7 +17,8 @@ from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
 
 class PhaseRetrievalDataset(Dataset):
     def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool, rot_degrees: float, is_gan: bool,
-                 paired_part: float, fft_norm: str, log: logging.Logger, seed: int, s3: Optional[S3FileSystem] = None):
+                 paired_part: float, fft_norm: str, log: logging.Logger, seed: int, s3: Optional[S3FileSystem] = None,
+                 use_rfft: bool = False):
         def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None):
             return torchvision.datasets.CelebA(root=root,
                                                split='train' if train else 'test',
@@ -33,6 +34,7 @@ class PhaseRetrievalDataset(Dataset):
         self._is_train = train
         self._is_gan = is_gan
         self._use_aug = use_aug
+        self._use_rfft = use_rfft
         self._log = log
         self._s3 = S3FileSystem() if s3 is None else s3
 
@@ -128,7 +130,10 @@ class PhaseRetrievalDataset(Dataset):
         return item_batch
 
     def _forward_magnitude_fft(self, image_data: Tensor) -> Tensor:
-        fft_data_batch = torch.fft.fft2(image_data, norm=self._fft_norm)
+        if self._use_rfft:
+            fft_data_batch = torch.fft.rfft2(image_data, norm=self._fft_norm)
+        else:
+            fft_data_batch = torch.fft.fft2(image_data, norm=self._fft_norm)
         fft_magnitude = torch.abs(fft_data_batch)
         return fft_magnitude
 
