@@ -147,18 +147,20 @@ class PhaseRetrievalDataset(Dataset):
 def create_data_loaders(ds_name: str, img_size: int,
                         use_aug: bool, use_aug_test: bool, rot_degrees: float,
                         batch_size_train: int, batch_size_test: int,
-                        seed: int, use_gan: bool,
+                        seed: int, use_gan: bool, use_rfft: bool,
                         n_dataloader_workers: int, paired_part: float, fft_norm: str, log: logging.Logger,
                         s3: Optional[S3FileSystem] = None):
     log.debug('Create train dataset')
     train_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=True,
                                           use_aug=use_aug, rot_degrees=rot_degrees, is_gan=False,
-                                          paired_part=paired_part, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
+                                          paired_part=paired_part, fft_norm=fft_norm, use_rfft=use_rfft,
+                                          log=log, seed=seed, s3=s3)
 
     log.debug('Create test dataset')
     test_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=False,
                                          use_aug=use_aug_test, rot_degrees=rot_degrees, is_gan=False,
-                                         paired_part=1.0, fft_norm=fft_norm, log=log, seed=seed, s3=s3)
+                                         paired_part=1.0, fft_norm=fft_norm, use_rfft=use_rfft,
+                                         log=log, seed=seed, s3=s3)
 
     paired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.paired_ind)
     unpaired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.unpaired_paired_ind)

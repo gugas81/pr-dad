@@ -100,6 +100,7 @@ class BaseTrainerPhaseRetrieval:
                                 n_dataloader_workers=self._config.n_dataloader_workers,
                                 paired_part=self._config.part_supervised_pairs,
                                 fft_norm=self._fft_norm,
+                                use_rfft=self._config.use_rfft,
                                 seed=self.seed,
                                 log=self._log,
                                 s3=self._s3)
