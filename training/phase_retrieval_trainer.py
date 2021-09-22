@@ -561,8 +561,10 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             p_loss_discrim_ref_img = None
 
         total_loss += self._config.lambda_magnitude_recon_loss * l2_magnitude_loss + \
-                      self._config.lambda_magnitude_recon_loss_l1 * l1_magnitude_loss + \
-                      self._config.lambda_features_realness * l2_features_realness
+                      self._config.lambda_magnitude_recon_loss_l1 * l1_magnitude_loss
+
+        if l2_features_realness is not None:
+            total_loss += self._config.lambda_features_realness * l2_features_realness
 
         if self._config.predict_out == 'features':
             total_loss += self._config.lambda_features_recon_loss * l2_features_loss + \

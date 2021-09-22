@@ -31,9 +31,9 @@ class PhaseRetrievalPredictor(nn.Module):
             self.fft_int_freq = (torch.fft.fftfreq(im_img_size) * im_img_size).numpy().astype(int)
             self.fft_out_freq = (torch.fft.fftfreq(out_img_size) * out_img_size).numpy().astype(int)
 
-        self.in_features = self.fft_in_freq.shape[0] ** 2
-        self.inter_features = self.int_ch * self.fft_out_freq.shape[0] ** 2
-        self.out_features = self.out_ch * self.fft_out_freq.shape[0] ** 2
+        self.in_features = self.im_img_size * self.fft_in_freq.shape[0]
+        self.inter_features = self.int_ch * self.out_img_size * self.fft_out_freq.shape[0]
+        self.out_features = self.out_ch * self.out_img_size * self.fft_out_freq.shape[0]
         self._fft_norm = fft_norm
 
         if self._predict_type == 'spectral':
@@ -110,7 +110,7 @@ class PhaseRetrievalPredictor(nn.Module):
         x_float = magnitude.view(-1, self.in_features)
         fc_features = self.fc_blocks(x_float)
         out_fft_size = self.fft_out_freq.shape[0]
-        spectral = fc_features.view(-1, self.int_ch, out_fft_size, out_fft_size, 2)
+        spectral = fc_features.view(-1, self.int_ch, self.out_img_size, out_fft_size, 2)
         spectral = torch.view_as_complex(spectral)
         if self._use_rfft:
             intermediate_features = torch.fft.irfft2(spectral, (self.out_img_size, self.out_img_size),

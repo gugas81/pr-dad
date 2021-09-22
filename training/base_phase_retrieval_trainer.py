@@ -263,7 +263,7 @@ class BaseTrainerPhaseRetrieval:
 
         img_grid = []
         if data_batch.fft_magnitude is not None:
-            img_grid.append(torch.fft.fftshift(data_batch.fft_magnitude, dim=(-2, -1)))
+            img_grid.append(prepare_fft_img(data_batch.fft_magnitude))
         if inferred_batch.decoded_img is not None:
             fft_magnitude_ae_decoded = prepare_fft_img(self.forward_magnitude_fft(inferred_batch.decoded_img))
             img_grid.append(fft_magnitude_ae_decoded)
