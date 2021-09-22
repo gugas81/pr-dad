@@ -28,7 +28,7 @@ class PhaseRetrievalPredictor(nn.Module):
             self.fft_in_freq = (torch.fft.rfftfreq(im_img_size) * im_img_size).numpy().astype(int)
             self.fft_out_freq = (torch.fft.rfftfreq(out_img_size) * out_img_size).numpy().astype(int)
         else:
-            self.fft_int_freq = (torch.fft.fftfreq(im_img_size) * im_img_size).numpy().astype(int)
+            self.fft_in_freq = (torch.fft.fftfreq(im_img_size) * im_img_size).numpy().astype(int)
             self.fft_out_freq = (torch.fft.fftfreq(out_img_size) * out_img_size).numpy().astype(int)
 
         self.in_features = self.im_img_size * self.fft_in_freq.shape[0]
