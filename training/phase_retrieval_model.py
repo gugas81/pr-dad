@@ -40,11 +40,12 @@ class PhaseRetrievalAeModel:
         else:
             raise NameError(f'Nonna valid predict_out type: {self._config.predict_out}')
 
-        if self._config.predict_type == 'phase':
-            inter_ch = predict_out_ch
-        else:
-            inter_ch = 2 * predict_out_ch
+        # if self._config.predict_type == 'phase':
+        #     inter_ch = predict_out_ch
+        # else:
+        #     inter_ch = 2 * predict_out_ch
 
+        inter_ch = 2 * predict_out_ch
         self.phase_predictor = PhaseRetrievalPredictor(out_ch=predict_out_ch,
                                                        inter_ch=inter_ch,
                                                        out_img_size=predict_out_size,
@@ -54,6 +55,7 @@ class PhaseRetrievalAeModel:
                                                        im_img_size=self._config.image_size,
                                                        conv_type=self._config.predict_conv_type,
                                                        active_type=self._config.activation_enc,
+                                                       deep_fc=5,
                                                        features_sigmoid_active=self._config.features_sigmoid_active,
                                                        use_rfft=self._config.use_rfft)
 

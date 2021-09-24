@@ -43,16 +43,16 @@ class PhaseRetrievalPredictor(nn.Module):
         else:
             raise NameError(f'Not supported type_recon: {predict_type}')
 
-        out_fc = self.in_features
         in_fc = self.in_features
         self.fc_blocks = []
         for ind in range(deep_fc):
             if ind == deep_fc - 1:
                 out_fc = out_fc_features
+            else:
+                out_fc = in_fc * self.fc_multy_coeff
             fc_block = FcBlock(in_fc, out_fc, use_dropout=use_dropout, use_bn=use_bn)
             in_fc = out_fc
 
-            out_fc *= self.fc_multy_coeff
             self.fc_blocks.append(fc_block)
 
         self.fc_blocks = nn.Sequential(*self.fc_blocks)
