@@ -1,6 +1,7 @@
 import numpy as np
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Tuple
 import typeguard
+import torch
 from PIL import Image, ImageCms
 from logging import getLogger
 # 3rd party:
@@ -71,6 +72,7 @@ def square_grid_im_concat(images: Iterable[np.ndarray], pad_value: float = 1.0) 
 
     return img_grid
 
+
 def im_load(image_path: str,
          as_batch: bool = False,
          as_srgb: bool = True,
@@ -123,6 +125,7 @@ def im_save(image: np.ndarray, output_path: str, quality: int = 100) -> None:
     # assert types.is_image(output_path), f'Unsupported image format in output file: {output_path}'
     pil_image = to_pil(image)
     pil_image.save(output_path, quality=quality)
+
 
 def to_pil(image: np.ndarray) -> Image.Image:
     """
@@ -263,3 +266,19 @@ def plot_losses_metrics(losses: TensorBatch, name: str, out_path_savefig: Option
         fig.savefig(os.path.join(out_path_savefig))
     else:
         plt.show()
+
+
+def fft2_from_rfft(x_rfft: torch.Tensor, size2d: Tuple[int, int]) -> torch.Tensor:
+    fft_freq = (torch.fft.fftfreq(size2d[1])*size2d[1]).numpy().astype(int)
+    rftt_freq = (torch.fft.rfftfreq(size2d[1])*size2d[1]).numpy().astype(int)
+    torch_device = x_rfft.device
+    none_neq_ind = rftt_freq[fft_freq[fft_freq >= 0]]
+    neg_ind = rftt_freq[-1*fft_freq[fft_freq < 0]]
+    x_fft_pos_freq = torch.index_select(x_rfft, -1, torch.tensor(none_neq_ind, device=torch_device))
+    x_fft_neg_freq = torch.index_select(x_rfft, -1, torch.tensor(neg_ind, device=torch_device))
+    y_neg_ind = [0] + list(range(size2d[0]-1, 0, -1))
+    x_fft_neg_freq = torch.index_select(x_fft_neg_freq, -2, torch.tensor(y_neg_ind, device=torch_device))
+    if torch.is_complex(x_rfft):
+        x_fft_neg_freq.imag = -1 * x_fft_neg_freq.imag
+    x_fft = torch.cat([x_fft_pos_freq, x_fft_neg_freq], -1)
+    return x_fft

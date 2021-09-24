@@ -41,13 +41,19 @@ class PhaseRetrievalAeModel:
         else:
             raise NameError(f'Nonna valid predict_out type: {self._config.predict_out}')
 
-        inter_ch = predict_out_ch if self._config.n_inter_features is None else self._config.n_inter_features
-        # if self._config.predict_type == 'spectral':
-        #     inter_ch *= 2
+        if self._config.n_inter_features is None:
+            inter_ch = predict_out_ch
+            if self._config.predict_type == 'spectral':
+                inter_ch *= 2
+        else:
+            inter_ch = self._config.n_inter_features
 
-        deep_fc = int(math.floor(math.log(inter_ch * (predict_out_size ** 2) / (self._config.image_size ** 2),
-                                          self._config.predict_fc_multy_coeff))) + 1
-        deep_fc = max(3, deep_fc)
+        if self._config.deep_predict_fc is None:
+            deep_fc = int(math.floor(math.log(inter_ch * (predict_out_size ** 2) / (self._config.image_size ** 2),
+                                              self._config.predict_fc_multy_coeff))) + 1
+            deep_fc = max(3, deep_fc)
+        else:
+            deep_fc = self._config.deep_predict_fc
         self.phase_predictor = PhaseRetrievalPredictor(out_ch=predict_out_ch,
                                                        inter_ch=inter_ch,
                                                        out_img_size=predict_out_size,
@@ -60,8 +66,8 @@ class PhaseRetrievalAeModel:
                                                        conv_type=self._config.predict_conv_type,
                                                        active_type=self._config.activation_enc,
                                                        features_sigmoid_active=self._config.features_sigmoid_active,
-                                                       deep_fc=deep_fc)
-        # self.phase_predictor.float()
+                                                       deep_fc=deep_fc,
+                                                       use_rfft=self._config.use_rfft)
 
         if self._config.use_ref_net:
             if self._config.predict_out == 'features':
@@ -172,7 +178,10 @@ class PhaseRetrievalAeModel:
         return InferredBatch(img_recon=recon_batch, feature_encoder=features_batch, feature_recon=feature_recon)
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
-        fft_data_batch = torch.fft.fft2(data_batch, norm=self._config.fft_norm)
+        if self._config.use_rfft:
+            fft_data_batch = torch.fft.rfft2(data_batch, norm=self._config.fft_norm)
+        else:
+            fft_data_batch = torch.fft.fft2(data_batch, norm=self._config.fft_norm)
         magnitude_batch = torch.abs(fft_data_batch)
         return magnitude_batch
 

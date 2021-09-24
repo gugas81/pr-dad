@@ -197,6 +197,8 @@ class ConfigTrainer(ConfigBase):
     up_sampling: str = 'bilinear' # 'bilinear' 'nearest'
     rot_degrees: float = 0.0
     use_aug_test: bool = False
+    use_rfft: bool = False
     n_inter_features: Optional[int] = None
     discrim_features_ch: Optional[int] = None
+    deep_predict_fc: int = 3
 

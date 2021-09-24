@@ -13,8 +13,9 @@ from typing import Optional, Any, Dict, Union
 import logging
 
 from common import ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
-from common import im_concatenate, square_grid_im_concat, PATHS, im_save
+from common import im_concatenate, square_grid_im_concat, PATHS, im_save, fft2_from_rfft
 from common import InferredBatch
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -99,6 +100,7 @@ class BaseTrainerPhaseRetrieval:
                                 n_dataloader_workers=self._config.n_dataloader_workers,
                                 paired_part=self._config.part_supervised_pairs,
                                 fft_norm=self._fft_norm,
+                                use_rfft=self._config.use_rfft,
                                 seed=self.seed,
                                 log=self._log,
                                 s3=self._s3)
@@ -193,7 +195,10 @@ class BaseTrainerPhaseRetrieval:
             self._task = None
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
-        fft_data_batch = torch.fft.fft2(data_batch, norm=self._config.fft_norm)
+        if self._config.use_rfft:
+            fft_data_batch = torch.fft.rfft2(data_batch, norm=self._config.fft_norm)
+        else:
+            fft_data_batch = torch.fft.fft2(data_batch, norm=self._config.fft_norm)
         magnitude_batch = torch.abs(fft_data_batch)
         return magnitude_batch
 
@@ -251,18 +256,22 @@ class BaseTrainerPhaseRetrieval:
         return img_grid
 
     def _grid_fft_magnitude(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
+        def prepare_fft_img(fft_magnitude):
+            if self._config.use_rfft:
+                fft_magnitude = fft2_from_rfft(fft_magnitude, (self._config.image_size, self._config.image_size))
+            return torch.fft.fftshift(fft_magnitude, dim=(-2, -1))
+
         img_grid = []
         if data_batch.fft_magnitude is not None:
-            img_grid.append(torch.fft.fftshift(data_batch.fft_magnitude, dim=(-2, -1)))
+            img_grid.append(prepare_fft_img(data_batch.fft_magnitude))
         if inferred_batch.decoded_img is not None:
-            fft_magnitude_ae_decoded = torch.fft.fftshift(self.forward_magnitude_fft(inferred_batch.decoded_img),
-                                                          dim=(-2, -1))
+            fft_magnitude_ae_decoded = prepare_fft_img(self.forward_magnitude_fft(inferred_batch.decoded_img))
             img_grid.append(fft_magnitude_ae_decoded)
         if inferred_batch.img_recon is not None:
-            fft_magnitude_recon = torch.fft.fftshift(self.forward_magnitude_fft(inferred_batch.img_recon), dim=(-2, -1))
+            fft_magnitude_recon = prepare_fft_img(self.forward_magnitude_fft(inferred_batch.img_recon))
             img_grid.append(fft_magnitude_recon)
         if inferred_batch.fft_magnitude_recon_ref is not None:
-            img_grid.append(torch.fft.fftshift(inferred_batch.fft_magnitude_recon_ref, dim=(-2, -1)))
+            img_grid.append(prepare_fft_img(inferred_batch.fft_magnitude_recon_ref))
 
         img_grid = torch.cat(img_grid, dim=-2)
         img_grid = torchvision.utils.make_grid(img_grid, normalize=False)
