@@ -26,7 +26,7 @@ class CalculateMetrics:
         if rot180:
             gt_images_180_rot = np.rot90(gt_img, 2, (-2, -1))
             gt_images_2d = np.stack((gt_images_180_rot, gt_img), -1)
-            predicted_img_2 = np.unsqueeze(predicted_img, -1)
+            predicted_img_2 = np.expand_dims(predicted_img, -1)
             loss = np.mean(norm_fun(gt_images_2d - predicted_img_2), (-3, -2))
             loss = np.min(loss, -1)
             loss = loss.mean()
@@ -41,10 +41,10 @@ class CalculateMetrics:
 
     @staticmethod
     def ssim(gt_img: np.ndarray, predicted_img: np.ndarray, rot180: bool = False) -> np.ndarray:
-        predicted_img_hwc = predicted_img.transpose(1, 2, 0),
+        predicted_img_hwc = predicted_img.transpose(1, 2, 0)
         ssim_loss = _ssim(gt_img.transpose(1, 2, 0), predicted_img_hwc, multichannel=True)
         if rot180:
-            gt_images_180_rot_hwc = np.rot90(gt_img, 2, (-2, -1)).transpose(1, 2, 0),
+            gt_images_180_rot_hwc = np.rot90(gt_img, 2, (-2, -1)).transpose(1, 2, 0)
             ssim_loss_180_rot = _ssim(gt_images_180_rot_hwc, predicted_img_hwc, multichannel=True)
             ssim_loss = np.max(np.stack((ssim_loss, ssim_loss_180_rot), axis=-1), axis=-1)
         return ssim_loss
@@ -65,16 +65,19 @@ class CalculateMetrics:
 class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
     eval_mode = True
 
-    def __init__(self, model_path: str, config_path: Optional[str] = None, **kwargs):
+    def __init__(self, model_path: str, config_path: Optional[str] = None, debug: bool = False, rot180: bool = False):
         loaded_sate = self.load_state(model_path)
         assert ('config' in loaded_sate) or (config_path is not None)
         config_obj = loaded_sate['config'] if 'config' in loaded_sate else config_path
-        config = self.load_config(config_obj, **kwargs)
+        config = self.load_config(config_obj)
         config.use_tensor_board = False
         config.use_gan = False
         config.part_supervised_pairs = 1.0
         config.batch_size_test = 128
         config.load_modules = ['all']
+        config.loss_rot180 = (config.loss_rot180 or rot180)
+        if debug:
+            config.n_dataloader_workers = 0
 
         super(TrainerPhaseRetrievalEvaluator, self).__init__(config=config)
         self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
