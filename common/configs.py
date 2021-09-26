@@ -201,5 +201,5 @@ class ConfigTrainer(ConfigBase):
     loss_rot180: bool = False
     n_inter_features: Optional[int] = None
     discrim_features_ch: Optional[int] = None
-    deep_predict_fc: int = 3
+    deep_predict_fc: Optional[int] = None
 
