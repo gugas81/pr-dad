@@ -198,4 +198,5 @@ class ConfigTrainer(ConfigBase):
     rot_degrees: float = 0.0
     use_aug_test: bool = False
     use_rfft: bool = False
+    loss_rot180: bool = False
 
