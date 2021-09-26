@@ -2,7 +2,7 @@ import numpy as np
 import fire
 import os
 from tqdm import tqdm
-from typing import List, Optional
+from typing import List, Optional, Callable
 import pandas as pd
 from dataclasses import dataclass, field
 from skimage.metrics import structural_similarity as _ssim
@@ -22,29 +22,50 @@ class EvaluationMetrics(NumpyBatch):
 
 class CalculateMetrics:
     @staticmethod
-    def mse(true_images: np.ndarray, predicted_images: np.ndarray) -> np.ndarray:
-        return np.mean(np.square(true_images - predicted_images))
+    def _err_loss(gt_img: np.ndarray, predicted_img: np.ndarray, norm_fun: Callable, rot180: bool = False):
+        if rot180:
+            gt_images_180_rot = np.rot90(gt_img, 2, (-2, -1))
+            gt_images_2d = np.stack((gt_images_180_rot, gt_img), -1)
+            predicted_img_2 = np.expand_dims(predicted_img, -1)
+            loss = np.mean(norm_fun(gt_images_2d - predicted_img_2), (-3, -2))
+            loss = np.min(loss, -1)
+            loss = loss.mean()
+        else:
+            loss = np.mean(norm_fun(gt_img - predicted_img))
+        return loss
 
     @staticmethod
-    def ssim(true_images: np.ndarray, predicted_images: np.ndarray) -> np.ndarray:
-        return _ssim(true_images.transpose(1, 2, 0), predicted_images.transpose(1, 2, 0), multichannel=True)
+    def mse(gt_img: np.ndarray, predicted_img: np.ndarray, rot180: bool = False) -> np.ndarray:
+        loss = CalculateMetrics._err_loss(gt_img, predicted_img, norm_fun=np.square, rot180=rot180)
+        return loss
 
     @staticmethod
-    def mae(true_images: np.ndarray, predicted_images: np.ndarray) -> np.ndarray:
-        return np.mean(np.abs(true_images - predicted_images))
+    def ssim(gt_img: np.ndarray, predicted_img: np.ndarray, rot180: bool = False) -> np.ndarray:
+        predicted_img_hwc = predicted_img.transpose(1, 2, 0)
+        ssim_loss = _ssim(gt_img.transpose(1, 2, 0), predicted_img_hwc, multichannel=True)
+        if rot180:
+            gt_images_180_rot_hwc = np.rot90(gt_img, 2, (-2, -1)).transpose(1, 2, 0)
+            ssim_loss_180_rot = _ssim(gt_images_180_rot_hwc, predicted_img_hwc, multichannel=True)
+            ssim_loss = np.max(np.stack((ssim_loss, ssim_loss_180_rot), axis=-1), axis=-1)
+        return ssim_loss
 
     @staticmethod
-    def metrics(true_images: np.ndarray, predicted_images: np.ndarray) -> EvaluationMetrics:
-        mse = CalculateMetrics.mse(true_images, predicted_images)
-        ssim = CalculateMetrics.ssim(true_images, predicted_images)
-        mae = CalculateMetrics.mae(true_images, predicted_images)
+    def mae(gt_img: np.ndarray, predicted_img: np.ndarray, rot180: bool = False) -> np.ndarray:
+        loss = CalculateMetrics._err_loss(gt_img, predicted_img, norm_fun=np.abs, rot180=rot180)
+        return loss
+
+    @staticmethod
+    def metrics(gt_img: np.ndarray, predicted_img: np.ndarray, rot180: bool = False) -> EvaluationMetrics:
+        mse = CalculateMetrics.mse(gt_img, predicted_img, rot180=rot180)
+        ssim = CalculateMetrics.ssim(gt_img, predicted_img, rot180=rot180)
+        mae = CalculateMetrics.mae(gt_img, predicted_img, rot180=rot180)
         return EvaluationMetrics(mse=mse, ssim=ssim, mae=mae)
 
 
 class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
     eval_mode = True
 
-    def __init__(self, model_path: str, config_path: Optional[str] = None):
+    def __init__(self, model_path: str, config_path: Optional[str] = None, debug: bool = False, rot180: bool = False):
         loaded_sate = self.load_state(model_path)
         assert ('config' in loaded_sate) or (config_path is not None)
         config_obj = loaded_sate['config'] if 'config' in loaded_sate else config_path
@@ -54,6 +75,9 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         config.part_supervised_pairs = 1.0
         config.batch_size_test = 128
         config.load_modules = ['all']
+        config.loss_rot180 = (config.loss_rot180 or rot180)
+        if debug:
+            config.n_dataloader_workers = 0
 
         super(TrainerPhaseRetrievalEvaluator, self).__init__(config=config)
         self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
@@ -93,6 +117,7 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         eval_metrics_recon_ref_net = []
         eval_metrics_recon = []
         eval_metrics_ae = []
+        rot_180 = self._config.loss_rot180
         for batch_idx, data_batch in enumerate(p_bar_data_loader):
             data_batch = self.prepare_data_batch(data_batch)
             inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=self.eval_mode)
@@ -104,8 +129,8 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
             else:
                 ae_images = np.zeros_like(gt_images)
             for gt_img, recon_ref_img, recon_img, ae_img in zip(gt_images, recon_ref_images, recon_images, ae_images):
-                eval_metrics_recon_ref_net.append(CalculateMetrics.metrics(gt_img, recon_ref_img))
-                eval_metrics_recon.append(CalculateMetrics.metrics(gt_img, recon_img))
+                eval_metrics_recon_ref_net.append(CalculateMetrics.metrics(gt_img, recon_ref_img, rot_180))
+                eval_metrics_recon.append(CalculateMetrics.metrics(gt_img, recon_img, rot_180))
                 if self._config.predict_out == 'features':
                     eval_metrics_ae.append(CalculateMetrics.metrics(gt_img, ae_img))
 

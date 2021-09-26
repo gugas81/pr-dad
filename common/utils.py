@@ -32,6 +32,36 @@ def l2_perceptual_loss(x: List[Tensor], y: List[Tensor], weights: List[float]) -
     return loss_out
 
 
+class LossImg(torch.nn.Module):
+    def __init__(self, loss_type: str = 'l2', rot180: bool = False):
+        super(LossImg, self).__init__()
+        self._rot180 = rot180
+        if self._rot180:
+            reduction = 'none'
+        else:
+            reduction = 'mean'
+
+        if loss_type == 'l2':
+            self._loss_fun = torch.nn.MSELoss(reduction=reduction)
+        elif loss_type == 'l1':
+            self._loss_fun = torch.nn.L1Loss(reduction=reduction)
+        else:
+            raise TypeError(f'Non valid loss type: {loss_type}')
+
+    def forward(self, in_img: Tensor, tgt_img: Tensor) -> Tensor:
+        if self._rot180:
+            in_img_rot180 = torch.rot90(in_img, 2, (-2, -1))
+            img_rot180_2d = torch.stack((in_img, in_img_rot180), -1)
+            tgt_img_2d = torch.unsqueeze(tgt_img, -1)
+            loss = self._loss_fun(img_rot180_2d, tgt_img_2d)
+            loss = loss.mean((-3, -2))
+            loss, _ = loss.min(dim=-1)
+            loss = loss.mean()
+        else:
+            loss = self._loss_fun(in_img, tgt_img)
+        return loss
+
+
 class NormalizeInverse(torchvision.transforms.Normalize):
     """
     Undoes the normalization and returns the reconstructed images in the input domain.
