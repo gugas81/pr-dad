@@ -59,7 +59,7 @@ class PhaseRetrievalAeModel:
                                                        out_img_size=predict_out_size,
                                                        fc_multy_coeff=self._config.predict_fc_multy_coeff,
                                                        conv_multy_coeff=1,
-                                                       deep_conv=1,
+                                                       deep_conv=self._config.deep_predict_conv,
                                                        fft_norm=self._config.fft_norm,
                                                        predict_type=self._config.predict_type,
                                                        im_img_size=self._config.image_size,
