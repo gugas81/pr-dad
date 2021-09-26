@@ -202,4 +202,5 @@ class ConfigTrainer(ConfigBase):
     n_inter_features: Optional[int] = None
     discrim_features_ch: Optional[int] = None
     deep_predict_fc: Optional[int] = None
+    use_amp: bool = False
 

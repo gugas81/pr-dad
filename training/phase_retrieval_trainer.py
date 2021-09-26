@@ -30,7 +30,10 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self.l1_img_loss = LossImg(loss_type='l1', rot180=config.loss_rot180)
 
         self.n_epochs_ae = config.n_epochs_ae
-        self._scaler = torch.cuda.amp.GradScaler()
+        if self._config.use_amp:
+            self._scaler = torch.cuda.amp.GradScaler()
+        else:
+            self._scaler = None
 
         self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
 
@@ -441,16 +444,20 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def _train_step_generator(self, data_batch: DataBatch,
                               use_adv_loss: bool = False) -> (InferredBatch, LossesPRFeatures):
         self.optimizer_en.zero_grad()
-        with torch.cuda.amp.autocast():
+        with torch.cuda.amp.autocast(enabled=self._config.use_amp):
             inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
             tr_losses = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
-        self._scaler.scale(tr_losses).backward()
-        # tr_losses.total.backward()
+        if self._config.use_amp:
+            self._scaler.scale(tr_losses).backward()
+        else:
+            tr_losses.total.backward()
         if self._config.clip_encoder_grad is not None:
             torch.nn.utils.clip_grad_norm_(self._generator_model.phase_predictor.parameters(),
                                            self._config.clip_encoder_grad)
-        self.optimizer_en.step()
-        self._scaler.step(self.optimizer_en)
+        if self._config.use_amp:
+            self._scaler.step(self.optimizer_en)
+        else:
+            self.optimizer_en.step()
 
         return inferred_batch, tr_losses
 
