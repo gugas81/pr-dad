@@ -240,7 +240,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                 ae_losses_batch = self._ae_losses(data_batch, inferred_batch)
                 ae_losses.append(ae_losses_batch)
             ae_losses = LossesPRFeatures.merge(ae_losses)
-        self._generator_model.set_train_mode(tran_ae=True)
+        self._generator_model.set_train_mode()
         return ae_losses
 
     def test_eval_en_magnitude(self, use_adv_loss: bool = False) -> LossesPRFeatures:
@@ -444,9 +444,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def _train_step_generator(self, data_batch: DataBatch,
                               use_adv_loss: bool = False) -> (InferredBatch, LossesPRFeatures):
         self.optimizer_en.zero_grad()
-        with torch.cuda.amp.autocast(enabled=self._config.use_amp):
-            inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
-            tr_losses = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
+        # with torch.cuda.amp.autocast(enabled=self._config.use_amp):
+        inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
+        tr_losses = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
         if self._config.use_amp:
             self._scaler.scale(tr_losses).backward()
         else:

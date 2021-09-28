@@ -58,7 +58,7 @@ class PhaseRetrievalAeModel:
                                                        inter_ch=inter_ch,
                                                        out_img_size=predict_out_size,
                                                        fc_multy_coeff=self._config.predict_fc_multy_coeff,
-                                                       conv_multy_coeff=1,
+                                                       conv_multy_coeff=self._config.predict_conv_multy_coeff,
                                                        deep_conv=self._config.deep_predict_conv,
                                                        fft_norm=self._config.fft_norm,
                                                        predict_type=self._config.predict_type,
@@ -165,7 +165,7 @@ class PhaseRetrievalAeModel:
             inferred_batch.fft_magnitude_recon_ref = self.forward_magnitude_fft(inferred_batch.img_recon_ref)
 
         if eval_mode:
-            self.set_train_mode(tran_ae=False)
+            self.set_train_mode()
         return inferred_batch
 
     def forward_ae(self, data_batch: DataBatch, eval_mode: bool = False) -> InferredBatch:
@@ -174,7 +174,7 @@ class PhaseRetrievalAeModel:
         recon_batch, features_batch = self.ae_net(data_batch.image)
         feature_recon = self.ae_net.encode(recon_batch)
         if eval_mode:
-            self.set_train_mode(tran_ae=True)
+            self.set_train_mode()
         return InferredBatch(img_recon=recon_batch, feature_encoder=features_batch, feature_recon=feature_recon)
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
@@ -192,12 +192,11 @@ class PhaseRetrievalAeModel:
         if self._config.use_ref_net:
             self.ref_unet.eval()
 
-    def set_train_mode(self, tran_ae: bool = False):
-        if not tran_ae:
-            self.phase_predictor.train()
-        if tran_ae and self.ae_net is not None:
+    def set_train_mode(self):
+        self.phase_predictor.train()
+        if self.ae_net is not None:
             self.ae_net.train()
-        if (not tran_ae) and self._config.use_ref_net:
+        if self._config.use_ref_net:
             self.ref_unet.train()
 
 
