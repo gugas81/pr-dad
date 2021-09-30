@@ -22,6 +22,7 @@ logging.basicConfig(level=logging.INFO)
 
 class BaseTrainerPhaseRetrieval:
     _task = None
+    _task_s3_path = None
     _log = logging.getLogger('BaseTrainerPhaseRetrieval')
     _s3 = S3FileSystem()
 
@@ -215,13 +216,15 @@ class BaseTrainerPhaseRetrieval:
             image_batch_np = image_batch
         add_images_to_tensorboard(tag_name, image_batch_np)
         task_s3_path = self.get_task_s3_path()
-        if task_s3_path:
+        if task_s3_path and self._s3.is_s3_url(task_s3_path):
             s3_img_path = os.path.join(task_s3_path, 'images', tag_name, f'{step}.png')
             self._s3.save_object(url=s3_img_path, saver=im_save, obj=image_batch_np)
             if isinstance(image_batch, Tensor):
                 s3_img_tensors_path = os.path.join(task_s3_path, 'images-tensors', tag_name, f'{step}.png')
                 self._s3.save_object(url=s3_img_tensors_path,
                                      saver=lambda path_: torchvision.utils.save_image(image_batch, path_))
+        else:
+            self._log.error(f'Non valid s3 path to save images: {task_s3_path}')
 
     def _grid_images(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize: bool = True) -> Tensor:
         inv_norm_transform = self.test_ds.get_inv_normalize_transform()
@@ -290,17 +293,22 @@ class BaseTrainerPhaseRetrieval:
         features_grid = torchvision.utils.make_grid(torch.cat(features_grid))
         return features_grid
 
-    def _save_img_to_s3(self, img: Tensor, path_url):
-        self._s3.save_object(url=path_url,
-                             saver=lambda path_: torchvision.utils.save_image(img, path_))
+    def _save_img_to_s3(self, img: Tensor, path_url: str):
+        if self._s3.is_s3_url(path_url):
+            self._s3.save_object(url=path_url,
+                                 saver=lambda path_: torchvision.utils.save_image(img, path_))
 
     def log_image_grid(self, image_grid: Optional[Tensor], tag_name: str, step: int):
         if image_grid is None:
             return
         self._tensorboard.add_images(tag=tag_name, img_tensor=image_grid, global_step=step, dataformats='CHW')
         if self._config.use_tensor_board:
-            s3_tensors_path = os.path.join(self.get_task_s3_path(), 'images', tag_name, f'{step}.png')
-            self._save_img_to_s3(image_grid, s3_tensors_path)
+            project_s3_path = self.get_task_s3_path()
+            if project_s3_path and self._s3.is_s3_url(project_s3_path):
+                s3_tensors_path = os.path.join(project_s3_path, 'images', tag_name, f'{step}.png')
+                self._save_img_to_s3(image_grid, s3_tensors_path)
+            else:
+                self._log.error(f'Non valid s3 path to save images: {project_s3_path}')
 
     def _debug_images_grids(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize_img: bool = True):
         img_grid_grid = self._grid_images(data_batch, inferred_batch, normalize=normalize_img)
@@ -339,14 +347,20 @@ class BaseTrainerPhaseRetrieval:
         return f'{self._task.name}.{self._task.task_id}'
 
     def get_task_s3_path(self) -> Optional[str]:
+        if self._task_s3_path is None:
+            self._set_task_s3_path()
+        return self._task_s3_path
+
+    def _set_task_s3_path(self):
         if self._task is not None:
-            path_task = os.path.join(self._task.logger.get_default_upload_destination(),
-                                     self._task.get_project_name(),
-                                     self.get_task_name_id())
-            path_task = path_task if self._s3.exists(path_task) else None
+            self._task_s3_path = os.path.join(self._task.logger.get_default_upload_destination(),
+                                              self._task.get_project_name(),
+                                              self.get_task_name_id())
+            if not self._s3.exists(self._task_s3_path):
+                self._log.error(f's3 path of project not exist: {self._task_s3_path}')
+                self._task_s3_path = None
         else:
-            path_task = None
-        return path_task
+            self._task_s3_path = None
 
     def get_log(self) -> logging.Logger:
         return self._log
