@@ -43,6 +43,21 @@ class ConvBlock(nn.Module):
         return x
 
 
+class AdaIn(nn.Module):
+    """
+    adaptive instance normalization
+    """
+    def __init__(self, n_channel: int):
+        super().__init__()
+        self.norm = nn.InstanceNorm2d(n_channel)
+
+    def forward(self, image, style):
+        factor, bias = style.chunk(2, 1)
+        result = self.norm(image)
+        result = result * factor + bias
+        return result
+
+
 class ResBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, padding: int = 1, bias: bool = False,
                  bias_out: bool = True, active_type: str = 'leakly_relu'):

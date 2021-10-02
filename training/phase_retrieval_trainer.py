@@ -316,70 +316,6 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                   self.optimizer_ae,
                                                   ModulesNames.opt_ae)
 
-    def fit(self, data_batch: DataBatch, lr: float, lr_milestones: List[int], lr_reduce_rate: float, n_iter: int,
-            name: str) -> (InferredBatch, LossesPRFeatures):
-        self._global_step = 0
-        init_params_state_state = copy.deepcopy(self._generator_model.phase_predictor.state_dict())
-        fit_optimizer = optim.Adam(params=self._generator_model.phase_predictor.parameters(), lr=lr)
-        lr_scheduler_fitter = MultiStepLR(fit_optimizer, lr_milestones, lr_reduce_rate)
-
-        real_labels = torch.ones((data_batch.image.shape[0], 1), device=self.device, dtype=data_batch.image.dtype)
-        losses_fit = []
-        for ind_iter in tqdm(range(n_iter)):
-            fit_optimizer.zero_grad()
-            inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
-            fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
-
-            l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
-            l2_realness_features = 0.5 * torch.mean(torch.square(inferred_batch.intermediate_features.imag.abs()))
-            l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
-            img_adv_loss = self.adv_loss(self.img_discriminator(inferred_batch.img_recon).validity,
-                                         real_labels)
-
-            if self._config.predict_out == 'features':
-                features_adv_loss = self.adv_loss(self.features_discriminator(inferred_batch.feature_recon).validity,
-                                                  real_labels)
-                total_loss = 0.01 * features_adv_loss
-            else:
-                features_adv_loss = None
-
-            total_loss += 2.0 * l2_magnitude_loss + 1.0 * l2_realness_features + 0.01 * l1_sparsity_features + \
-                          0.01 * img_adv_loss
-
-            losses = LossesPRFeatures(total=total_loss,
-                                      l2_magnitude=l2_magnitude_loss,
-                                      l1_sparsity_features=l1_sparsity_features,
-                                      realness_features=l2_realness_features,
-                                      img_adv_loss=img_adv_loss,
-                                      features_adv_loss=features_adv_loss,
-                                      lr=torch.tensor(lr_scheduler_fitter.get_last_lr()[0]))
-
-            losses_fit.append(losses.detach())
-
-            total_loss.backward()
-            fit_optimizer.step()
-            lr_scheduler_fitter.step()
-
-            if (ind_iter % 50 == 0) or (ind_iter == n_iter - 1):
-                l2_grad_encoder_norm, _ = l2_grad_norm(self._generator_model.phase_predictor)
-                l2_grad = LossesGradNorms(l2_grad_magnitude_encoder=l2_grad_encoder_norm)
-                self._log.info(f'Fitter: iter={ind_iter}, {losses}, {l2_grad}')
-                self._add_losses_tensorboard(f'fit-{name}', losses, step=self._global_step)
-                self._add_losses_tensorboard(f'fit-{name}', l2_grad, step=self._global_step)
-
-            if (ind_iter % 100 == 0) or (ind_iter == n_iter - 1):
-                dbg_data_batch = self.get_dbg_batch(data_batch, inferred_batch)
-                dbg_enc_features_batch = self.prepare_dbg_batch(inferred_batch.feature_encoder, grid_ch=True)
-                self._log_images(dbg_data_batch, tag_name=f'fit/{name}-magnitude-recon', step=self._global_step)
-                self._log_images(dbg_enc_features_batch, tag_name=f'fit/{name}-features_encode', step=self._global_step)
-
-            self._global_step += 1
-
-        losses_fit = LossesPRFeatures.merge(losses_fit)
-        self._generator_model.phase_predictor.load_state_dict(init_params_state_state)
-
-        return inferred_batch, losses_fit
-
     def _discrim_ls_loss(self, discriminator: nn.Module, real_img: Tensor, generated_imgs: List[Tensor],
                          real_labels: Tensor, fake_labels: Tensor) -> Tensor:
         real_loss = self.adv_loss(discriminator(real_img.detach()).validity, real_labels)
@@ -739,14 +675,14 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
     if fit_batch:
         trainer.get_log().info(f'FITTING TEST BATCH')
 
-        for num_img_fit in range(len(trainer.data_ts_batch)):
-            trainer.get_log().info(f'fit ts batch num - {num_img_fit}')
-            fit_batch = torch.unsqueeze(trainer.data_ts_batch[num_img_fit], 0)
-            data_ts_batch_fitted, losses_fit = trainer.fit(fit_batch,
-                                                           lr=0.00001, n_iter=1000,
-                                                           lr_milestones=[250, 5000, 750],
-                                                           lr_reduce_rate=0.5,
-                                                           name=str(num_img_fit))
+        # for num_img_fit in range(len(trainer.data_ts_batch)):
+        #     trainer.get_log().info(f'fit ts batch num - {num_img_fit}')
+        #     fit_batch = torch.unsqueeze(trainer.data_ts_batch[num_img_fit], 0)
+        #     data_ts_batch_fitted, losses_fit = trainer.fit(fit_batch,
+        #                                                    lr=0.00001, n_iter=1000,
+        #                                                    lr_milestones=[250, 5000, 750],
+        #                                                    lr_reduce_rate=0.5,
+        #                                                    name=str(num_img_fit))
     return task_s3_path
 
 
