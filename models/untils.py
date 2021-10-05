@@ -3,22 +3,28 @@ from torch import Tensor
 import torch.nn as nn
 from typing import Optional
 
+from models.ada_in_layer import AdaInBlock
 
-def get_norm_layer(input_norm_type: str, input_ch: int, img_size: Optional[int] = None) -> nn.Module:
+
+def get_norm_layer(norm_type: str, n_channel: int,
+                   img_size: Optional[int] = None,
+                   dim_latent: Optional[int] = None) -> nn.Module:
     if img_size is not None:
         is_2d = True
         assert img_size
 
-    if input_norm_type is None:
+    if norm_type is None:
         norm_layer = nn.Identity()
-    elif input_norm_type == 'batch_norm':
-        norm_layer = nn.BatchNorm2d(input_ch) if is_2d else nn.BatchNorm1d(input_ch)
-    elif input_norm_type == 'layer_norm':
-        norm_layer = nn.LayerNorm((input_ch, img_size, img_size)) if is_2d else nn.LayerNorm(input_ch)
-    elif input_norm_type == 'instance_norm':
-        norm_layer = nn.InstanceNorm2d((input_ch, img_size, img_size)) if is_2d else nn.InstanceNorm1d(input_ch)
+    elif norm_type == 'batch_norm':
+        norm_layer = nn.BatchNorm2d(n_channel) if is_2d else nn.BatchNorm1d(n_channel)
+    elif norm_type == 'layer_norm':
+        norm_layer = nn.LayerNorm((n_channel, img_size, img_size)) if is_2d else nn.LayerNorm(n_channel)
+    elif norm_type == 'instance_norm':
+        norm_layer = nn.InstanceNorm2d((n_channel, img_size, img_size)) if is_2d else nn.InstanceNorm1d(n_channel)
+    elif norm_type == 'ada-in':
+        norm_layer = AdaInBlock(n_channel, dim_latent)
     else:
-        raise NameError(f'Non valid type: {input_norm_type}')
+        raise NameError(f'Non valid type: {norm_type}')
     return norm_layer
 
 

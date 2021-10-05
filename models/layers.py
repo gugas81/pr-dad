@@ -1,9 +1,7 @@
 
 import torch
-import numpy as np
 from torch import Tensor
 import torch.nn as nn
-import torch.nn.functional as F
 from typing import Optional
 from models.untils import get_norm_layer, get_pool_2x2, get_activation
 
@@ -25,37 +23,47 @@ class FcBlock(nn.Module):
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, ch_in: int, ch_out: int, ch_inter: Optional[int] = None, active_type: str = 'leakly_relu'):
+    def __init__(self,
+                 ch_in: int,
+                 ch_out: int,
+                 ch_inter: Optional[int] = None,
+                 kernel_size: int = 3,
+                 bias: bool = True,
+                 padding: int = 1,
+                 img_size: Optional[int] = None,
+                 dim_latent: Optional[int] = None,
+                 active_type: str = 'leakly_relu',
+                 norm_type: str = 'batch_norm'):
         super(ConvBlock, self).__init__()
         if ch_inter is None:
             ch_inter = ch_out
-        self.conv_block = nn.Sequential(
-            nn.Conv2d(ch_in, ch_inter, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(ch_inter),
-            get_activation(active_type),
-            nn.Conv2d(ch_inter, ch_out, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(ch_out),
-            get_activation(active_type)
-        )
 
-    def forward(self, x: Tensor) -> Tensor:
-        x = self.conv_block(x)
+        self._conv_1 = nn.Conv2d(ch_in, ch_inter, kernel_size=kernel_size, stride=1, padding=padding, bias=bias)
+        self._norm_1 = get_norm_layer(norm_type=norm_type, n_channel=ch_inter, img_size=img_size, dim_latent=dim_latent)
+        self._activ_1 = get_activation(active_type)
+
+        self._conv_2 = nn.Conv2d(ch_inter, ch_out, kernel_size=kernel_size, stride=1, padding=padding, bias=bias)
+        self._norm_2 = get_norm_layer(norm_type=norm_type, n_channel=ch_out, img_size=img_size, dim_latent=dim_latent)
+        self._activ_2 = get_activation(active_type)
+
+        # self.conv_block = nn.Sequential(
+        #     nn.Conv2d(ch_in, ch_inter, kernel_size=kernel_size, stride=1, padding=1),
+        #     nn.BatchNorm2d(ch_inter),
+        #     get_activation(active_type),
+        #     nn.Conv2d(ch_inter, ch_out, kernel_size=kernel_size, stride=1, padding=1),
+        #     nn.BatchNorm2d(ch_out),
+        #     get_activation(active_type)
+        # )
+
+    def forward(self, x: Tensor, latent_w: Optional[Tensor] = None) -> Tensor:
+        x = self._conv_1(x)
+        x = self._norm_1(x, latent_w)
+        x = self._activ_1(x)
+
+        x = self._conv_2(x)
+        x = self._norm_2(x, latent_w)
+        x = self._activ_2(x)
         return x
-
-
-class AdaIn(nn.Module):
-    """
-    adaptive instance normalization
-    """
-    def __init__(self, n_channel: int):
-        super().__init__()
-        self.norm = nn.InstanceNorm2d(n_channel)
-
-    def forward(self, image, style):
-        factor, bias = style.chunk(2, 1)
-        result = self.norm(image)
-        result = result * factor + bias
-        return result
 
 
 class ResBlock(nn.Module):
