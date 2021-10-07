@@ -98,7 +98,7 @@ class AdaIn(nn.Module):
 
 
 class AdaInBlock(nn.Module):
-    def __init__ (self, n_channel: int, dim_latent: int):
+    def __init__(self, n_channel: int, dim_latent: int):
         super().__init__()
         # Style generators
         self.style_mapping = TransformWLatentToStyle(dim_latent, n_channel)
@@ -123,18 +123,13 @@ class IntermediateGenerator(nn.Module):
     Used to map the input to an intermediate latent space W.
     '''
 
-    def __init__(self, n_fc, dim_latent):
+    def __init__(self, n_fc: int, dim_latent: int):
         super().__init__()
         self.mapping = nn.ModuleList()
-        # layers = [PixelNorm()]
         self.mapping.append(PixelNorm())
         for i in range(n_fc):
             fc_layer = nn.Sequential(SLinear(dim_latent, dim_latent), nn.LeakyReLU(0.2))
             self.mapping.append(fc_layer)
-        #     layers.append(SLinear(dim_latent, dim_latent))
-        #     layers.append(nn.LeakyReLU(0.2))
-        #
-        # self.mapping = nn.Sequential(*layers)
 
     def forward(self, latent_z: Tensor) -> Tensor:
         latent_w = self.mapping(latent_z)

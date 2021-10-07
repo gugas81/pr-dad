@@ -6,9 +6,21 @@ from typing import Optional
 from models.ada_in_layer import AdaInBlock
 
 
+class NormModule(nn.Module):
+    def __init__(self, norm_type: str, norm_layer: nn.Module):
+        self._norm_layer = norm_layer
+        self._norm_type = norm_type
+
+    def forward(self, image: Tensor,  latent_w: Optional[Tensor] = None) -> Tensor:
+        if self._norm_type == 'ada-in':
+            return self._norm_layer(image, latent_w)
+        else:
+            return self._norm_layer(image)
+
+
 def get_norm_layer(norm_type: str, n_channel: int,
                    img_size: Optional[int] = None,
-                   dim_latent: Optional[int] = None) -> nn.Module:
+                   dim_latent: Optional[int] = None) -> NormModule:
     if img_size is not None:
         is_2d = True
         assert img_size
@@ -25,7 +37,7 @@ def get_norm_layer(norm_type: str, n_channel: int,
         norm_layer = AdaInBlock(n_channel, dim_latent)
     else:
         raise NameError(f'Non valid type: {norm_type}')
-    return norm_layer
+    return NormModule(norm_type=norm_type, norm_layer=norm_layer)
 
 
 def get_activation(name: str) -> nn.Module:

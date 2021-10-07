@@ -22,12 +22,35 @@ class FcBlock(nn.Module):
         return self.fc_seq(x)
 
 
+class ConvModule(nn.Module):
+    def __init__(self,
+                 ch_in: int,
+                 ch_out: int,
+                 kernel_size: int = 3,
+                 bias: bool = True,
+                 padding: int = 1,
+                 img_size: Optional[int] = None,
+                 dim_latent: Optional[int] = None,
+                 active_type: str = 'leakly_relu',
+                 norm_type: str = 'batch_norm'):
+        self._conv = nn.Conv2d(ch_in, ch_out, kernel_size=kernel_size, stride=1, padding=padding, bias=bias)
+        self._norm = get_norm_layer(norm_type=norm_type, n_channel=ch_out, img_size=img_size, dim_latent=dim_latent)
+        self._activ = get_activation(active_type)
+
+    def forward(self, x: Tensor, latent_w: Optional[Tensor] = None) -> Tensor:
+        x = self._conv(x)
+        x = self._norm(x, latent_w)
+        x = self._activ(x)
+        return x
+
+
 class ConvBlock(nn.Module):
     def __init__(self,
                  ch_in: int,
                  ch_out: int,
                  ch_inter: Optional[int] = None,
                  kernel_size: int = 3,
+                 stride: int = 1,
                  bias: bool = True,
                  padding: int = 1,
                  img_size: Optional[int] = None,
@@ -38,57 +61,95 @@ class ConvBlock(nn.Module):
         if ch_inter is None:
             ch_inter = ch_out
 
-        self._conv_1 = nn.Conv2d(ch_in, ch_inter, kernel_size=kernel_size, stride=1, padding=padding, bias=bias)
-        self._norm_1 = get_norm_layer(norm_type=norm_type, n_channel=ch_inter, img_size=img_size, dim_latent=dim_latent)
-        self._activ_1 = get_activation(active_type)
+        self._conv_sub_block_1 = ConvModule(ch_in=ch_in,
+                                            ch_out=ch_inter,
+                                            kernel_size=kernel_size,
+                                            stride=stride,
+                                            padding=padding,
+                                            bias=bias,
+                                            norm_type=norm_type,
+                                            n_channel=ch_inter,
+                                            img_size=img_size,
+                                            dim_latent=dim_latent,
+                                            active_type=active_type)
 
-        self._conv_2 = nn.Conv2d(ch_inter, ch_out, kernel_size=kernel_size, stride=1, padding=padding, bias=bias)
-        self._norm_2 = get_norm_layer(norm_type=norm_type, n_channel=ch_out, img_size=img_size, dim_latent=dim_latent)
-        self._activ_2 = get_activation(active_type)
-
-        # self.conv_block = nn.Sequential(
-        #     nn.Conv2d(ch_in, ch_inter, kernel_size=kernel_size, stride=1, padding=1),
-        #     nn.BatchNorm2d(ch_inter),
-        #     get_activation(active_type),
-        #     nn.Conv2d(ch_inter, ch_out, kernel_size=kernel_size, stride=1, padding=1),
-        #     nn.BatchNorm2d(ch_out),
-        #     get_activation(active_type)
-        # )
+        self._conv_sub_block_2 = ConvModule(ch_in=ch_inter,
+                                            ch_out=ch_out,
+                                            kernel_size=kernel_size,
+                                            stride=stride,
+                                            padding=padding,
+                                            bias=bias,
+                                            norm_type=norm_type,
+                                            n_channel=ch_inter,
+                                            img_size=img_size,
+                                            dim_latent=dim_latent,
+                                            active_type=active_type)
 
     def forward(self, x: Tensor, latent_w: Optional[Tensor] = None) -> Tensor:
-        x = self._conv_1(x)
-        x = self._norm_1(x, latent_w)
-        x = self._activ_1(x)
-
-        x = self._conv_2(x)
-        x = self._norm_2(x, latent_w)
-        x = self._activ_2(x)
+        x = self._conv_sub_block_1(x, latent_w)
+        x = self._conv_sub_block_2(x, latent_w)
         return x
 
 
 class ResBlock(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, padding: int = 1, bias: bool = False,
-                 bias_out: bool = True, active_type: str = 'leakly_relu'):
+    def __init__(self, ch_in: int,
+                 ch_out: int,
+                 ch_inter: Optional[int] = None,
+                 kernel_size: int = 3,
+                 stride: int = 1,
+                 bias: bool = True,
+                 padding: int = 1,
+                 img_size: Optional[int] = None,
+                 dim_latent: Optional[int] = None,
+                 active_type: str = 'leakly_relu',
+                 norm_type: str = 'batch_norm'):
         super(ResBlock, self).__init__()
+        if ch_inter is None:
+            ch_inter = ch_in
 
-        self._conv_block1 = nn.Sequential(nn.BatchNorm2d(in_channels, affine=True),
-                                          get_activation(active_type),
-                                          nn.Conv2d(in_channels, in_channels, kernel_size, padding=padding, bias=bias))
+        self._conv_sub_block_1 = ConvModule(ch_in=ch_in,
+                                            ch_out=ch_inter,
+                                            kernel_size=kernel_size,
+                                            stride=stride,
+                                            padding=padding,
+                                            bias=bias,
+                                            norm_type=norm_type,
+                                            n_channel=ch_inter,
+                                            img_size=img_size,
+                                            dim_latent=dim_latent,
+                                            active_type=active_type)
 
-        self._conv_block2 = nn.Sequential(nn.BatchNorm2d(in_channels, affine=True),
-                                          get_activation(active_type),
-                                          nn.Conv2d(in_channels, in_channels, kernel_size, padding=padding, bias=bias))
+        self._conv_sub_block_2 = ConvModule(ch_in=ch_in,
+                                            ch_out=ch_inter,
+                                            kernel_size=kernel_size,
+                                            stride=stride,
+                                            padding=padding,
+                                            bias=bias,
+                                            norm_type=norm_type,
+                                            n_channel=ch_inter,
+                                            img_size=img_size,
+                                            dim_latent=dim_latent,
+                                            active_type=active_type)
 
-        self._conv_block_out = nn.Sequential(nn.BatchNorm2d(3*in_channels, affine=True),
-                                             get_activation(active_type),
-                                             nn.Conv2d(3*in_channels, out_channels, kernel_size,
-                                                       padding=padding, bias=bias_out))
+        ch_inter_out = 2 * ch_inter + ch_out
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x_1 = self._conv_block1(x)
-        x_2 = self._conv_block1(x)
-        concat_x = torch.cat((x, x_1, x_2), dim=1)
-        x_out = self._conv_block_out(concat_x)
+        self._conv_sub_block_out = ConvModule(ch_in=ch_inter_out,
+                                                ch_out=ch_inter,
+                                                kernel_size=kernel_size,
+                                                stride=stride,
+                                                padding=padding,
+                                                bias=bias,
+                                                norm_type=norm_type,
+                                                n_channel=ch_inter,
+                                                img_size=img_size,
+                                                dim_latent=dim_latent,
+                                                active_type=active_type)
+
+    def forward(self, x_in: torch.Tensor, latent_w: Optional[Tensor] = None) -> torch.Tensor:
+        x_1 = self._conv_sub_block_1(x_in, latent_w)
+        x_2 = self._conv_sub_block_2(x_in, latent_w)
+        concat_x = torch.cat((x_in, x_1, x_2), dim=1)
+        x_out = self._conv_sub_block_out(concat_x, latent_w)
         return x_out
 
 
