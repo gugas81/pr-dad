@@ -204,5 +204,6 @@ class ConfigTrainer(ConfigBase):
     deep_predict_fc: Optional[int] = None
     deep_predict_conv: int = 2
     use_amp: bool = False
-    predict_conv_multy_coeff: int =2
+    predict_conv_multy_coeff: int = 2
+    predict_img_int_features_multi_coeff: int = 1
 
