@@ -41,12 +41,15 @@ class PhaseRetrievalAeModel:
         else:
             raise NameError(f'Nonna valid predict_out type: {self._config.predict_out}')
 
-        if self._config.n_inter_features is None:
-            inter_ch = predict_out_ch
-            if self._config.predict_type == 'spectral':
-                inter_ch *= 2
+        if self._config.predict_out == 'features':
+            if self._config.n_inter_features is None:
+                inter_ch = predict_out_ch
+                if self._config.predict_type == 'spectral':
+                    inter_ch *= 2
+            else:
+                inter_ch = self._config.n_inter_features
         else:
-            inter_ch = self._config.n_inter_features
+            inter_ch = self._config.predict_img_int_features_multi_coeff * predict_out_ch
 
         if self._config.deep_predict_fc is None:
             deep_fc = int(math.floor(math.log(inter_ch * (predict_out_size ** 2) / (self._config.image_size ** 2),
