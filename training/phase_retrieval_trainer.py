@@ -571,6 +571,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                 features_adv_loss = None
         else:
             img_adv_loss = None
+            ref_img_adv_loss = None
             features_adv_loss = None
             p_loss_discrim_f = None
             p_loss_discrim_img = None
