@@ -10,6 +10,7 @@ from typing import Optional, List
 from tqdm import tqdm
 from models import Discriminator
 from torch.optim.lr_scheduler import MultiStepLR
+from lpips import LPIPS
 
 from common import LossesPRFeatures, InferredBatch, ConfigTrainer, l2_grad_norm,  LossesGradNorms,  DiscriminatorBatch
 from common import im_concatenate, l2_perceptual_loss, PATHS, DataBatch, S3FileSystem, LossImg
@@ -24,10 +25,15 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         super(TrainerPhaseRetrievalAeFeatures, self).__init__(config=config, experiment_name=experiment_name)
 
         self.adv_loss = nn.MSELoss()
+
         self.l2_loss = nn.MSELoss()
         self.l1_loss = nn.L1Loss()
+
         self.l2_img_loss = LossImg(loss_type='l2', rot180=config.loss_rot180)
         self.l1_img_loss = LossImg(loss_type='l1', rot180=config.loss_rot180)
+
+        self._lpips_loss = LPIPS(net='vgg', eval_mode=False, verbose=False)
+        self._lpips_loss.to(self.device)
 
         self.n_epochs_ae = config.n_epochs_ae
         if self._config.use_amp:
@@ -489,12 +495,13 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                         inferred_batch: InferredBatch,
                         use_adv_loss: bool = False) -> LossesPRFeatures:
 
-        is_paired = data_batch.is_paired
+        # is_paired = data_batch.is_paired
 
         fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
         total_loss = torch.zeros(1, device=self.device)[0]
         l1_img_recon_loss = self.l1_img_loss(data_batch.image, inferred_batch.img_recon)
         l2_img_recon_loss = self.l2_img_loss(data_batch.image, inferred_batch.img_recon)
+        lpips_img_recon_loss = self._lpips_loss(data_batch.image, inferred_batch.img_recon)
         if self._config.predict_out == 'features':
             l1_features_loss = self.l1_img_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
             l2_features_loss = self.l2_img_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
@@ -518,11 +525,13 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                  inferred_batch.fft_magnitude_recon_ref)
             l2_ref_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(),
                                                  inferred_batch.fft_magnitude_recon_ref)
+            lpips_ref_img_recon_loss = self._lpips_loss(data_batch.image, inferred_batch.img_recon_ref)
         else:
             l2_ref_img_recon_loss = None
             l2_ref_magnitude_loss = None
             l1_ref_img_recon_loss = None
             l1_ref_magnitude_loss = None
+            lpips_ref_img_recon_loss = None
 
         real_labels = torch.ones((data_batch.fft_magnitude.shape[0], 1),
                                  device=self.device,
@@ -599,6 +608,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                   l2_img=l2_img_recon_loss,
                                   l1_ref_img=l1_ref_img_recon_loss,
                                   l2_ref_img=l2_ref_img_recon_loss,
+                                  lpips_img=lpips_img_recon_loss,
+                                  lpips_ref_img=lpips_ref_img_recon_loss,
                                   l1_features=l1_features_loss,
                                   l2_features=l2_features_loss,
                                   l1_magnitude=l1_magnitude_loss,
