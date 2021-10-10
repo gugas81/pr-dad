@@ -205,5 +205,8 @@ class ConfigTrainer(ConfigBase):
     deep_predict_conv: int = 2
     use_amp: bool = False
     predict_conv_multy_coeff: int = 2
+    predict_img_int_features_multi_coeff: int = 1
+    use_lpips: bool = False
+    lambda_img_lpips: float = 1.0
+    lambda_ref_img_lpips: float = 1.0
     use_adain: bool = False
-

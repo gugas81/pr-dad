@@ -164,6 +164,8 @@ class LossesPRFeatures(Losses):
     l1_ref_img: Optional[Tensor] = None
     l2_ref_img: Optional[Tensor] = None
     l2_ref_img_np: Optional[Tensor] = None
+    lpips_img: Optional[Tensor] = None
+    lpips_ref_img: Optional[Tensor] = None
     l1_features: Optional[Tensor] = None
     l2_features: Optional[Tensor] = None
     l1_magnitude: Optional[Tensor] = None
