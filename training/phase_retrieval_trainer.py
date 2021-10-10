@@ -29,11 +29,13 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self.l2_loss = nn.MSELoss()
         self.l1_loss = nn.L1Loss()
 
-        self.l2_img_loss = LossImg(loss_type='l2', rot180=config.loss_rot180)
-        self.l1_img_loss = LossImg(loss_type='l1', rot180=config.loss_rot180)
+        self.l2_img_loss = LossImg(loss_type='l2', rot180=config.loss_rot180, device=self.device)
+        self.l1_img_loss = LossImg(loss_type='l1', rot180=config.loss_rot180, device=self.device)
 
-        self._lpips_loss = LPIPS(net='vgg', eval_mode=False, verbose=False)
-        self._lpips_loss.to(self.device)
+        if self._config.use_lpips:
+            self._lpips_loss = LossImg(loss_type='lpips', rot180=config.loss_rot180, device=self.device)
+        else:
+            self._lpips_loss = None
 
         self.n_epochs_ae = config.n_epochs_ae
         if self._config.use_amp:
@@ -501,7 +503,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         total_loss = torch.zeros(1, device=self.device)[0]
         l1_img_recon_loss = self.l1_img_loss(data_batch.image, inferred_batch.img_recon)
         l2_img_recon_loss = self.l2_img_loss(data_batch.image, inferred_batch.img_recon)
-        lpips_img_recon_loss = self._lpips_loss(data_batch.image, inferred_batch.img_recon)
+
         if self._config.predict_out == 'features':
             l1_features_loss = self.l1_img_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
             l2_features_loss = self.l2_img_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
@@ -525,7 +527,11 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                  inferred_batch.fft_magnitude_recon_ref)
             l2_ref_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(),
                                                  inferred_batch.fft_magnitude_recon_ref)
-            lpips_ref_img_recon_loss = self._lpips_loss(data_batch.image, inferred_batch.img_recon_ref)
+            if self._config.use_lpips:
+                lpips_ref_img_recon_loss = self._lpips_loss(data_batch.image, inferred_batch.img_recon_ref)
+                total_loss += self._config.lambda_ref_img_lpips * lpips_ref_img_recon_loss
+            else:
+                lpips_ref_img_recon_loss = None
         else:
             l2_ref_img_recon_loss = None
             l2_ref_magnitude_loss = None
@@ -539,6 +545,13 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         total_loss += self._config.lambda_img_recon_loss * l2_img_recon_loss + \
                       self._config.lambda_img_recon_loss_l1 * l1_img_recon_loss
+
+        if self._config.use_lpips:
+            lpips_img_recon_loss = self._lpips_loss(data_batch.image, inferred_batch.img_recon)
+            total_loss += self._config.lambda_img_lpips * lpips_img_recon_loss
+        else:
+            lpips_img_recon_loss = None
+
         if use_adv_loss:
             if self._config.predict_out == 'features':
                 real_img = inferred_batch.decoded_img
