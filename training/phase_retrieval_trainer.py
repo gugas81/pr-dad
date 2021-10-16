@@ -553,11 +553,11 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             lpips_img_recon_loss = None
 
         l1_reg_fc_pred = None
-        if len(self._config.lambda_fc_prec_l1_req) > 0:
+        if len(self._config.lambda_fc_pred_l1_req) > 0:
             l1_reg_fc_pred = torch.zeros_like(total_loss)
             for ind, weights_block in enumerate(self._generator_model.phase_predictor.weights_fc):
-                lambda_block = self._config.lambda_fc_prec_l1_req[ind] if \
-                    len(self._config.lambda_fc_prec_l1_req) > ind else self._config.lambda_fc_prec_l1_req[-1]
+                lambda_block = self._config.lambda_fc_pred_l1_req[ind] if \
+                    len(self._config.lambda_fc_pred_l1_req) > ind else self._config.lambda_fc_pred_l1_req[-1]
                 l1_reg_fc_pred += lambda_block * torch.mean(weights_block.abs())
             total_loss += l1_reg_fc_pred
 
