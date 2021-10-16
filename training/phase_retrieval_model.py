@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch import Tensor
 
-from common import InferredBatch, ConfigTrainer
+from common import InferredBatch, ConfigTrainer, get_fft2_freq, get_flatten_fft2_size
 from common import DataBatch, S3FileSystem
 
 from training.utils import ModulesNames
@@ -41,6 +41,9 @@ class PhaseRetrievalAeModel:
         else:
             raise NameError(f'Nonna valid predict_out type: {self._config.predict_out}')
 
+        in_flatten_size = get_flatten_fft2_size(self._config.image_size, use_rfft=self._config.use_rfft)
+        pred_out_flatten_size = get_flatten_fft2_size(predict_out_size, use_rfft=self._config.use_rfft)
+
         if self._config.predict_out == 'features':
             if self._config.n_inter_features is None:
                 inter_ch = predict_out_ch
@@ -52,7 +55,7 @@ class PhaseRetrievalAeModel:
             inter_ch = self._config.predict_img_int_features_multi_coeff * predict_out_ch
 
         if self._config.deep_predict_fc is None:
-            deep_fc = int(math.floor(math.log(inter_ch * (predict_out_size ** 2) / (self._config.image_size ** 2),
+            deep_fc = int(math.floor(math.log(inter_ch * pred_out_flatten_size / in_flatten_size,
                                               self._config.predict_fc_multy_coeff))) + 1
             deep_fc = max(3, deep_fc)
         else:
