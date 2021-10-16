@@ -5,6 +5,8 @@ import torch.nn as nn
 from models.layers import FcBlock, ConvBlock, ResBlock
 from models.conv_unet import UNetConv
 
+from common import get_flatten_fft2_size, get_fft2_freq
+
 
 class PhaseRetrievalPredictor(nn.Module):
     def __init__(self, use_dropout: bool = False, im_img_size: int = 28, inter_ch: int = 1, out_ch: int = 1,
@@ -26,16 +28,10 @@ class PhaseRetrievalPredictor(nn.Module):
         self.fc_multy_coeff = fc_multy_coeff
         self.conv_multy_coeff = conv_multy_coeff
 
-        if use_rfft:
-            self.fft_in_freq = (torch.fft.rfftfreq(im_img_size) * im_img_size).numpy().astype(int)
-            self.fft_out_freq = (torch.fft.rfftfreq(out_img_size) * out_img_size).numpy().astype(int)
-        else:
-            self.fft_in_freq = (torch.fft.fftfreq(im_img_size) * im_img_size).numpy().astype(int)
-            self.fft_out_freq = (torch.fft.fftfreq(out_img_size) * out_img_size).numpy().astype(int)
-
-        self.in_features = self.im_img_size * self.fft_in_freq.shape[0]
-        self.inter_features = self.int_ch * self.out_img_size * self.fft_out_freq.shape[0]
-        self.out_features = self.out_ch * self.out_img_size * self.fft_out_freq.shape[0]
+        self.fft_out_freq = get_fft2_freq(self.out_img_size, use_rfft=use_rfft)
+        self.in_features = get_flatten_fft2_size(self.im_img_size, use_rfft=use_rfft)
+        self.inter_features = self.int_ch * get_flatten_fft2_size(self.out_img_size, use_rfft=use_rfft)
+        self.out_features = self.out_ch * get_flatten_fft2_size(self.out_img_size, use_rfft=use_rfft)
         self._fft_norm = fft_norm
 
         if self._predict_type == 'spectral':
@@ -112,7 +108,7 @@ class PhaseRetrievalPredictor(nn.Module):
     def _spectral_pred(self, magnitude: Tensor) -> (Tensor, Tensor):
         x_float = magnitude.view(-1, self.in_features)
         fc_features = self.fc_blocks(x_float)
-        out_fft_size = self.fft_out_freq.shape[0]
+        out_fft_size = len(self.fft_out_freq)
         spectral = fc_features.view(-1, self.int_ch, self.out_img_size, out_fft_size, 2)
         spectral = torch.view_as_complex(spectral)
         if self._use_rfft:

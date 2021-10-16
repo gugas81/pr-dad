@@ -41,6 +41,9 @@ class PhaseRetrievalAeModel:
         else:
             raise NameError(f'Nonna valid predict_out type: {self._config.predict_out}')
 
+        in_flatten_size = get_flatten_fft2_size(self._config.image_size, use_rfft=self._config.use_rfft)
+        pred_out_flatten_size = get_flatten_fft2_size(predict_out_size, use_rfft=self._config.use_rfft)
+
         if self._config.predict_out == 'features':
             if self._config.n_inter_features is None:
                 inter_ch = predict_out_ch

@@ -85,3 +85,14 @@ class NormalizeInverse(torchvision.transforms.Normalize):
         return super().__call__(tensor.clone())
 
 
+def get_fft2_freq(img_size: int, use_rfft: bool) -> List[int]:
+    if use_rfft:
+        fft_freq_1d = torch.fft.rfftfreq(img_size)
+    else:
+        fft_freq_1d = torch.fft.fftfreq(img_size)
+    return (fft_freq_1d * img_size).numpy().astype(int).tolist()
+
+
+def get_flatten_fft2_size(img_size:  int, use_rfft: bool) -> int:
+    return img_size * len(get_fft2_freq(img_size, use_rfft))
+
