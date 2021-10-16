@@ -190,6 +190,8 @@ class LossesPRFeatures(Losses):
     max_img: Optional[Tensor] = None
     min_img: Optional[Tensor] = None
 
+    l1_reg_fc_pred: Optional[Tensor] = None
+
     mean_features: Optional[Tensor] = None
     std_features: Optional[Tensor] = None
     max_features: Optional[Tensor] = None

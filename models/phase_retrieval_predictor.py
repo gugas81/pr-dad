@@ -1,7 +1,7 @@
 import torch
 from torch import Tensor
 import torch.nn as nn
-
+from typing import List
 from models.layers import FcBlock, ConvBlock, ResBlock
 from models.conv_unet import UNetConv
 
@@ -54,7 +54,7 @@ class PhaseRetrievalPredictor(nn.Module):
             self.fc_blocks.append(fc_block)
 
         self.fc_blocks = nn.Sequential(*self.fc_blocks)
-
+        self.weights_fc: List[nn.Parameter] = [fc_block.fc_seq[0].weight for fc_block in self.fc_blocks]
         self._build_conv_blocks(conv_type, deep_conv, active_type=active_type)
 
     def _build_conv_blocks(self, conv_type: str, deep_conv: int, active_type: str = 'leakly_relu'):

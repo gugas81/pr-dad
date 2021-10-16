@@ -552,6 +552,15 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         else:
             lpips_img_recon_loss = None
 
+        l1_reg_fc_pred = None
+        if len(self._config.lambda_fc_prec_l1_req) > 0:
+            l1_reg_fc_pred = torch.zeros_like(total_loss)
+            for ind, weights_block in enumerate(self._generator_model.phase_predictor.weights_fc):
+                lambda_block = self._config.lambda_fc_prec_l1_req[ind] if \
+                    len(self._config.lambda_fc_prec_l1_req) > ind else self._config.lambda_fc_prec_l1_req[-1]
+                l1_reg_fc_pred += lambda_block * torch.mean(weights_block.abs())
+            total_loss += l1_reg_fc_pred
+
         if use_adv_loss:
             if self._config.predict_out == 'features':
                 real_img = inferred_batch.decoded_img
@@ -636,7 +645,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                   features_adv_loss=features_adv_loss,
                                   perceptual_disrim_features=p_loss_discrim_f,
                                   perceptual_disrim_img=p_loss_discrim_img,
-                                  perceptual_disrim_ref_img=p_loss_discrim_ref_img)
+                                  perceptual_disrim_ref_img=p_loss_discrim_ref_img,
+                                  l1_reg_fc_pred=l1_reg_fc_pred)
 
         self._recon_statistics_metrics(inferred_batch, losses)
 
