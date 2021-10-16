@@ -5,8 +5,7 @@ import torch
 from torch import nn
 from torch import Tensor
 
-from common import InferredBatch, ConfigTrainer
-from common import DataBatch, S3FileSystem
+from common import InferredBatch, ConfigTrainer, DataBatch, S3FileSystem, get_flatten_fft2_size
 
 from training.utils import ModulesNames
 from models import PhaseRetrievalPredictor,   AeConv, UNetConv
