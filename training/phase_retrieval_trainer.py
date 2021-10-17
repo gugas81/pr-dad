@@ -10,10 +10,9 @@ from typing import Optional, List
 from tqdm import tqdm
 from models import Discriminator
 from torch.optim.lr_scheduler import MultiStepLR
-from lpips import LPIPS
 
 from common import LossesPRFeatures, InferredBatch, ConfigTrainer, l2_grad_norm,  LossesGradNorms,  DiscriminatorBatch
-from common import im_concatenate, l2_perceptual_loss, PATHS, DataBatch, S3FileSystem, LossImg
+from common import im_concatenate, l2_perceptual_loss, DataBatch, LossImg
 
 from training.base_phase_retrieval_trainer import BaseTrainerPhaseRetrieval
 from training.phase_retrieval_model import PhaseRetrievalAeModel
@@ -553,13 +552,14 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             lpips_img_recon_loss = None
 
         l1_reg_fc_pred = None
-        if len(self._config.lambda_fc_pred_l1_req) > 0:
+        if len(self._config.lambda_fc_layers_pred_l1_req) > 0:
             l1_reg_fc_pred = torch.zeros_like(total_loss)
             for ind, weights_block in enumerate(self._generator_model.phase_predictor.weights_fc):
-                lambda_block = self._config.lambda_fc_pred_l1_req[ind] if \
-                    len(self._config.lambda_fc_pred_l1_req) > ind else self._config.lambda_fc_pred_l1_req[-1]
+                lambda_block = self._config.lambda_fc_layers_pred_l1_req[ind] if \
+                    len(self._config.lambda_fc_layers_pred_l1_req) > ind else self._config.lambda_fc_layers_pred_l1_req[-1]
                 l1_reg_fc_pred += lambda_block * torch.mean(weights_block.abs())
-            total_loss += l1_reg_fc_pred
+            if self._config.lambda_fc_pred_l1_req > 0.0:
+                total_loss += self._config.lambda_fc_pred_l1_req * l1_reg_fc_pred
 
         if use_adv_loss:
             if self._config.predict_out == 'features':

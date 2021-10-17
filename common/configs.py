@@ -174,7 +174,8 @@ class ConfigTrainer(ConfigBase):
     lambda_discrim_img: float = 1.0
     lambda_discrim_ref_img: float = 1.0
     lambda_discrim_features: float = 1.0
-    lambda_fc_pred_l1_req: List[float] = field(default_factory=lambda:  [0.01, 0.01, 0.01])
+    lambda_fc_pred_l1_req: float = 0.0
+    lambda_fc_layers_pred_l1_req: List[float] = field(default_factory=lambda:  [1.0, 1.0, 1.0])
     clip_encoder_grad: Optional[float] = 0.5
     clip_discriminator_grad: Optional[float] = 0.1
     disrim_in_conv_ch: Optional[int] = None

@@ -117,8 +117,8 @@ class PhaseRetrievalDataset(Dataset):
     def _get_item(self, idx: Union[int, Tuple[int, int, int]]) -> DataBatch:
         is_paired = idx in self.paired_ind
         img_item = self.image_dataset[idx]
-        image_data = img_item[0]
-        label = img_item[1]
+        image_data = img_item[0].to(device='cpu')
+        label = img_item[1].to(device='cpu')
         fft_magnitude = self._forward_magnitude_fft(image_data)
         if not is_paired:
             image_data = self.image_dataset[np.random.choice(self.paired_ind)][0]
