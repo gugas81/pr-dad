@@ -211,5 +211,6 @@ class ConfigTrainer(ConfigBase):
     use_lpips: bool = False
     lambda_img_lpips: float = 1.0
     lambda_ref_img_lpips: float = 1.0
+    prob_aug: float = 1.0
 
 

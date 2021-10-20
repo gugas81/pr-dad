@@ -104,7 +104,8 @@ class BaseTrainerPhaseRetrieval:
                                 use_rfft=self._config.use_rfft,
                                 seed=self.seed,
                                 log=self._log,
-                                s3=self._s3)
+                                s3=self._s3,
+                                prob_aug=self._config.prob_aug)
 
     def load_state(self, model_path: str) -> Dict[str, Any]:
         self._log.debug(f'Load state dict from: {model_path}')

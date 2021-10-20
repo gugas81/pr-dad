@@ -18,7 +18,7 @@ from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
 class PhaseRetrievalDataset(Dataset):
     def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool, rot_degrees: float, is_gan: bool,
                  paired_part: float, fft_norm: str, log: logging.Logger, seed: int, s3: Optional[S3FileSystem] = None,
-                 use_rfft: bool = False):
+                 use_rfft: bool = False, prob_aug: float = 1.0):
         def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None):
             return torchvision.datasets.CelebA(root=root,
                                                split='train' if train else 'test',
@@ -69,12 +69,19 @@ class PhaseRetrievalDataset(Dataset):
 
         data_transforms = [alignment_transform]
         if self._use_aug:
-            argumentation_transforms = [transforms.RandomHorizontalFlip(),
-                                        transforms.RandomVerticalFlip()]
-            if rot_degrees > 0.0:
-                argumentation_transforms = [transforms.RandomRotation(rot_degrees,
-                                                                      nterpolation=InterpolationMode.BILINEAR)] + \
-                                           argumentation_transforms
+            if ds_name == 'celeba':
+                argumentation_transforms = [transaforms.RandomAdjustSharpness(sharpness_factor=1.0, p=prob_aug),
+                                            transforms.RandomHorizontalFlip(p=prob_aug),
+                                            transforms.RandomApply([transforms.GaussianBlur(11, sigma=(0.1, 2.0))], p=prob_aug)]
+            else:
+                argumentation_transforms = [transforms.RandomHorizontalFlip(),
+                                            transforms.RandomVerticalFlip()]
+                if rot_degrees > 0.0:
+                    argumentation_transforms = [transforms.RandomRotation(rot_degrees,
+                                                                          nterpolation=InterpolationMode.BILINEAR)] + \
+                                               argumentation_transforms
+
+
 
             data_transforms += argumentation_transforms
 
@@ -149,18 +156,18 @@ def create_data_loaders(ds_name: str, img_size: int,
                         batch_size_train: int, batch_size_test: int,
                         seed: int, use_gan: bool, use_rfft: bool,
                         n_dataloader_workers: int, paired_part: float, fft_norm: str, log: logging.Logger,
-                        s3: Optional[S3FileSystem] = None):
+                        s3: Optional[S3FileSystem] = None, prob_aug: float = 1.0):
     log.debug('Create train dataset')
     train_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=True,
                                           use_aug=use_aug, rot_degrees=rot_degrees, is_gan=False,
                                           paired_part=paired_part, fft_norm=fft_norm, use_rfft=use_rfft,
-                                          log=log, seed=seed, s3=s3)
+                                          log=log, seed=seed, s3=s3, prob_aug=prob_aug)
 
     log.debug('Create test dataset')
     test_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=False,
                                          use_aug=use_aug_test, rot_degrees=rot_degrees, is_gan=False,
                                          paired_part=1.0, fft_norm=fft_norm, use_rfft=use_rfft,
-                                         log=log, seed=seed, s3=s3)
+                                         log=log, seed=seed, s3=s3, prob_aug=prob_aug)
 
     paired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.paired_ind)
     unpaired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.unpaired_paired_ind)
