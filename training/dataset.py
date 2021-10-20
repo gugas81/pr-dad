@@ -70,7 +70,7 @@ class PhaseRetrievalDataset(Dataset):
         data_transforms = [alignment_transform]
         if self._use_aug:
             if ds_name == 'celeba':
-                argumentation_transforms = [transaforms.RandomAdjustSharpness(sharpness_factor=1.0, p=prob_aug),
+                argumentation_transforms = [transforms.RandomAdjustSharpness(sharpness_factor=1.0, p=prob_aug),
                                             transforms.RandomHorizontalFlip(p=prob_aug),
                                             transforms.RandomApply([transforms.GaussianBlur(11, sigma=(0.1, 2.0))], p=prob_aug)]
             else:
