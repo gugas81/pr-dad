@@ -72,14 +72,16 @@ class PhaseRetrievalDataset(Dataset):
             if ds_name == 'celeba':
                 argumentation_transforms = [transforms.RandomAdjustSharpness(sharpness_factor=1.0, p=prob_aug),
                                             transforms.RandomHorizontalFlip(p=prob_aug),
-                                            transforms.RandomApply([transforms.GaussianBlur(11, sigma=(0.1, 2.0))], p=prob_aug)]
+                                            transforms.RandomApply([transforms.GaussianBlur(kernel_size=3,
+                                                                                            sigma=(0.1, 2.0))],
+                                                                   p=prob_aug)]
             else:
                 argumentation_transforms = [transforms.RandomHorizontalFlip(),
                                             transforms.RandomVerticalFlip()]
-                if rot_degrees > 0.0:
-                    argumentation_transforms = [transforms.RandomRotation(rot_degrees,
-                                                                          nterpolation=InterpolationMode.BILINEAR)] + \
-                                               argumentation_transforms
+            if rot_degrees > 0.0:
+                argumentation_transforms = [transforms.RandomRotation(rot_degrees,
+                                                                      nterpolation=InterpolationMode.BILINEAR)] + \
+                                           argumentation_transforms
 
 
 
