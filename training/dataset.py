@@ -68,7 +68,10 @@ class PhaseRetrievalDataset(Dataset):
         else:
             raise NameError(f'Not valid ds type {ds_name}')
 
-        data_transforms = [alignment_transform]
+        data_transforms = [alignment_transform, transforms.ToTensor(), normalize_transform]
+        if is_rgb:
+            data_transforms.append(transforms.Grayscale(num_output_channels=1))
+
         if self._use_aug:
             if ds_name == 'celeba':
                 argumentation_transforms = [transforms.RandomAdjustSharpness(sharpness_factor=1.0, p=prob_aug),
@@ -94,9 +97,6 @@ class PhaseRetrievalDataset(Dataset):
 
             data_transforms += argumentation_transforms
 
-        data_transforms = data_transforms + [transforms.ToTensor(), normalize_transform]
-        if is_rgb:
-            data_transforms.append(transforms.Grayscale(num_output_channels=1))
         data_transforms = transforms.Compose(data_transforms)
 
         self.image_dataset = ds_class(root=ds_path,
