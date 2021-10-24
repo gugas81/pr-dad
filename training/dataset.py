@@ -12,6 +12,7 @@ from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from torchvision.transforms import InterpolationMode
 
+from training.augmentations import RandomAddGaussianNoise, RandomGammaCorrection
 from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
 
 
@@ -71,10 +72,18 @@ class PhaseRetrievalDataset(Dataset):
         if self._use_aug:
             if ds_name == 'celeba':
                 argumentation_transforms = [transforms.RandomAdjustSharpness(sharpness_factor=1.0, p=prob_aug),
-                                            transforms.RandomHorizontalFlip(p=prob_aug),
-                                            transforms.RandomApply([transforms.GaussianBlur(kernel_size=3,
-                                                                                            sigma=(0.1, 2.0))],
+                                            transforms.RandomApply([RandomAddGaussianNoise(0.2, True)],
+                                                                   p=prob_aug),
+                                            transforms.RandomApply(
+                                                [transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))],
+                                                p=prob_aug),
+                                            transforms.RandomApply(
+                                                [transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))],
+                                                p=prob_aug),
+                                            transforms.RandomApply([RandomGammaCorrection()],
                                                                    p=prob_aug)]
+                argumentation_transforms = transforms.RandomOrder(argumentation_transforms)
+                argumentation_transforms = [argumentation_transforms, transforms.RandomHorizontalFlip(p=prob_aug)]
             else:
                 argumentation_transforms = [transforms.RandomHorizontalFlip(),
                                             transforms.RandomVerticalFlip()]
@@ -82,8 +91,6 @@ class PhaseRetrievalDataset(Dataset):
                 argumentation_transforms = [transforms.RandomRotation(rot_degrees,
                                                                       nterpolation=InterpolationMode.BILINEAR)] + \
                                            argumentation_transforms
-
-
 
             data_transforms += argumentation_transforms
 
