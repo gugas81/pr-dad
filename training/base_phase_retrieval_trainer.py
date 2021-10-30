@@ -88,6 +88,12 @@ class BaseTrainerPhaseRetrieval:
         self.data_ts_batch.fft_magnitude = self.data_ts_batch.fft_magnitude[:dbg_batch_ts]
         self.data_ts_batch.label = self.data_ts_batch.label[:dbg_batch_ts]
 
+        if (self._config.gauss_noise is not None) and self._config.use_aug:
+            self.data_tr_batch.image_noised = self.data_tr_batch.image_noised[:dbg_batch_tr]
+            self.data_tr_batch.fft_magnitude_noised = self.data_tr_batch.fft_magnitude_noised[:dbg_batch_tr]
+            self.data_ts_batch.image_noised = self.data_ts_batch.image_noised[:dbg_batch_ts]
+            self.data_ts_batch.fft_magnitude_noised = self.data_ts_batch.fft_magnitude_noised[:dbg_batch_ts]
+
     def _init_data_loaders(self):
         self.train_paired_loader, self.train_unpaired_loader, self.test_loader, self.train_ds, self.test_ds = \
             create_data_loaders(ds_name=self._config.dataset_name,
