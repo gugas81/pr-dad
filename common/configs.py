@@ -2,7 +2,7 @@ import json
 import yaml
 import jsonpickle
 import numpy as np
-from typing import Optional, List, Iterable, Sequence
+from typing import Optional, List, Iterable, Sequence, Union
 from dataclasses import dataclass, field
 from .paths import PATHS
 
@@ -217,7 +217,7 @@ class ConfigTrainer(ConfigBase):
     sharpness_factor: Optional[float] = None
     rnd_vert_flip: bool = False
     rnd_horiz_flip: bool = False  # for face images
-    gauss_noise: Optional[float] = None
+    gauss_noise: Optional[Union[float, Sequence[float]]] = None
 
 
 

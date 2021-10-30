@@ -17,7 +17,7 @@ from common import im_concatenate, l2_perceptual_loss, DataBatch, LossImg
 from training.base_phase_retrieval_trainer import BaseTrainerPhaseRetrieval
 from training.phase_retrieval_model import PhaseRetrievalAeModel
 from training.utils import ModulesNames
-
+from training.augmentations import get_rnd_gauss_noise_like
 
 class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def __init__(self, config: ConfigTrainer, experiment_name: str):
@@ -174,8 +174,13 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         p_bar_train_data_loader = tqdm(self.train_paired_loader)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
             data_batch = self.prepare_data_batch(data_batch)
+            if (self._config.gauss_noise is not None) and self._config.use_aug:
+                img_noise = get_rnd_gauss_noise_like(data_batch.image, self._config.gauss_noise,
+                                                     p=self._config.prob_aug)
+                data_batch.image_noised = data_batch.image + img_noise
 
             self.optimizer_ae.zero_grad()
+
 
             inferred_batch = self._generator_model.forward_ae(data_batch)
             ae_losses = self._ae_losses(data_batch, inferred_batch)
@@ -204,7 +209,11 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         p_bar_train_data_loader = tqdm(self.train_paired_loader)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
             data_batch = self.prepare_data_batch(data_batch)
-
+            if (self._config.gauss_noise is not None) and self._config.use_aug:
+                fft_magnitude_noise = self.forward_magnitude_fft(get_rnd_gauss_noise_like(data_batch.image,
+                                                                                          self._config.gauss_noise,
+                                                                                          p=self._config.prob_aug))
+                data_batch.fft_magnitude_noised = data_batch.fft_magnitude + fft_magnitude_noise
             inferred_batch, tr_losses = self._train_step_generator(data_batch, use_adv_loss=use_adv_loss)
 
             if self._config.use_gan:

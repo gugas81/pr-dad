@@ -26,7 +26,6 @@ class PhaseRetrievalDataset(Dataset):
                  sharpness_factor: float = 1.0,
                  rnd_vert_flip: bool = False,
                  rnd_horiz_flip: bool = False
-
                  ):
         def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None):
             return torchvision.datasets.CelebA(root=root,

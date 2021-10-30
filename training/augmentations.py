@@ -1,6 +1,6 @@
-
+import numbers
 import random
-from typing import Tuple, Sequence
+from typing import Tuple, Sequence, Union
 import torch
 from torch import Tensor
 
@@ -51,14 +51,21 @@ class RandomGammaCorrection(object):
         return format_string
 
 
+def get_rnd_gauss_noise_like(x: Tensor, noise_range: Union[float, Sequence[float]] = 1.0, p: float = 0.5) -> Tensor:
+    if p < torch.rand(1):
+        return torch.zeros_like(x)
+    noise_factor = noise_range if isinstance(noise_range, numbers.Number) \
+        else random.uniform(noise_range[0], noise_range[1])
+    return noise_factor * torch.randn_like(x)
+
+
 class RandomAddGaussianNoise(object):
-    def __init__(self, noise_factor: float = 0.1, rand_factor: bool = False):
-        self._factor = noise_factor
-        self._rand_factor = rand_factor
+    def __init__(self, noise_range: Union[float, Sequence[float]] = (0.1, 0.2), p: float = 0.5):
+        self._noise_range = noise_range
+        self._p = p
 
     def __call__(self, img: Tensor) -> Tensor:
-        noise_factor = random.uniform(0, self._factor) if self._rand_factor else self._factor
-        noise = noise_factor * torch.randn_like(img)
+        noise = get_rnd_gauss_noise_like(img, self._noise_range, self._p)
         noised_img = img + noise
         return noised_img
 

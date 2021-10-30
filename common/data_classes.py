@@ -110,8 +110,10 @@ class TensorBatch(DataBatch):
 @dataclass
 class DataBatch(TensorBatch):
     image: Tensor = torch.tensor([float('nan')])
+    image_noised = torch.tensor([float('nan')])
     image_discrim: Tensor = torch.tensor([float('nan')])
     fft_magnitude: Tensor = torch.tensor([float('nan')])
+    fft_magnitude_noised: Tensor = torch.tensor([float('nan')])
     label: Tensor = torch.tensor([float('nan')])
     label_discrim: Tensor = torch.tensor([float('nan')])
     is_paired: bool = True

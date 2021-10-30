@@ -147,7 +147,11 @@ class PhaseRetrievalAeModel:
     def forward_magnitude_encoder(self, data_batch: DataBatch, eval_mode: bool = False) -> InferredBatch:
         if eval_mode:
             self.set_eval_mode()
-        features_batch_recon, intermediate_features = self.phase_predictor(data_batch.fft_magnitude)
+        if (self._config.gauss_noise is not None) and self._config.use_aug:
+            fft_magnitude = data_batch.fft_magnitude_noised
+        else:
+            fft_magnitude = data_batch.fft_magnitude
+        features_batch_recon, intermediate_features = self.phase_predictor(fft_magnitude)
         if self._config.predict_out == 'features':
             recon_batch = self.ae_net.decode(features_batch_recon)
         elif self._config.predict_out == 'images':
@@ -176,7 +180,11 @@ class PhaseRetrievalAeModel:
     def forward_ae(self, data_batch: DataBatch, eval_mode: bool = False) -> InferredBatch:
         if eval_mode:
             self.set_eval_mode()
-        recon_batch, features_batch = self.ae_net(data_batch.image)
+        if (self._config.gauss_noise is not None) and self._config.use_aug:
+            img_batch = data_batch.image_noised
+        else:
+            img_batch = data_batch.image
+        recon_batch, features_batch = self.ae_net(img_batch)
         feature_recon = self.ae_net.encode(recon_batch)
         if eval_mode:
             self.set_train_mode()
