@@ -1,7 +1,7 @@
 import logging
 import os
 from functools import partial
-from typing import Union, Tuple, Dict, Any, Optional, Callable
+from typing import Union, Tuple, Dict, Any, Optional, Callable, Sequence
 import fire
 import numpy as np
 import torch
@@ -12,14 +12,22 @@ from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from torchvision.transforms import InterpolationMode
 
-from training.augmentations import RandomAddGaussianNoise, RandomGammaCorrection
+from training.augmentations import RandomGammaCorrection
 from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
 
 
 class PhaseRetrievalDataset(Dataset):
     def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool, rot_degrees: float, is_gan: bool,
                  paired_part: float, fft_norm: str, log: logging.Logger, seed: int, s3: Optional[S3FileSystem] = None,
-                 use_rfft: bool = False, prob_aug: float = 1.0):
+                 use_rfft: bool = False,
+                 prob_aug: float = 1.0,
+                 gamma_corr: Sequence[float] = (0.85, 1.125),
+                 gauss_blur: Sequence[float] = (0.5, 1.5),
+                 sharpness_factor: float = 1.0,
+                 rnd_vert_flip: bool = False,
+                 rnd_horiz_flip: bool = False
+
+                 ):
         def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None):
             return torchvision.datasets.CelebA(root=root,
                                                split='train' if train else 'test',
@@ -61,8 +69,8 @@ class PhaseRetrievalDataset(Dataset):
             is_rgb = True
             ds_class = celeba_ds
             alignment_transform = transforms.Compose([
-                                               transforms.Resize(self.img_size),
-                                               transforms.CenterCrop(self.img_size)])
+                transforms.Resize(self.img_size),
+                transforms.CenterCrop(self.img_size)])
             normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
                                                        (self.norm_std, self.norm_std, self.norm_std))
         else:
@@ -73,31 +81,38 @@ class PhaseRetrievalDataset(Dataset):
             data_transforms.append(transforms.Grayscale(num_output_channels=1))
 
         if self._use_aug:
-            if ds_name == 'celeba':
-                argumentation_transforms = [transforms.RandomAdjustSharpness(sharpness_factor=1.0, p=prob_aug),
-                                            transforms.RandomApply([RandomAddGaussianNoise(0.2, True)],
-                                                                   p=prob_aug),
-                                            transforms.RandomApply(
-                                                [transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))],
-                                                p=prob_aug),
-                                            transforms.RandomApply(
-                                                [transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))],
-                                                p=prob_aug),
-                                            transforms.RandomApply([RandomGammaCorrection()],
-                                                                   p=prob_aug)]
-                argumentation_transforms = transforms.RandomOrder(argumentation_transforms)
-                argumentation_transforms = [argumentation_transforms, transforms.RandomHorizontalFlip(p=prob_aug)]
-            else:
-                argumentation_transforms = [transforms.RandomHorizontalFlip(),
-                                            transforms.RandomVerticalFlip()]
+            augmentations_transforms = []
+            if sharpness_factor is not None:
+                augmentations_transforms.append(transforms.RandomAdjustSharpness(sharpness_factor=1.0, p=prob_aug))
+
+            if gauss_blur is not None:
+                augmentations_transforms.append(transforms.RandomApply([
+                    transforms.GaussianBlur(kernel_size=3, sigma=gauss_blur)], p=prob_aug))
+
+            if gamma_corr is not None:
+                augmentations_transforms.append(transforms.RandomApply([
+                    RandomGammaCorrection(gamma_range=gamma_corr)], p=prob_aug))
+
+            if len(augmentations_transforms) > 0:
+                augmentations_transforms = [transforms.RandomOrder(augmentations_transforms)]
+
+            if rnd_vert_flip:
+                augmentations_transforms.append(transforms.RandomVerticalFlip(p=prob_aug))
+
+            if rnd_horiz_flip:
+                augmentations_transforms.append(transforms.RandomHorizontalFlip(p=prob_aug))
+
             if rot_degrees > 0.0:
-                argumentation_transforms = [transforms.RandomRotation(rot_degrees,
-                                                                      nterpolation=InterpolationMode.BILINEAR)] + \
-                                           argumentation_transforms
+                augmentations_transforms = [transforms.RandomRotation(rot_degrees,
+                                                                      interpolation=InterpolationMode.BILINEAR)] + \
+                                           augmentations_transforms
 
-            data_transforms += argumentation_transforms
+            if isinstance(augmentations_transforms, list) and len(augmentations_transforms) > 0:
+                augmentations_transforms = transforms.Compose(augmentations_transforms)
+                data_transforms.append(augmentations_transforms)
 
-        data_transforms = transforms.Compose(data_transforms)
+        if isinstance(data_transforms, list) and len(data_transforms) > 0:
+            data_transforms = transforms.Compose(data_transforms)
 
         self.image_dataset = ds_class(root=ds_path,
                                       train=self._is_train,
@@ -165,18 +180,36 @@ def create_data_loaders(ds_name: str, img_size: int,
                         batch_size_train: int, batch_size_test: int,
                         seed: int, use_gan: bool, use_rfft: bool,
                         n_dataloader_workers: int, paired_part: float, fft_norm: str, log: logging.Logger,
-                        s3: Optional[S3FileSystem] = None, prob_aug: float = 1.0):
+                        s3: Optional[S3FileSystem] = None,
+                        prob_aug: float = 1.0,
+                        gamma_corr: Sequence[float] = (0.85, 1.125),
+                        gauss_blur: Sequence[float] = (0.5, 1.5),
+                        sharpness_factor: float = 1.0,
+                        rnd_vert_flip: bool = False,
+                        rnd_horiz_flip: bool = False
+                        ):
     log.debug('Create train dataset')
     train_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=True,
                                           use_aug=use_aug, rot_degrees=rot_degrees, is_gan=False,
                                           paired_part=paired_part, fft_norm=fft_norm, use_rfft=use_rfft,
-                                          log=log, seed=seed, s3=s3, prob_aug=prob_aug)
+                                          log=log, seed=seed, s3=s3, prob_aug=prob_aug,
+                                          gamma_corr=gamma_corr,
+                                          gauss_blur=gauss_blur,
+                                          sharpness_factor=sharpness_factor,
+                                          rnd_vert_flip=rnd_vert_flip,
+                                          rnd_horiz_flip=rnd_horiz_flip)
 
     log.debug('Create test dataset')
     test_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=False,
                                          use_aug=use_aug_test, rot_degrees=rot_degrees, is_gan=False,
                                          paired_part=1.0, fft_norm=fft_norm, use_rfft=use_rfft,
-                                         log=log, seed=seed, s3=s3, prob_aug=prob_aug)
+                                         log=log, seed=seed, s3=s3, prob_aug=prob_aug,
+                                         gamma_corr=gamma_corr,
+                                         gauss_blur=gauss_blur,
+                                         sharpness_factor=sharpness_factor,
+                                         rnd_vert_flip=rnd_vert_flip,
+                                         rnd_horiz_flip=rnd_horiz_flip
+                                         )
 
     paired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.paired_ind)
     unpaired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.unpaired_paired_ind)
@@ -202,17 +235,17 @@ def create_data_loaders(ds_name: str, img_size: int,
 def example_mnist_upiared():
     logging.basicConfig(level=logging.DEBUG)
     log = logging.getLogger('exmaple_mnist_upiared')
-    train_paired_loader, train_unpaired_loader, test_loader, train_dataset, test_dataset\
+    train_paired_loader, train_unpaired_loader, test_loader, train_dataset, test_dataset \
         = create_data_loaders(ds_name='mnist',
-                                                                                  img_size=32,
-                                                                                  use_aug=False,
-                                                                                  batch_size_train=128,
-                                                                                  batch_size_test=256,
-                                                                                  n_dataloader_workers=0,
-                                                                                  paired_part=1.0,
-                                                                                  fft_norm='ortho',
-                                                                                  seed=1,
-                                                                                  log=log)
+                              img_size=32,
+                              use_aug=False,
+                              batch_size_train=128,
+                              batch_size_test=256,
+                              n_dataloader_workers=0,
+                              paired_part=1.0,
+                              fft_norm='ortho',
+                              seed=1,
+                              log=log)
     from itertools import chain, islice
 
     def shuffle(generator, buffer_size):

@@ -2,7 +2,7 @@ import json
 import yaml
 import jsonpickle
 import numpy as np
-from typing import Optional, List, Callable, Iterable, Dict
+from typing import Optional, List, Iterable, Sequence
 from dataclasses import dataclass, field
 from .paths import PATHS
 
@@ -211,6 +211,13 @@ class ConfigTrainer(ConfigBase):
     use_lpips: bool = False
     lambda_img_lpips: float = 1.0
     lambda_ref_img_lpips: float = 1.0
-    prob_aug: float = 1.0
+    prob_aug: float = 0.25
+    gamma_corr: Optional[Sequence[float]] = None # for face images  field(default_factory=lambda:  (0.85, 1.125))
+    gauss_blur: Optional[Sequence[float]] = None # for face images field(default_factory=lambda:  (0.5, 1.5))
+    sharpness_factor: Optional[float] = None
+    rnd_vert_flip: bool = False
+    rnd_horiz_flip: bool = False  # for face images
+    gauss_noise: Optional[float] = None
+
 
 
