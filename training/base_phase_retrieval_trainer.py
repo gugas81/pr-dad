@@ -254,6 +254,8 @@ class BaseTrainerPhaseRetrieval:
     def _grid_images(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize: bool = True) -> Tensor:
         inv_norm_transform = self.test_ds.get_inv_normalize_transform()
         img_grid = [inv_norm_transform(data_batch.image)]
+        if (self._config.gauss_noise is not None) and self._config.use_aug:
+            img_grid.append(inv_norm_transform(data_batch.image_noised))
         if inferred_batch.decoded_img is not None:
             img_grid.append(inv_norm_transform(inferred_batch.decoded_img))
         if inferred_batch.img_recon is not None:
@@ -292,6 +294,8 @@ class BaseTrainerPhaseRetrieval:
         img_grid = []
         if data_batch.fft_magnitude is not None:
             img_grid.append(prepare_fft_img(data_batch.fft_magnitude))
+        if (self._config.gauss_noise is not None) and self._config.use_aug:
+            img_grid.append(prepare_fft_img(data_batch.fft_magnitude_noised))
         if inferred_batch.decoded_img is not None:
             fft_magnitude_ae_decoded = prepare_fft_img(self.forward_magnitude_fft(inferred_batch.decoded_img))
             img_grid.append(fft_magnitude_ae_decoded)
