@@ -1,9 +1,8 @@
 
 import random
-from typing import Tuple
+from typing import Tuple, Sequence
 import torch
 from torch import Tensor
-import torch.nn as nn
 
 
 def adjust_gamma(img: Tensor, gamma: float, gain: float = 1) -> Tensor:
@@ -31,17 +30,18 @@ def adjust_gamma(img: Tensor, gamma: float, gain: float = 1) -> Tensor:
 
     img_corrected = img * 0.5 + 0.5
     img_corrected = 1.0 * gain * (img_corrected ** gamma)
-    img_corrected = img_corrected.clip(min=0., max=1.)
     img_corrected = (img_corrected - 0.5) * 2.0
     return img_corrected
 
 
-class RandomGammaCorrection(nn.Module):
+class RandomGammaCorrection(object):
     def __init__(self, gamma_range: Tuple[float, float] = (0.5, 2)):
-        super().__init__()
+        # super().__init__()
         self._gamma_range = gamma_range
+        # self.eval()
+        # self.to(device='cpu')
 
-    def forward(self, img: Tensor) -> Tensor:
+    def __call__(self, img: Tensor) -> Tensor:
         gamma_rnd = random.uniform(self._gamma_range[0], self._gamma_range[1])
         return adjust_gamma(img, gamma_rnd)
 
@@ -51,15 +51,16 @@ class RandomGammaCorrection(nn.Module):
         return format_string
 
 
-class RandomAddGaussianNoise(nn.Module):
+class RandomAddGaussianNoise(object):
     def __init__(self, noise_factor: float = 0.1, rand_factor: bool = False):
-        super().__init__()
         self._factor = noise_factor
         self._rand_factor = rand_factor
 
-    def forward(self, img: Tensor) -> Tensor:
+    def __call__(self, img: Tensor) -> Tensor:
         noise_factor = random.uniform(0, self._factor) if self._rand_factor else self._factor
-        return img + noise_factor * torch.randn_like(img)
+        noise = noise_factor * torch.randn_like(img)
+        noised_img = img + noise
+        return noised_img
 
     def __repr__(self):
         format_string = self.__class__.__name__
@@ -67,3 +68,14 @@ class RandomAddGaussianNoise(nn.Module):
         return format_string
 
 
+class ClipValue(object):
+    def __init__(self, clip_values: Sequence[float] = (-1.0, 1.0)):
+        self._clip_values = clip_values
+
+    def __call__(self, img: Tensor) -> Tensor:
+        return img.clip(min=self._clip_values[0], max=self._clip_values[1])
+
+    def __repr__(self):
+        format_string = self.__class__.__name__
+        format_string += f'(range=[{self._clip_values[0]}:{self._clip_values[1]}])'
+        return format_string

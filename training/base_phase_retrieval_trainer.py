@@ -105,7 +105,13 @@ class BaseTrainerPhaseRetrieval:
                                 seed=self.seed,
                                 log=self._log,
                                 s3=self._s3,
-                                prob_aug=self._config.prob_aug)
+                                prob_aug=self._config.prob_aug,
+                                gamma_corr=self._config.gamma_corr,
+                                gauss_blur=self._config.gauss_blur,
+                                sharpness_factor=self._config.sharpness_factor,
+                                rnd_vert_flip=self._config.rnd_vert_flip,
+                                rnd_horiz_flip=self._config.rnd_horiz_flip
+                                )
 
     def load_state(self, model_path: str) -> Dict[str, Any]:
         self._log.debug(f'Load state dict from: {model_path}')
