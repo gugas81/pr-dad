@@ -17,7 +17,7 @@ from common import im_concatenate, l2_perceptual_loss, DataBatch, LossImg
 from training.base_phase_retrieval_trainer import BaseTrainerPhaseRetrieval
 from training.phase_retrieval_model import PhaseRetrievalAeModel
 from training.utils import ModulesNames
-from training.augmentations import get_rnd_gauss_noise_like
+
 
 class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def __init__(self, config: ConfigTrainer, experiment_name: str):
@@ -173,15 +173,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         train_losses = []
         p_bar_train_data_loader = tqdm(self.train_paired_loader)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
-            data_batch = self.prepare_data_batch(data_batch)
-            if (self._config.gauss_noise is not None) and self._config.use_aug:
-                img_noise = get_rnd_gauss_noise_like(data_batch.image, self._config.gauss_noise,
-                                                     p=self._config.prob_aug)
-                data_batch.image_noised = data_batch.image + img_noise
-
+            data_batch = self.prepare_data_batch(data_batch, is_train=True)
             self.optimizer_ae.zero_grad()
-
-
             inferred_batch = self._generator_model.forward_ae(data_batch)
             ae_losses = self._ae_losses(data_batch, inferred_batch)
 
@@ -208,12 +201,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         train_losses = []
         p_bar_train_data_loader = tqdm(self.train_paired_loader)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
-            data_batch = self.prepare_data_batch(data_batch)
-            if (self._config.gauss_noise is not None) and self._config.use_aug:
-                fft_magnitude_noise = self.forward_magnitude_fft(get_rnd_gauss_noise_like(data_batch.image,
-                                                                                          self._config.gauss_noise,
-                                                                                          p=self._config.prob_aug))
-                data_batch.fft_magnitude_noised = data_batch.fft_magnitude + fft_magnitude_noise
+            data_batch = self.prepare_data_batch(data_batch, is_train=True)
             inferred_batch, tr_losses = self._train_step_generator(data_batch, use_adv_loss=use_adv_loss)
 
             if self._config.use_gan:
@@ -251,7 +239,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self._generator_model.set_eval_mode()
         with torch.no_grad():
             for batch_idx, data_batch in enumerate(self.test_loader):
-                data_batch = self.prepare_data_batch(data_batch)
+                data_batch = self.prepare_data_batch(data_batch, is_train=False)
                 inferred_batch = self._generator_model.forward_ae(data_batch)
                 ae_losses_batch = self._ae_losses(data_batch, inferred_batch)
                 ae_losses.append(ae_losses_batch)
@@ -263,7 +251,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         losses_ts = []
         with torch.no_grad():
             for batch_idx, data_batch in enumerate(self.test_loader):
-                data_batch = self.prepare_data_batch(data_batch)
+                data_batch = self.prepare_data_batch(data_batch, is_train=False)
                 inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=False)
                 losses_ts_ = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
                 losses_ts.append(losses_ts_.detach())

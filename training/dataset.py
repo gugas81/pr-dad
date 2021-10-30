@@ -145,10 +145,15 @@ class PhaseRetrievalDataset(Dataset):
                 self._log.error(f'Error loading item {idx} from the dataset: {e}')
 
     def _get_item(self, idx: Union[int, Tuple[int, int, int]]) -> DataBatch:
+        def label_to_tensor(x) -> Tensor:
+            if torch.is_tensor(x):
+                return x
+            else:
+                return torch.from_numpy(np.array(x))
         is_paired = idx in self.paired_ind
         img_item = self.image_dataset[idx]
         image_data = img_item[0].to(device='cpu')
-        label = img_item[1].to(device='cpu')
+        label = label_to_tensor(img_item[1]).to(device='cpu')
         fft_magnitude = self._forward_magnitude_fft(image_data)
         if not is_paired:
             image_data = self.image_dataset[np.random.choice(self.paired_ind)][0]

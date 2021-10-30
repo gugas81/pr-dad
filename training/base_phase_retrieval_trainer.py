@@ -15,7 +15,7 @@ import logging
 from common import ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
 from common import im_concatenate, square_grid_im_concat, PATHS, im_save, fft2_from_rfft
 from common import InferredBatch
-
+from training.augmentations import get_rnd_gauss_noise_like
 
 logging.basicConfig(level=logging.INFO)
 
@@ -77,8 +77,8 @@ class BaseTrainerPhaseRetrieval:
         dbg_batch_tr = min(self.batch_size_train, self._dbg_img_batch)
         dbg_batch_ts = min(self.batch_size_test, self._dbg_img_batch)
 
-        self.data_tr_batch = self.prepare_data_batch(iter(self.train_paired_loader).next())
-        self.data_ts_batch = self.prepare_data_batch(iter(self.test_loader).next())
+        self.data_tr_batch = self.prepare_data_batch(iter(self.train_paired_loader).next(), is_train=True)
+        self.data_ts_batch = self.prepare_data_batch(iter(self.test_loader).next(), is_train=False)
 
         self.data_tr_batch.image = self.data_tr_batch.image[:dbg_batch_tr]
         self.data_tr_batch.fft_magnitude = self.data_tr_batch.fft_magnitude[:dbg_batch_tr]
@@ -123,9 +123,21 @@ class BaseTrainerPhaseRetrieval:
             loaded_sate = torch.load(model_path)
         return loaded_sate
 
-    def prepare_data_batch(self, item_data: Dict[str, Any]) -> DataBatch:
-        item_data['is_paired'] = item_data['is_paired'].cpu().numpy().all()
-        return DataBatch.from_dict(item_data).to(device=self.device)
+    def prepare_data_batch(self, data_batch: Dict[str, Any], is_train: bool = True) -> DataBatch:
+        data_batch['is_paired'] = data_batch['is_paired'].cpu().numpy().all()
+        data_batch: DataBatch = DataBatch.from_dict(data_batch).to(device=self.device)
+
+        if (self._config.gauss_noise is not None) and self._config.use_aug:
+            if is_train:
+                img_noise = get_rnd_gauss_noise_like(data_batch.image, self._config.gauss_noise,
+                                                     p=self._config.prob_aug)
+                data_batch.image_noised = data_batch.image + img_noise
+                data_batch.fft_magnitude_noised = data_batch.fft_magnitude + self.forward_magnitude_fft(img_noise)
+            else:
+                data_batch.image_noised = data_batch.image
+                data_batch.fft_magnitude_noised = data_batch.fft_magnitude
+
+        return data_batch
 
     @staticmethod
     def load_config(config_obj: Union[str, dict], **kwargs) -> ConfigTrainer:
