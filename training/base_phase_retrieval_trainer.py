@@ -271,6 +271,9 @@ class BaseTrainerPhaseRetrieval:
         inv_norm_transform = self.test_ds.get_inv_normalize_transform()
         norm_orig_img = inv_norm_transform(data_batch.image)
         img_grid = [norm_orig_img]
+        if (self._config.gauss_noise is not None) and self._config.use_aug:
+            diff_decoded = torch.abs(norm_orig_img - inv_norm_transform(data_batch.image_noised))
+            img_grid.append(diff_decoded)
         if inferred_batch.decoded_img is not None:
             diff_decoded = torch.abs(norm_orig_img - inv_norm_transform(inferred_batch.decoded_img))
             img_grid.append(diff_decoded)
