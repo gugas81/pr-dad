@@ -99,14 +99,14 @@ class PhaseRetrievalDataset(Dataset):
             if self._config.affine_aug:
                 pad_val = int(0.25 * self._config.image_size *
                               (self._config.scale[1] if (self._config.scale is not None) else 1))
-                aff_tran = transforms.RandomApply(transforms.Compose([
+                aff_tran = transforms.RandomApply([
                     transforms.Pad(pad_val, padding_mode='reflect'),
                     transforms.RandomAffine(degrees=self._config.rot_degrees,
                                             translate=self._config.translation,
                                             scale=self._config.scale,
                                             interpolation=InterpolationMode.BILINEAR),
                     transforms.CenterCrop(self._config.image_size)
-                ]), p=prob_aug)
+                ], p=prob_aug)
                 augmentations_transforms = [aff_tran] + augmentations_transforms
 
             if isinstance(augmentations_transforms, list) and len(augmentations_transforms) > 0:
