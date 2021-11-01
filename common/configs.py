@@ -219,7 +219,7 @@ class ConfigTrainer(ConfigBase):
     rnd_horiz_flip: bool = False  # for face images
     gauss_noise: Optional[Union[float, Sequence[float]]] = None
     add_pad: float = 0.0
-    degrees: Optional[Sequence[float]] = (2.0, 5.0)
+    rot_degrees: Optional[Sequence[float]] = (2.0, 5.0)
     translation: Optional[Sequence[float]] = (0.025, 0.025)
     scale: Optional[Sequence[float]] = (0.9, 1.2)
 

@@ -101,7 +101,7 @@ class PhaseRetrievalDataset(Dataset):
                               (self._config.scale[1] if (self._config.scale is not None) else 1))
                 aff_tran = transforms.RandomApply(transforms.Compose([
                     transforms.Pad(pad_val, padding_mode='reflect'),
-                    transforms.RandomAffine(degrees=self._config.degrees,
+                    transforms.RandomAffine(degrees=self._config.rot_degrees,
                                             translate=self._config.translation,
                                             scale=self._config.scale,
                                             resample=InterpolationMode.BILINEAR),
