@@ -11,44 +11,38 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from torchvision.transforms import InterpolationMode
-
+from common import ConfigTrainer
 from training.augmentations import RandomGammaCorrection
 from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
 
 
 class PhaseRetrievalDataset(Dataset):
-    def __init__(self, ds_name: str, img_size: int, train: bool, use_aug: bool, rot_degrees: float, is_gan: bool,
-                 paired_part: float, fft_norm: str, log: logging.Logger, seed: int, s3: Optional[S3FileSystem] = None,
-                 use_rfft: bool = False,
-                 prob_aug: float = 1.0,
-                 gamma_corr: Sequence[float] = (0.85, 1.125),
-                 gauss_blur: Sequence[float] = (0.5, 1.5),
-                 sharpness_factor: float = 1.0,
-                 rnd_vert_flip: bool = False,
-                 rnd_horiz_flip: bool = False
+    def __init__(self,
+                 config: ConfigTrainer,
+                 is_train: bool,
+                 log: logging.Logger,
+                 s3: Optional[S3FileSystem] = None,
+                 is_gan: bool = False
                  ):
-        def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None):
+        def celeba_ds(root: str, _is_train: bool, download: bool, transform: Optional[Callable] = None):
             return torchvision.datasets.CelebA(root=root,
-                                               split='train' if train else 'test',
+                                               split='train' if _is_train else 'test',
                                                download=download,
                                                transform=transform)
 
-        np.random.seed(seed=seed)
-
-        self._ds_name = ds_name
-        self.img_size = img_size
-        self._fft_norm = fft_norm
-        self._img_size = img_size
-        self._is_train = train
+        np.random.seed(seed=config.seed)
+        self._config = config
+        self._fft_norm = config.fft_norm
+        self._is_train = is_train
         self._is_gan = is_gan
-        self._use_aug = use_aug
-        self._use_rfft = use_rfft
+        self._use_aug = config.use_aug if self._is_train else config.use_aug_test
+        self._use_rfft = config.use_rfft
         self._log = log
         self._s3 = S3FileSystem() if s3 is None else s3
 
-        ds_name = ds_name.lower()
+        ds_name = config.dataset_name.lower()
         ds_path = os.path.join(PATHS.DATASETS, ds_name)
-        alignment_transform = transforms.Resize(self.img_size)
+        alignment_transform = transforms.Resize(self._config.image_size)
         self.norm_mean = 0.1307
         self.norm_std = 0.3081
         normalize_transform = transforms.Normalize((self.norm_mean,), (self.norm_std,))
@@ -68,8 +62,8 @@ class PhaseRetrievalDataset(Dataset):
             is_rgb = True
             ds_class = celeba_ds
             alignment_transform = transforms.Compose([
-                transforms.Resize(self.img_size),
-                transforms.CenterCrop(self.img_size)])
+                transforms.Resize(self._config.image_size),
+                transforms.CenterCrop(self._config.image_size)])
             normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
                                                        (self.norm_std, self.norm_std, self.norm_std))
         else:
@@ -80,31 +74,40 @@ class PhaseRetrievalDataset(Dataset):
             data_transforms.append(transforms.Grayscale(num_output_channels=1))
 
         if self._use_aug:
+            prob_aug = self._config.prob_aug
             augmentations_transforms = []
-            if sharpness_factor is not None:
+            if self._config.sharpness_factor is not None:
                 augmentations_transforms.append(transforms.RandomAdjustSharpness(sharpness_factor=1.0, p=prob_aug))
 
-            if gauss_blur is not None:
+            if self._config.gauss_blur is not None:
                 augmentations_transforms.append(transforms.RandomApply([
-                    transforms.GaussianBlur(kernel_size=3, sigma=gauss_blur)], p=prob_aug))
+                    transforms.GaussianBlur(kernel_size=3, sigma=self._config.gauss_blur)], p=prob_aug))
 
-            if gamma_corr is not None:
+            if self._config.gamma_corr is not None:
                 augmentations_transforms.append(transforms.RandomApply([
-                    RandomGammaCorrection(gamma_range=gamma_corr)], p=prob_aug))
+                    RandomGammaCorrection(gamma_range=self._config.gamma_corr)], p=prob_aug))
 
             if len(augmentations_transforms) > 0:
                 augmentations_transforms = [transforms.RandomOrder(augmentations_transforms)]
 
-            if rnd_vert_flip:
+            if self._config.rnd_vert_flip:
                 augmentations_transforms.append(transforms.RandomVerticalFlip(p=prob_aug))
 
-            if rnd_horiz_flip:
+            if self._config.rnd_horiz_flip:
                 augmentations_transforms.append(transforms.RandomHorizontalFlip(p=prob_aug))
 
-            if rot_degrees > 0.0:
-                augmentations_transforms = [transforms.RandomRotation(rot_degrees,
-                                                                      interpolation=InterpolationMode.BILINEAR)] + \
-                                           augmentations_transforms
+            if self._config.affine_aug > 0.0:
+                pad_val = int(0.25 * self._config.image_size *
+                              (self._config.scale[1] if self._config.scale is not None else 1))
+                aff_tran = transforms.RandomApply(transforms.Compose([
+                    transforms.Pad(pad_val, padding_mode='reflect'),
+                    transforms.RandomAffine(self._config.affine_aug,
+                                            self._config.translation,
+                                            self._config.scale,
+                                            resample=InterpolationMode.BILINEAR),
+                    transforms.CenterCrop(self._config.image_size)
+                ]), p=prob_aug)
+                augmentations_transforms = [aff_tran] + augmentations_transforms
 
             if isinstance(augmentations_transforms, list) and len(augmentations_transforms) > 0:
                 augmentations_transforms = transforms.Compose(augmentations_transforms)
@@ -118,8 +121,8 @@ class PhaseRetrievalDataset(Dataset):
                                       download=True,
                                       transform=data_transforms)
         self.len_ds = len(self.image_dataset)
-        if paired_part < 1.0:
-            paired_len = int(paired_part * self.len_ds)
+        if self._config.part_supervised_pairs < 1.0:
+            paired_len = int(self._config.part_supervised_pairs * self.len_ds)
             inds = np.random.permutation(self.len_ds)
             self.paired_ind = inds[:paired_len]
             self.unpaired_paired_ind = inds[paired_len:]
@@ -179,59 +182,46 @@ class PhaseRetrievalDataset(Dataset):
         return NormalizeInverse((self.norm_mean,), (self.norm_std,))
 
 
-def create_data_loaders(ds_name: str, img_size: int,
-                        use_aug: bool, use_aug_test: bool, rot_degrees: float,
-                        batch_size_train: int, batch_size_test: int,
-                        seed: int, use_gan: bool, use_rfft: bool,
-                        n_dataloader_workers: int, paired_part: float, fft_norm: str, log: logging.Logger,
-                        s3: Optional[S3FileSystem] = None,
-                        prob_aug: float = 1.0,
-                        gamma_corr: Sequence[float] = (0.85, 1.125),
-                        gauss_blur: Sequence[float] = (0.5, 1.5),
-                        sharpness_factor: float = 1.0,
-                        rnd_vert_flip: bool = False,
-                        rnd_horiz_flip: bool = False
-                        ):
+def create_data_loaders(config: ConfigTrainer,
+                        log: logging.Logger,
+                        s3: Optional[S3FileSystem] = None):
     log.debug('Create train dataset')
-    train_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=True,
-                                          use_aug=use_aug, rot_degrees=rot_degrees, is_gan=False,
-                                          paired_part=paired_part, fft_norm=fft_norm, use_rfft=use_rfft,
-                                          log=log, seed=seed, s3=s3, prob_aug=prob_aug,
-                                          gamma_corr=gamma_corr,
-                                          gauss_blur=gauss_blur,
-                                          sharpness_factor=sharpness_factor,
-                                          rnd_vert_flip=rnd_vert_flip,
-                                          rnd_horiz_flip=rnd_horiz_flip)
+    train_dataset = PhaseRetrievalDataset(config=config,
+                                          train=True,
+                                          is_gan=False,
+                                          log=log,
+                                          s3=s3)
 
     log.debug('Create test dataset')
-    test_dataset = PhaseRetrievalDataset(ds_name=ds_name, img_size=img_size, train=False,
-                                         use_aug=use_aug_test, rot_degrees=rot_degrees, is_gan=False,
-                                         paired_part=1.0, fft_norm=fft_norm, use_rfft=use_rfft,
-                                         log=log, seed=seed, s3=s3, prob_aug=prob_aug,
-                                         gamma_corr=gamma_corr,
-                                         gauss_blur=gauss_blur,
-                                         sharpness_factor=sharpness_factor,
-                                         rnd_vert_flip=rnd_vert_flip,
-                                         rnd_horiz_flip=rnd_horiz_flip
-                                         )
+    test_dataset = PhaseRetrievalDataset(config=config,
+                                         train=False,
+                                         is_gan=False,
+                                         log=log,
+                                         s3=s3 )
 
     paired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.paired_ind)
     unpaired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.unpaired_paired_ind)
 
     log.debug('Create train  paired loader')
-    train_paired_loader = DataLoader(train_dataset, batch_size=batch_size_train,
-                                     worker_init_fn=np.random.seed(seed), num_workers=n_dataloader_workers,
+    train_paired_loader = DataLoader(train_dataset,
+                                     batch_size=config.batch_size_train,
+                                     worker_init_fn=np.random.seed(config.seed),
+                                     num_workers=config.n_dataloader_workers,
                                      sampler=paired_tr_sampler)
 
     log.debug('Create train  unnpaired loader')
-    train_unpaired_loader = DataLoader(train_dataset, batch_size=batch_size_train,
-                                       worker_init_fn=np.random.seed(seed), num_workers=n_dataloader_workers,
+    train_unpaired_loader = DataLoader(train_dataset,
+                                       batch_size=config.batch_size_train,
+                                       worker_init_fn=np.random.seed(config.seed),
+                                       num_workers=config.n_dataloader_workers,
                                        sampler=unpaired_tr_sampler)
 
     log.debug('Create test loader')
-    test_loader = DataLoader(test_dataset, batch_size=batch_size_test, shuffle=False,
-                             worker_init_fn=np.random.seed(seed),
-                             num_workers=n_dataloader_workers)
+    test_loader = DataLoader(test_dataset,
+                             batch_size=config.batch_size_test,
+                             shuffle=False,
+                             worker_init_fn=np.random.seed(config.seed),
+                             num_workers=config.n_dataloader_workers)
 
     return train_paired_loader, train_unpaired_loader, test_loader, train_dataset, test_dataset
 

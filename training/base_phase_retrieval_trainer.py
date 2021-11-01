@@ -96,28 +96,9 @@ class BaseTrainerPhaseRetrieval:
 
     def _init_data_loaders(self):
         self.train_paired_loader, self.train_unpaired_loader, self.test_loader, self.train_ds, self.test_ds = \
-            create_data_loaders(ds_name=self._config.dataset_name,
-                                img_size=self.img_size,
-                                use_aug=self._config.use_aug,
-                                use_aug_test=self._config.use_aug_test,
-                                use_gan=self._config.use_gan,
-                                rot_degrees=self._config.rot_degrees,
-                                batch_size_train=self.batch_size_train,
-                                batch_size_test=self.batch_size_test,
-                                n_dataloader_workers=self._config.n_dataloader_workers,
-                                paired_part=self._config.part_supervised_pairs,
-                                fft_norm=self._fft_norm,
-                                use_rfft=self._config.use_rfft,
-                                seed=self.seed,
+            create_data_loaders(config=self._config,
                                 log=self._log,
-                                s3=self._s3,
-                                prob_aug=self._config.prob_aug,
-                                gamma_corr=self._config.gamma_corr,
-                                gauss_blur=self._config.gauss_blur,
-                                sharpness_factor=self._config.sharpness_factor,
-                                rnd_vert_flip=self._config.rnd_vert_flip,
-                                rnd_horiz_flip=self._config.rnd_horiz_flip
-                                )
+                                s3=self._s3)
 
     def load_state(self, model_path: str) -> Dict[str, Any]:
         self._log.debug(f'Load state dict from: {model_path}')

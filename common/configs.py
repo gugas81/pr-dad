@@ -197,7 +197,7 @@ class ConfigTrainer(ConfigBase):
     activation_enc: str = 'leakly_relu'  # relu leakly_relu
     activation_discrim: str = 'leakly_relu'  # relu leakly_relu
     up_sampling: str = 'bilinear' # 'bilinear' 'nearest'
-    rot_degrees: float = 0.0
+    affine_aug: bool = False
     use_aug_test: bool = False
     use_rfft: bool = False
     loss_rot180: bool = False
@@ -218,6 +218,10 @@ class ConfigTrainer(ConfigBase):
     rnd_vert_flip: bool = False
     rnd_horiz_flip: bool = False  # for face images
     gauss_noise: Optional[Union[float, Sequence[float]]] = None
+    add_pad: float = 0.0
+    degrees: Optional[Sequence[float]] = (2.0, 5.0)
+    translation: Optional[Sequence[float]] = (0.025, 0.025)
+    scale: Optional[Sequence[float]] = (0.9, 1.2)
 
 
 
