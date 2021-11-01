@@ -96,14 +96,14 @@ class PhaseRetrievalDataset(Dataset):
             if self._config.rnd_horiz_flip:
                 augmentations_transforms.append(transforms.RandomHorizontalFlip(p=prob_aug))
 
-            if self._config.affine_aug > 0.0:
+            if self._config.affine_aug:
                 pad_val = int(0.25 * self._config.image_size *
-                              (self._config.scale[1] if self._config.scale is not None else 1))
+                              (self._config.scale[1] if (self._config.scale is not None) else 1))
                 aff_tran = transforms.RandomApply(transforms.Compose([
                     transforms.Pad(pad_val, padding_mode='reflect'),
-                    transforms.RandomAffine(self._config.affine_aug,
-                                            self._config.translation,
-                                            self._config.scale,
+                    transforms.RandomAffine(degrees=self._config.degrees,
+                                            translate=self._config.translation,
+                                            scale=self._config.scale,
                                             resample=InterpolationMode.BILINEAR),
                     transforms.CenterCrop(self._config.image_size)
                 ]), p=prob_aug)
