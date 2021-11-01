@@ -187,17 +187,17 @@ def create_data_loaders(config: ConfigTrainer,
                         s3: Optional[S3FileSystem] = None):
     log.debug('Create train dataset')
     train_dataset = PhaseRetrievalDataset(config=config,
-                                          train=True,
+                                          is_train=True,
                                           is_gan=False,
                                           log=log,
                                           s3=s3)
 
     log.debug('Create test dataset')
     test_dataset = PhaseRetrievalDataset(config=config,
-                                         train=False,
+                                         is_train=False,
                                          is_gan=False,
                                          log=log,
-                                         s3=s3 )
+                                         s3=s3)
 
     paired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.paired_ind)
     unpaired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.unpaired_paired_ind)
