@@ -104,7 +104,7 @@ class PhaseRetrievalDataset(Dataset):
                     transforms.RandomAffine(degrees=self._config.rot_degrees,
                                             translate=self._config.translation,
                                             scale=self._config.scale,
-                                            resample=InterpolationMode.BILINEAR),
+                                            interpolation=InterpolationMode.BILINEAR),
                     transforms.CenterCrop(self._config.image_size)
                 ]), p=prob_aug)
                 augmentations_transforms = [aff_tran] + augmentations_transforms
