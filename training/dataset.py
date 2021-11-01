@@ -24,9 +24,9 @@ class PhaseRetrievalDataset(Dataset):
                  s3: Optional[S3FileSystem] = None,
                  is_gan: bool = False
                  ):
-        def celeba_ds(root: str, _is_train: bool, download: bool, transform: Optional[Callable] = None):
+        def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None):
             return torchvision.datasets.CelebA(root=root,
-                                               split='train' if _is_train else 'test',
+                                               split='train' if train else 'test',
                                                download=download,
                                                transform=transform)
 
