@@ -222,6 +222,8 @@ class ConfigTrainer(ConfigBase):
     rot_degrees: Optional[Sequence[float]] = (2.0, 5.0)
     translation: Optional[Sequence[float]] = (0.025, 0.025)
     scale: Optional[Sequence[float]] = (0.9, 1.2)
+    use_dropout_enc_fc: bool = False
+    use_norm_enc_fc: Optional[str] = None
 
 
 

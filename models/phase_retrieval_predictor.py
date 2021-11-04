@@ -1,61 +1,76 @@
+import math
 import torch
 from torch import Tensor
+import torchvision
 import torch.nn as nn
 from typing import List
 from models.layers import FcBlock, ConvBlock, ResBlock
 from models.conv_unet import UNetConv
 
-from common import get_flatten_fft2_size, get_fft2_freq
+from common import get_flatten_fft2_size, get_fft2_freq, ConfigTrainer
 
 
 class PhaseRetrievalPredictor(nn.Module):
-    def __init__(self, use_dropout: bool = False, im_img_size: int = 28, inter_ch: int = 1, out_ch: int = 1,
-                 out_img_size: int = 32,
-                 fc_multy_coeff: int = 1, conv_multy_coeff: int = 1,
-                 use_bn: bool = False, fft_norm: str = "ortho", deep_fc: int = 4,
-                 deep_conv: int = 2,
-                 predict_type: str = 'spectral', conv_type: str = 'ConvBlock',
-                 active_type: str = 'leakly_relu', features_sigmoid_active: bool = False,
-                 use_rfft: bool = False):
+    def __init__(self,
+                 config: ConfigTrainer,
+                 out_ch: int,
+                 out_img_size: int):
         super(PhaseRetrievalPredictor, self).__init__()
-        self.features_sigmoid_active = features_sigmoid_active
-        self.im_img_size = im_img_size
+        self._config: ConfigTrainer = config
         self.out_img_size = out_img_size
-        self._predict_type = predict_type
-        self._use_rfft = use_rfft
         self.out_ch = out_ch
-        self.int_ch = inter_ch
-        self.fc_multy_coeff = fc_multy_coeff
-        self.conv_multy_coeff = conv_multy_coeff
 
-        self.fft_out_freq = get_fft2_freq(self.out_img_size, use_rfft=use_rfft)
-        self.in_features = get_flatten_fft2_size(self.im_img_size, use_rfft=use_rfft)
-        self.inter_features = self.int_ch * get_flatten_fft2_size(self.out_img_size, use_rfft=use_rfft)
-        self.out_features = self.out_ch * get_flatten_fft2_size(self.out_img_size, use_rfft=use_rfft)
-        self._fft_norm = fft_norm
+        if self._config.predict_out == 'features':
+            if self._config.n_inter_features is None:
+                inter_ch = out_ch
+                if self._config.predict_type == 'spectral':
+                    inter_ch *= 2
+            else:
+                self.int_ch = self._config.n_inter_features
+        else:
+            self.int_ch = self._config.predict_img_int_features_multi_coeff * out_ch
 
-        if self._predict_type == 'spectral':
+        self.inter_mag_out_size = self._get_magnitude_size(out_img_size)
+        in_mag_size = self._get_magnitude_size(self._config.image_size)
+        self.in_features = get_flatten_fft2_size(in_mag_size, use_rfft=self._config.use_rfft)
+        inter_flatten_size = get_flatten_fft2_size(self.inter_mag_out_size, use_rfft=self._config.use_rfft)
+        self.inter_features = self.int_ch * inter_flatten_size
+
+        if self._config.deep_predict_fc is None:
+            deep_fc = int(math.floor(math.log(self.inter_features / self.in_features,
+                                              self._config.predict_fc_multy_coeff))) + 1
+            deep_fc = max(3, deep_fc)
+        else:
+            deep_fc = self._config.deep_predict_fc
+
+        self.fft_out_freq = get_fft2_freq(self.inter_mag_out_size, use_rfft=self._config.use_rfft)
+
+        self.out_features = self.out_ch * get_flatten_fft2_size(self.inter_mag_out_size, use_rfft=self._config.use_rfft)
+
+        if self._config.predict_type == 'spectral':
             out_fc_features = 2 * self.inter_features
-        elif self._predict_type == 'phase':
+        elif self._config.predict_type == 'phase':
             out_fc_features = self.inter_features
         else:
-            raise NameError(f'Not supported type_recon: {predict_type}')
+            raise NameError(f'Not supported type_recon: {self._config.predict_type}')
 
         in_fc = self.in_features
-        self.fc_blocks = []
+        self.fc_blocks = nn.ModuleList()
         for ind in range(deep_fc):
             if ind == deep_fc - 1:
                 out_fc = out_fc_features
             else:
-                out_fc = in_fc * self.fc_multy_coeff
-            fc_block = FcBlock(in_fc, out_fc, use_dropout=use_dropout, use_bn=use_bn)
+                out_fc = in_fc * self._config.predict_fc_multy_coeff
+            use_bn = (self._config.use_norm_enc_fc == 'bn')
+            fc_block = FcBlock(in_fc, out_fc, use_dropout=self._config.use_dropout_enc_fc, use_bn=use_bn)
             in_fc = out_fc
 
             self.fc_blocks.append(fc_block)
 
-        self.fc_blocks = nn.Sequential(*self.fc_blocks)
         self.weights_fc: List[nn.Parameter] = [fc_block.fc_seq[0].weight for fc_block in self.fc_blocks]
-        self._build_conv_blocks(conv_type, deep_conv, active_type=active_type)
+        self._build_conv_blocks(self._config.predict_conv_type,
+                                self._config.deep_predict_conv,
+                                active_type=self._config.activation_enc)
 
     def _build_conv_blocks(self, conv_type: str, deep_conv: int, active_type: str = 'leakly_relu'):
         if conv_type == 'ConvBlock':
@@ -73,25 +88,24 @@ class PhaseRetrievalPredictor(nn.Module):
         else:
             in_conv = self.int_ch
 
-            self.conv_blocks = []
+            self.conv_blocks = nn.ModuleList()
             for ind in range(deep_conv):
-                out_conv = self.conv_multy_coeff * in_conv
+                out_conv = self._config.predict_conv_multy_coeff * in_conv
                 conv_block = conv_block_class(in_conv, out_conv, active_type=active_type)
                 in_conv = out_conv
                 self.conv_blocks.append(conv_block)
             conv_out = nn.Conv2d(out_conv, self.out_ch, kernel_size=1, stride=1, padding=0)
             self.conv_blocks.append(conv_out)
-            self.conv_blocks = nn.Sequential(*self.conv_blocks)
 
     def forward(self, magnitude: Tensor) -> (Tensor, Tensor):
-        if self._predict_type == 'spectral':
+        if self._config.predict_type == 'spectral':
             out_features, intermediate_features = self._spectral_pred(magnitude)
-        elif self._predict_type == 'phase':
+        elif self._config.predict_type == 'phase':
             out_features = self._angle_pred(magnitude)
             intermediate_features = out_features
             out_features = out_features.real
 
-        if self.features_sigmoid_active:
+        if self._config.features_sigmoid_active:
             out_features = torch.sigmoid(out_features)
 
         return out_features, intermediate_features
@@ -109,18 +123,24 @@ class PhaseRetrievalPredictor(nn.Module):
         x_float = magnitude.view(-1, self.in_features)
         fc_features = self.fc_blocks(x_float)
         out_fft_size = len(self.fft_out_freq)
-        spectral = fc_features.view(-1, self.int_ch, self.out_img_size, out_fft_size, 2)
+        spectral = fc_features.view(-1, self.int_ch, self.inter_mag_out_size, out_fft_size, 2)
         spectral = torch.view_as_complex(spectral)
-        if self._use_rfft:
-            intermediate_features = torch.fft.irfft2(spectral, (self.out_img_size, self.out_img_size),
-                                                     norm=self._fft_norm)
-            out_features = self.conv_blocks(intermediate_features)
+        if self._config.use_rfft:
+            intermediate_features = torch.fft.irfft2(spectral, (self.inter_mag_out_size, self.inter_mag_out_size),
+                                                     norm=self._config.fft_norm)
+            out_features = intermediate_features
 
         else:
-            intermediate_features = torch.fft.ifft2(spectral, norm=self._fft_norm)
-            out_features = self.conv_blocks(intermediate_features.real)
+            intermediate_features = torch.fft.ifft2(spectral, norm=self._config.fft_norm)
+            out_features = intermediate_features.real
+
+        out_features = torchvision.transforms.F.center_crop(out_features, self.out_img_size)
+        out_features = self.conv_blocks(out_features)
 
         return out_features, intermediate_features
+
+    def _get_magnitude_size(self, img_size: int) -> int:
+        return int((1.0+self._config.add_pad) * img_size)
 
 
 

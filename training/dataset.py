@@ -168,10 +168,15 @@ class PhaseRetrievalDataset(Dataset):
         return item_batch
 
     def _forward_magnitude_fft(self, image_data: Tensor) -> Tensor:
-        if self._use_rfft:
-            fft_data_batch = torch.fft.rfft2(image_data, norm=self._fft_norm)
+        if self.add_pad > 0.0:
+            pad_value = int(0.5 * self.add_pad * self._config.image_size)
+            image_data_pad = transforms.functional.pad(image_data, pad_value, padding_mode='edge')
         else:
-            fft_data_batch = torch.fft.fft2(image_data, norm=self._fft_norm)
+            image_data_pad = image_data
+        if self._use_rfft:
+            fft_data_batch = torch.fft.rfft2(image_data_pad, norm=self._fft_norm)
+        else:
+            fft_data_batch = torch.fft.fft2(image_data_pad, norm=self._fft_norm)
         fft_magnitude = torch.abs(fft_data_batch)
         return fft_magnitude
 
