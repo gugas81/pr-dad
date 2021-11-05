@@ -168,8 +168,8 @@ class PhaseRetrievalDataset(Dataset):
         return item_batch
 
     def _forward_magnitude_fft(self, image_data: Tensor) -> Tensor:
-        if self.add_pad > 0.0:
-            pad_value = int(0.5 * self.add_pad * self._config.image_size)
+        if self._config.add_pad > 0.0:
+            pad_value = int(0.5 * self._config.add_pad * self._config.image_size)
             image_data_pad = transforms.functional.pad(image_data, pad_value, padding_mode='edge')
         else:
             image_data_pad = image_data
