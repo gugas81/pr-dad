@@ -279,17 +279,19 @@ class BaseTrainerPhaseRetrieval:
         return img_grid
 
     def _grid_fft_magnitude(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
-        def prepare_fft_img(fft_magnitude):
+        def prepare_fft_img(fft_magnitude: Tensor) -> Tensor:
             if self._config.use_rfft:
                 mag_size = self._get_magnitude_size(self._config.image_size)
 
                 fft_magnitude = fft2_from_rfft(fft_magnitude, (mag_size, mag_size))
 
-            fft_magnitude = F.interpolate(fft_magnitude, (self._config.image_size, self._config.image_size),
-                                          mode='bilinear',
-                                          align_corners=False)
+            fft_magnitude = torch.fft.fftshift(fft_magnitude, dim=(-2, -1))
+            if fft_magnitude.shape[-1] != self._config.image_size:
+                fft_magnitude = F.interpolate(fft_magnitude, (self._config.image_size, self._config.image_size),
+                                              mode='bilinear',
+                                              align_corners=False)
 
-            return torch.fft.fftshift(fft_magnitude, dim=(-2, -1))
+            return fft_magnitude
 
         img_grid = []
         if data_batch.fft_magnitude is not None:

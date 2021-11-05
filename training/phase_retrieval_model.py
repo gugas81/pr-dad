@@ -1,8 +1,8 @@
 import logging
 from typing import Dict, OrderedDict, List, Any
 import torch
-from torch import nn
-from torch import Tensor
+from torch import nn, Tensor
+from torchvision import transforms
 
 from common import InferredBatch, ConfigTrainer, DataBatch, S3FileSystem
 
@@ -159,12 +159,17 @@ class PhaseRetrievalAeModel:
         return InferredBatch(img_recon=recon_batch, feature_encoder=features_batch, feature_recon=feature_recon)
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
-        if self._config.use_rfft:
-            fft_data_batch = torch.fft.rfft2(data_batch, norm=self._config.fft_norm)
+        if self._config.add_pad > 0.0:
+            pad_value = int(0.5 * self._config.add_pad * self._config.image_size)
+            data_batch_pad = transforms.functional.pad(data_batch, pad_value, padding_mode='edge')
         else:
-            fft_data_batch = torch.fft.fft2(data_batch, norm=self._config.fft_norm)
-        magnitude_batch = torch.abs(fft_data_batch)
+            data_batch_pad = data_batch
+        if self._config.use_rfft:
+            magnitude_batch = torch.fft.rfft2(data_batch_pad, norm=self._config.fft_norm).abs()
+        else:
+            magnitude_batch = torch.fft.fft2(data_batch_pad, norm=self._config.fft_norm).abs()
         return magnitude_batch
+
 
     def set_eval_mode(self):
         self.phase_predictor.eval()

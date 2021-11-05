@@ -8,6 +8,7 @@ from models.layers import FcBlock, ConvBlock, ResBlock
 from models.conv_unet import UNetConv
 
 from common import get_flatten_fft2_size, get_fft2_freq, ConfigTrainer
+from models.seq_blocks import BlockList
 
 
 class PhaseRetrievalPredictor(nn.Module):
@@ -22,19 +23,19 @@ class PhaseRetrievalPredictor(nn.Module):
 
         if self._config.predict_out == 'features':
             if self._config.n_inter_features is None:
-                inter_ch = out_ch
+                self.inter_ch = out_ch
                 if self._config.predict_type == 'spectral':
-                    inter_ch *= 2
+                    self.inter_ch *= 2
             else:
-                self.int_ch = self._config.n_inter_features
+                self.inter_ch = self._config.n_inter_features
         else:
-            self.int_ch = self._config.predict_img_int_features_multi_coeff * out_ch
+            self.inter_ch = self._config.predict_img_int_features_multi_coeff * out_ch
 
         self.inter_mag_out_size = self._get_magnitude_size(out_img_size)
         in_mag_size = self._get_magnitude_size(self._config.image_size)
         self.in_features = get_flatten_fft2_size(in_mag_size, use_rfft=self._config.use_rfft)
         inter_flatten_size = get_flatten_fft2_size(self.inter_mag_out_size, use_rfft=self._config.use_rfft)
-        self.inter_features = self.int_ch * inter_flatten_size
+        self.inter_features = self.inter_ch * inter_flatten_size
 
         if self._config.deep_predict_fc is None:
             deep_fc = int(math.floor(math.log(self.inter_features / self.in_features,
@@ -55,7 +56,7 @@ class PhaseRetrievalPredictor(nn.Module):
             raise NameError(f'Not supported type_recon: {self._config.predict_type}')
 
         in_fc = self.in_features
-        self.fc_blocks = nn.ModuleList()
+        self.fc_blocks = BlockList()
         for ind in range(deep_fc):
             if ind == deep_fc - 1:
                 out_fc = out_fc_features
@@ -83,12 +84,12 @@ class PhaseRetrievalPredictor(nn.Module):
             raise NameError(f'Non valid conv_type: {conv_type}')
 
         if conv_type == 'Unet':
-            self.conv_blocks = UNetConv(img_ch=self.int_ch, output_ch=self.out_ch,
+            self.conv_blocks = UNetConv(img_ch=self.inter_ch, output_ch=self.out_ch,
                                         up_mode='bilinear', active_type=active_type, down_pool='avrg_pool')
         else:
-            in_conv = self.int_ch
+            in_conv = self.inter_ch
 
-            self.conv_blocks = nn.ModuleList()
+            self.conv_blocks = BlockList()
             for ind in range(deep_conv):
                 out_conv = self._config.predict_conv_multy_coeff * in_conv
                 conv_block = conv_block_class(in_conv, out_conv, active_type=active_type)
@@ -120,10 +121,10 @@ class PhaseRetrievalPredictor(nn.Module):
         return out_features
 
     def _spectral_pred(self, magnitude: Tensor) -> (Tensor, Tensor):
-        x_float = magnitude.view(-1, self.in_features)
-        fc_features = self.fc_blocks(x_float)
+        mag_flatten = magnitude.view(-1, self.in_features)
+        fc_features = self.fc_blocks(mag_flatten)
         out_fft_size = len(self.fft_out_freq)
-        spectral = fc_features.view(-1, self.int_ch, self.inter_mag_out_size, out_fft_size, 2)
+        spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size, out_fft_size, 2)
         spectral = torch.view_as_complex(spectral)
         if self._config.use_rfft:
             intermediate_features = torch.fft.irfft2(spectral, (self.inter_mag_out_size, self.inter_mag_out_size),
