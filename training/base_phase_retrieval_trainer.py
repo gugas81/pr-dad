@@ -7,6 +7,7 @@ from functools import partial
 from datetime import datetime
 from torch import Tensor
 import torchvision
+from torchvision import transforms
 from torch.nn import functional as F
 from training.dataset import create_data_loaders
 from typing import Optional, Any, Dict, Union
@@ -114,11 +115,17 @@ class BaseTrainerPhaseRetrieval:
         data_batch['is_paired'] = data_batch['is_paired'].cpu().numpy().all()
         data_batch: DataBatch = DataBatch.from_dict(data_batch).to(device=self.device)
 
+        if torch.any(torch.isnan(data_batch.fft_magnitude)):
+            data_batch.fft_magnitude = self.forward_magnitude_fft(data_batch.image)
+
         if (self._config.gauss_noise is not None) and self._config.use_aug:
             if is_train:
-                img_noise = get_rnd_gauss_noise_like(data_batch.image, self._config.gauss_noise,
+                img_noise = get_rnd_gauss_noise_like(data_batch.fft_magnitude,
+                                                     self._config.gauss_noise,
                                                      p=self._config.prob_aug)
-                data_batch.image_noised = data_batch.image + img_noise
+
+                data_batch.image_noised = data_batch.image + transforms.F.center_crop(img_noise,
+                                                                                      data_batch.image.shape[-1])
                 data_batch.fft_magnitude_noised = data_batch.fft_magnitude + self.forward_magnitude_fft(img_noise)
             else:
                 data_batch.image_noised = data_batch.image
@@ -204,9 +211,9 @@ class BaseTrainerPhaseRetrieval:
     def _get_magnitude_size(self, img_size: int) -> int:
         return int((1.0+self._config.add_pad) * img_size)
 
-    def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
-        if self.add_pad > 0.0:
-            pad_value = int(0.5 * self.add_pad * self._config.image_size)
+    def forward_magnitude_fft(self, data_batch: Tensor, is_noise: bool = False) -> Tensor:
+        if (self._config.add_pad > 0.0) and (not is_noise):
+            pad_value = int(0.5 * self._config.add_pad * self._config.image_size)
             data_batch_pad = torchvision.transforms.functional.pad(data_batch, pad_value, padding_mode='edge')
         else:
             data_batch_pad = data_batch
