@@ -5,8 +5,7 @@ from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional
-from models.untils import get_norm_layer, get_pool_2x2, get_activation
-from models.seq_blocks import BlockList
+from models.untils import get_norm_layer, get_pool_2x2, get_activation, BlockList
 
 
 class FcBlock(nn.Module):
