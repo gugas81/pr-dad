@@ -6,19 +6,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional
 from models.untils import get_norm_layer, get_pool_2x2, get_activation
+from models.seq_blocks import BlockList
 
 
 class FcBlock(nn.Module):
-    def __init__(self, in_features: int, out_features: int, use_dropout: bool = False, use_bn: bool = False):
+    def __init__(self, in_features: int, out_features: int, use_dropout: bool = False, use_bn: bool = False,
+                 active_type: str = 'leakly_relu', active_params: int = 1):
         super(FcBlock, self).__init__()
-        self.fc_seq = [nn.Linear(in_features, out_features)]
+        self.fc_seq = BlockList()
+        self.fc_seq.append(nn.Linear(in_features, out_features, bias=(not use_bn)))
         if use_bn:
             self.fc_seq.append(nn.BatchNorm1d(out_features))
-        self.fc_seq.append(nn.LeakyReLU())
+        self.fc_seq.append(get_activation(active_type, active_params))
         if use_dropout:
             self.fc_seq.append(nn.Dropout())
-
-        self.fc_seq = nn.Sequential(*self.fc_seq)
 
     def forward(self, x: Tensor) -> Tensor:
         return self.fc_seq(x)

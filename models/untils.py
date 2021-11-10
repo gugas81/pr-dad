@@ -22,12 +22,14 @@ def get_norm_layer(input_norm_type: str, input_ch: int, img_size: Optional[int] 
     return norm_layer
 
 
-def get_activation(name: str) -> nn.Module:
+def get_activation(name: str, num_parameters: int = 1) -> nn.Module:
     name = name.lower()
     if name == 'relu':
         return nn.ReLU(inplace=True)
     elif name == 'leakly_relu':
         return nn.LeakyReLU(negative_slope=0.2, inplace=True)
+    elif name == 'prelu':
+        return nn.PReLU(num_parameters=num_parameters)
     else:
         raise NameError(f'Non valid activation type: {name}')
 

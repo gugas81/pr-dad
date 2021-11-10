@@ -63,7 +63,11 @@ class PhaseRetrievalPredictor(nn.Module):
             else:
                 out_fc = in_fc * self._config.predict_fc_multy_coeff
             use_bn = (self._config.use_norm_enc_fc == 'bn')
-            fc_block = FcBlock(in_fc, out_fc, use_dropout=self._config.use_dropout_enc_fc, use_bn=use_bn)
+            fc_block = FcBlock(in_fc, out_fc,
+                               use_dropout=self._config.use_dropout_enc_fc,
+                               use_bn=use_bn,
+                               active_type=self._config.activation_fc_enc,
+                               active_params=out_fc if self._config.activation_fc_ch_params else 1)
             in_fc = out_fc
 
             self.fc_blocks.append(fc_block)
