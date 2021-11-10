@@ -224,6 +224,9 @@ class ConfigTrainer(ConfigBase):
     scale: Optional[Sequence[float]] = (0.9, 1.2)
     use_dropout_enc_fc: bool = False
     use_norm_enc_fc: Optional[str] = None
+    activation_fc_enc: str = 'leakly_relu'
+    activation_fc_ch_params: bool = False
+
 
 
 
