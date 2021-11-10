@@ -8,7 +8,7 @@ from models.layers import FcBlock, ConvBlock, ResBlock
 from models.conv_unet import UNetConv
 
 from common import get_flatten_fft2_size, get_fft2_freq, ConfigTrainer
-from models.seq_blocks import BlockList
+from models.untils import BlockList
 
 
 class PhaseRetrievalPredictor(nn.Module):

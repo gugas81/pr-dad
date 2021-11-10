@@ -3,26 +3,7 @@ from torch import Tensor
 import torch.nn as nn
 from models.layers import ConvBlock, UpConvBlock, DownConvBlock, ResBlock
 from typing import Optional, List, Union
-
-
-class BlockList(nn.ModuleList):
-    def __call__(self, x: Tensor, use_residual: bool = False):
-        if use_residual:
-            return self._get_resid(x)
-        else:
-            return self._get_sequential(x)
-
-    def _get_resid(self, x: Tensor) -> List[Tensor]:
-        results = [x]
-        for block in self:
-            x = block(x)
-            results.append(x)
-        return results
-
-    def _get_sequential(self, x: Tensor) -> Tensor:
-        for block in self:
-            x = block(x)
-        return x
+from models.untils import BlockList
 
 
 class EncoderConv(nn.Module):
