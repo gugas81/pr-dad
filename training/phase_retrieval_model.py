@@ -42,6 +42,8 @@ class PhaseRetrievalAeModel:
         self.phase_predictor = PhaseRetrievalPredictor(config=self._config,
                                                        out_ch=predict_out_ch,
                                                        out_img_size=predict_out_size)
+        self._log.debug(f'=======PhaseRetrievalPredictor=======: \n {self.phase_predictor}')
+
         if self._config.use_ref_net:
             if self._config.predict_out == 'features':
                 in_ch_features = self.ae_net.n_features_ch
@@ -55,6 +57,8 @@ class PhaseRetrievalAeModel:
                                      up_mode=self._config.up_sampling,
                                      down_pool=self._config.down_pooling_refnet,
                                      features_sigmoid_active=self._config.features_sigmoid_active)
+
+            self._log.debug(f'=======RefNet=======: \n {self.ref_unet}')
         else:
             self.ref_unet = None
 
