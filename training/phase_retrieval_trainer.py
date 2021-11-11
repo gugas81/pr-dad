@@ -58,6 +58,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                             reduce_validity=True,
                                                             use_res_blocks=False,
                                                             active_type=self._config.activation_discrim)
+                self._log.debug(f'Features Discriminator \n {self.features_discriminator}')
             else:
                 self.features_discriminator = None
 
@@ -69,6 +70,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                    deep_conv_net=self._config.deep_ae,
                                                    reduce_validity=True,
                                                    active_type=self._config.activation_discrim)
+            self._log.debug(f'Image Discriminator \n {self.img_discriminator}')
         else:
             self.img_discriminator = None
             self.features_discriminator = None
