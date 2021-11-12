@@ -190,6 +190,7 @@ class PhaseRetrievalAeModel:
             self.ref_unet.train()
 
     def _get_magnitude_size(self, img_size: int) -> int:
-        return int((1.0+self._config.add_pad) * img_size)
+        pad_val = int(0.5 * self._config.add_pad * img_size)
+        return 2 * pad_val + img_size
 
 

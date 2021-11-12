@@ -145,7 +145,8 @@ class PhaseRetrievalPredictor(nn.Module):
         return out_features, intermediate_features
 
     def _get_magnitude_size(self, img_size: int) -> int:
-        return int((1.0+self._config.add_pad) * img_size)
+        pad_val = int(0.5 * self._config.add_pad * img_size)
+        return 2 * pad_val + img_size
 
 
 

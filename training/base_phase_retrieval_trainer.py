@@ -209,7 +209,9 @@ class BaseTrainerPhaseRetrieval:
             self._task = None
 
     def _get_magnitude_size(self, img_size: int) -> int:
-        return int((1.0+self._config.add_pad) * img_size)
+        pad_val = int(0.5 * self._config.add_pad * img_size)
+        return 2 * pad_val + img_size
+
 
     def forward_magnitude_fft(self, data_batch: Tensor, is_noise: bool = False) -> Tensor:
         if (self._config.add_pad > 0.0) and (not is_noise):
