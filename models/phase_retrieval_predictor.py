@@ -151,7 +151,7 @@ class PhaseRetrievalPredictor(nn.Module):
                 intermediate_features = torch.fft.ifft2(spectral, norm=self._config.fft_norm)
                 out_features = intermediate_features.real
 
-        out_features = torchvision.transforms.F.center_crop(out_features, self.out_img_size)
+        out_features = torchvision.transforms.functional.center_crop(out_features, self.out_img_size)
         out_features = self.conv_blocks(out_features)
 
         return out_features, intermediate_features
