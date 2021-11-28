@@ -4,11 +4,13 @@ from torch import Tensor
 import torchvision
 import torch.nn as nn
 from typing import List
-from models.layers import FcBlock, ConvBlock, ResBlock
-from models.conv_unet import UNetConv
+import torchjpeg.dct as jpeg_dct
 
 from common import get_flatten_fft2_size, get_fft2_freq, ConfigTrainer
+
 from models.untils import BlockList
+from models.layers import FcBlock, ConvBlock, ResBlock
+from models.conv_unet import UNetConv
 
 
 class PhaseRetrievalPredictor(nn.Module):
@@ -33,7 +35,8 @@ class PhaseRetrievalPredictor(nn.Module):
 
         self.inter_mag_out_size = self._get_magnitude_size(out_img_size)
         in_mag_size = self._get_magnitude_size(self._config.image_size)
-        self.in_features = get_flatten_fft2_size(in_mag_size, use_rfft=self._config.use_rfft)
+        self.in_features = get_flatten_fft2_size(in_mag_size,
+                                                 use_rfft=(self._config.use_rfft and not self._config.use_dct))
         inter_flatten_size = get_flatten_fft2_size(self.inter_mag_out_size, use_rfft=self._config.use_rfft)
         self.inter_features = self.inter_ch * inter_flatten_size
 
@@ -49,7 +52,10 @@ class PhaseRetrievalPredictor(nn.Module):
         self.out_features = self.out_ch * get_flatten_fft2_size(self.inter_mag_out_size, use_rfft=self._config.use_rfft)
 
         if self._config.predict_type == 'spectral':
-            out_fc_features = 2 * self.inter_features
+            if self._config.use_dct:
+                out_fc_features = self.inter_features
+            else:
+                out_fc_features = 2 * self.inter_features
         elif self._config.predict_type == 'phase':
             out_fc_features = self.inter_features
         else:
@@ -128,16 +134,22 @@ class PhaseRetrievalPredictor(nn.Module):
         mag_flatten = magnitude.view(-1, self.in_features)
         fc_features = self.fc_blocks(mag_flatten)
         out_fft_size = len(self.fft_out_freq)
-        spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size, out_fft_size, 2)
-        spectral = torch.view_as_complex(spectral)
-        if self._config.use_rfft:
-            intermediate_features = torch.fft.irfft2(spectral, (self.inter_mag_out_size, self.inter_mag_out_size),
-                                                     norm=self._config.fft_norm)
+        if self._config.use_dct:
+            spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size, out_fft_size)
+            intermediate_features = jpeg_dct.block_idct(spectral)
             out_features = intermediate_features
-
         else:
-            intermediate_features = torch.fft.ifft2(spectral, norm=self._config.fft_norm)
-            out_features = intermediate_features.real
+            spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size, out_fft_size, 2)
+            spectral = torch.view_as_complex(spectral)
+
+            if self._config.use_rfft:
+                intermediate_features = torch.fft.irfft2(spectral, (self.inter_mag_out_size, self.inter_mag_out_size),
+                                                         norm=self._config.fft_norm)
+                out_features = intermediate_features
+
+            else:
+                intermediate_features = torch.fft.ifft2(spectral, norm=self._config.fft_norm)
+                out_features = intermediate_features.real
 
         out_features = torchvision.transforms.F.center_crop(out_features, self.out_img_size)
         out_features = self.conv_blocks(out_features)

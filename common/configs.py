@@ -226,6 +226,7 @@ class ConfigTrainer(ConfigBase):
     use_norm_enc_fc: Optional[str] = None
     activation_fc_enc: str = 'leakly_relu'
     activation_fc_ch_params: bool = False
+    use_dct: bool = False
 
 
 
