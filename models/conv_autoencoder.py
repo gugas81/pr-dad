@@ -15,8 +15,9 @@ class AeConv(nn.Module):
         scale_factor = 2 ** (deep-1)
         self.n_features_ch = self.n_encoder_ch * scale_factor
         self.n_features_size = int(np.ceil(img_size / scale_factor))
+        # padding_mode = 'replicate'
         self._encoder = EncoderConv(in_ch=img_ch, encoder_ch=self.n_encoder_ch, deep=deep,
-                                    active_type=active_type, down_pool=down_pool)
+                                    active_type=active_type, down_pool=down_pool, padding_mode='zeros')
         self._decoder = DecoderConv(output_ch=None, img_ch=self.n_features_ch, deep=deep,
                                     up_mode=up_mode, active_type=active_type)
         self.out_layer = nn.Conv2d(self._decoder.ch_out[-1], output_ch, kernel_size=1, stride=1, padding=0)

@@ -326,6 +326,11 @@ class BaseTrainerPhaseRetrieval:
             features_batch.append(inferred_batch.feature_encoder[:self._config.dbg_features_batch])
         features_batch = torch.cat(features_batch, dim=-2)
 
+        features_grid = self._build_grid_features_map(features_batch)
+        return features_grid
+
+    @staticmethod
+    def _build_grid_features_map(features_batch: Tensor) -> Tensor:
         n_sqrt = int(np.sqrt(features_batch.shape[1]))
         features_grid = [torchvision.utils.make_grid(torch.unsqueeze(features, 1),
                                                      normalize=True, nrow=n_sqrt)[None]

@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, OrderedDict, List, Any
+from typing import Dict, OrderedDict, List, Any, Optional
 import torch
 from torch import nn, Tensor
 from torchvision import transforms
@@ -20,7 +20,7 @@ class PhaseRetrievalAeModel:
         self._s3 = s3
         self.n_encoder_ch = config.n_features // 2**(self._config.deep_ae-1)
         if self._config.predict_out == 'features':
-            self.ae_net = AeConv(n_encoder_ch=self.n_encoder_ch,
+            self.ae_net: Optional[AeConv] = AeConv(n_encoder_ch=self.n_encoder_ch,
                                  img_size=self._config.image_size,
                                  deep=self._config.deep_ae,
                                  active_type=self._config.activation_ae,
@@ -28,7 +28,9 @@ class PhaseRetrievalAeModel:
                                  down_pool=self._config.down_pooling_ae,
                                  features_sigmoid_active=self._config.features_sigmoid_active)
         else:
-            self.ae_net = None
+            self.ae_net: Optional[AeConv] = None
+
+        self._log.debug(f'=======AE-NET=======: \n {self.ae_net}')
 
         if self._config.predict_out == 'features':
             predict_out_ch = self.ae_net.n_features_ch

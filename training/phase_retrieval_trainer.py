@@ -690,8 +690,20 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             recon_data_tr_batch = self._generator_model.forward_ae(self.data_tr_batch, eval_mode=False)
             recon_data_ts_batch = self._generator_model.forward_ae(self.data_ts_batch, eval_mode=False)
 
+            enc_layers_list = self._generator_model.ae_net._encoder.get_layers()
+            enc_layers_features_tr = enc_layers_list(self.data_tr_batch.image, use_residual=True)[1:]
+            enc_layers_features_ts = enc_layers_list(self.data_ts_batch.image, use_residual=True)[1:]
+
+            dec_layers_list = self._generator_model.ae_net._decoder.get_layers()
+            dec_layers_features_tr = dec_layers_list(self.data_tr_batch.image, use_residual=True)[1:]
+            dec_layers_features_ts = dec_layers_list(self.data_ts_batch.image, use_residual=True)[1:]
+
         img_grid_tr = self._grid_images(self.data_tr_batch, recon_data_tr_batch)
         img_grid_ts = self._grid_images(self.data_ts_batch, recon_data_ts_batch)
+        enc_layers_grid_tr = [self._build_grid_features_map(enc_layer) for enc_layer in enc_layers_features_tr]
+        enc_layers_grid_ts = [self._build_grid_features_map(enc_layer) for enc_layer in enc_layers_features_ts]
+        dec_layers_grid_tr = [self._build_grid_features_map(dec_layer) for dec_layer in dec_layers_features_tr]
+        dec_layers_grid_ts = [self._build_grid_features_map(dec_layer) for dec_layer in dec_layers_features_ts]
         img_diff_grid_tr = self._grid_diff_images(self.data_tr_batch, recon_data_tr_batch)
         img_diff_grid_ts = self._grid_diff_images(self.data_ts_batch, recon_data_ts_batch)
         features_grid_tr = self._grid_features(recon_data_tr_batch)
@@ -703,6 +715,14 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self.log_image_grid(img_diff_grid_ts, 'test-ae/img-diff-origin-recon', step)
         self.log_image_grid(features_grid_tr, 'train-ae/features', step)
         self.log_image_grid(features_grid_ts, 'test-ae/features', step)
+
+        for ind, (enc_layer_tr, enc_layer_ts) in enumerate(zip(enc_layers_grid_tr, enc_layers_grid_ts)):
+            self.log_image_grid(enc_layer_tr, f'train-ae/enc_layer_{ind+1}', step)
+            self.log_image_grid(enc_layer_ts, f'test-ae/enc_layer_{ind+1}', step)
+
+        for ind, (dec_layer_tr, dec_layer_ts) in enumerate(zip(dec_layers_grid_tr, dec_layers_grid_ts)):
+            self.log_image_grid(dec_layer_tr, f'train-ae/dec_layer_{ind+1}', step)
+            self.log_image_grid(dec_layer_ts, f'test-ae/dec_layer_{ind+1}', step)
 
     def _log_en_magnitude_dbg_batch(self, use_adv_loss: bool, step: int = None) -> (LossesPRFeatures, LossesPRFeatures):
         if not step:

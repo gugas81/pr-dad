@@ -25,15 +25,16 @@ class FcBlock(nn.Module):
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, ch_in: int, ch_out: int, ch_inter: Optional[int] = None, active_type: str = 'leakly_relu'):
+    def __init__(self, ch_in: int, ch_out: int, ch_inter: Optional[int] = None, active_type: str = 'leakly_relu',
+                 padding_mode: str = 'zeros'):
         super(ConvBlock, self).__init__()
         if ch_inter is None:
             ch_inter = ch_out
         self.conv_block = nn.Sequential(
-            nn.Conv2d(ch_in, ch_inter, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(ch_in, ch_inter, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode),
             nn.BatchNorm2d(ch_inter),
             get_activation(active_type),
-            nn.Conv2d(ch_inter, ch_out, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(ch_inter, ch_out, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode),
             nn.BatchNorm2d(ch_out),
             get_activation(active_type)
         )
@@ -50,16 +51,18 @@ class ResBlock(nn.Module):
 
         self._conv_block1 = nn.Sequential(nn.BatchNorm2d(in_channels, affine=True),
                                           get_activation(active_type),
-                                          nn.Conv2d(in_channels, in_channels, kernel_size, padding=padding, bias=bias))
+                                          nn.Conv2d(in_channels, in_channels, kernel_size,
+                                                    padding=padding, bias=bias, padding_mode='replicate'))
 
         self._conv_block2 = nn.Sequential(nn.BatchNorm2d(in_channels, affine=True),
                                           get_activation(active_type),
-                                          nn.Conv2d(in_channels, in_channels, kernel_size, padding=padding, bias=bias))
+                                          nn.Conv2d(in_channels, in_channels, kernel_size,
+                                                    padding=padding, bias=bias, padding_mode='replicate'))
 
         self._conv_block_out = nn.Sequential(nn.BatchNorm2d(3*in_channels, affine=True),
                                              get_activation(active_type),
                                              nn.Conv2d(3*in_channels, out_channels, kernel_size,
-                                                       padding=padding, bias=bias_out))
+                                                       padding=padding, bias=bias_out, padding_mode='replicate'))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_1 = self._conv_block1(x)
@@ -92,7 +95,7 @@ class UpConvBlock(nn.Module):
         super(UpConvBlock, self).__init__()
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2, mode=up_mode, align_corners=True),
-            nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=1,padding_mode='replicate'),
             nn.BatchNorm2d(ch_out),
             get_activation(active_type)
         )

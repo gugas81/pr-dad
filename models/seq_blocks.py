@@ -8,7 +8,7 @@ from models.untils import BlockList
 
 class EncoderConv(nn.Module):
     def __init__(self, in_ch=1, encoder_ch=8, deep: int = 3, last_down: bool = True, use_res_blocks: bool = False,
-                 down_pool: str = 'avrg_pool', active_type: str = 'leakly_relu'):
+                 down_pool: str = 'avrg_pool', active_type: str = 'leakly_relu', padding_mode: str = 'zeros'):
         super(EncoderConv, self).__init__()
         self.encoder_ch = encoder_ch
         self.deep = deep
@@ -23,7 +23,7 @@ class EncoderConv(nn.Module):
                 # if use_res_blocks:
                 #     conv_block = ResBlock(in_channels=inp_ch_block, out_channels=self.out_ch)
                 # else:
-                conv_block = ConvBlock(ch_in=inp_ch_block, ch_out=curr_out_ch, active_type=active_type)
+                conv_block = ConvBlock(ch_in=inp_ch_block, ch_out=curr_out_ch, active_type=active_type, padding_mode=padding_mode)
             else:
                 conv_block = DownConvBlock(ch_in=inp_ch_block, ch_out=curr_out_ch,
                                            use_res_block=use_res_blocks, active_type=active_type, down_pool=down_pool)
