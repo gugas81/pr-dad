@@ -35,9 +35,9 @@ class PhaseRetrievalPredictor(nn.Module):
 
         self.inter_mag_out_size = self._get_magnitude_size(out_img_size)
         in_mag_size = self._get_magnitude_size(self._config.image_size)
-        self.in_features = get_flatten_fft2_size(in_mag_size,
-                                                 use_rfft=(self._config.use_rfft and not self._config.use_dct))
-        inter_flatten_size = get_flatten_fft2_size(self.inter_mag_out_size, use_rfft=self._config.use_rfft)
+        self.in_features = get_flatten_fft2_size(in_mag_size, use_rfft=self._config.use_rfft)
+        inter_flatten_size = get_flatten_fft2_size(self.inter_mag_out_size,
+                                                   use_rfft=(self._config.use_rfft and not self._config.use_dct))
         self.inter_features = self.inter_ch * inter_flatten_size
 
         if self._config.deep_predict_fc is None:
@@ -135,7 +135,7 @@ class PhaseRetrievalPredictor(nn.Module):
         fc_features = self.fc_blocks(mag_flatten)
         out_fft_size = len(self.fft_out_freq)
         if self._config.use_dct:
-            spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size, out_fft_size)
+            spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size, self.inter_mag_out_size)
             intermediate_features = jpeg_dct.block_idct(spectral)
             out_features = intermediate_features
         else:
