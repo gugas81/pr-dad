@@ -14,7 +14,7 @@ from torchvision.transforms import InterpolationMode
 from common import ConfigTrainer
 from training.augmentations import RandomGammaCorrection
 from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
-
+import torchjpeg.dct as jpeg_dct
 
 class PhaseRetrievalDataset(Dataset):
     def __init__(self,
@@ -173,7 +173,9 @@ class PhaseRetrievalDataset(Dataset):
             image_data_pad = transforms.functional.pad(image_data, pad_value, padding_mode='edge')
         else:
             image_data_pad = image_data
-        if self._use_rfft:
+        if self._config.use_dct:
+            fft_data_batch = jpeg_dct.block_dct(image_data_pad)
+        elif self._use_rfft:
             fft_data_batch = torch.fft.rfft2(image_data_pad, norm=self._fft_norm)
         else:
             fft_data_batch = torch.fft.fft2(image_data_pad, norm=self._fft_norm)

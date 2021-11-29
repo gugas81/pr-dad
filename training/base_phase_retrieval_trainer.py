@@ -17,6 +17,7 @@ from common import ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
 from common import im_concatenate, square_grid_im_concat, PATHS, im_save, fft2_from_rfft
 from common import InferredBatch
 from training.augmentations import get_rnd_gauss_noise_like
+import torchjpeg.dct as jpeg_dct
 
 logging.basicConfig(level=logging.INFO)
 
@@ -212,7 +213,6 @@ class BaseTrainerPhaseRetrieval:
         pad_val = int(0.5 * self._config.add_pad * img_size)
         return 2 * pad_val + img_size
 
-
     def forward_magnitude_fft(self, data_batch: Tensor, is_noise: bool = False) -> Tensor:
         if (self._config.add_pad > 0.0) and (not is_noise):
             pad_value = int(0.5 * self._config.add_pad * self._config.image_size)
@@ -220,7 +220,9 @@ class BaseTrainerPhaseRetrieval:
         else:
             data_batch_pad = data_batch
 
-        if self._config.use_rfft:
+        if self._config.use_dct:
+            fft_data_batch = jpeg_dct.block_dct(data_batch_pad)
+        elif self._config.use_rfft:
             fft_data_batch = torch.fft.rfft2(data_batch_pad, norm=self._config.fft_norm)
         else:
             fft_data_batch = torch.fft.fft2(data_batch_pad, norm=self._config.fft_norm)
@@ -289,9 +291,8 @@ class BaseTrainerPhaseRetrieval:
 
     def _grid_fft_magnitude(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
         def prepare_fft_img(fft_magnitude: Tensor) -> Tensor:
-            if self._config.use_rfft:
+            if not self._config.use_dct and self._config.use_rfft:
                 mag_size = self._get_magnitude_size(self._config.image_size)
-
                 fft_magnitude = fft2_from_rfft(fft_magnitude, (mag_size, mag_size))
 
             fft_magnitude = torch.fft.fftshift(fft_magnitude, dim=(-2, -1))
