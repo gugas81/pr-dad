@@ -221,7 +221,7 @@ class BaseTrainerPhaseRetrieval:
             data_batch_pad = data_batch
 
         if self._config.use_dct:
-            fft_data_batch = jpeg_dct.block_dct(data_batch_pad)
+            fft_data_batch = 0.25 * jpeg_dct.block_dct(data_batch_pad)
         elif self._config.use_rfft:
             fft_data_batch = torch.fft.rfft2(data_batch_pad, norm=self._config.fft_norm)
         else:
@@ -291,11 +291,12 @@ class BaseTrainerPhaseRetrieval:
 
     def _grid_fft_magnitude(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
         def prepare_fft_img(fft_magnitude: Tensor) -> Tensor:
-            if not self._config.use_dct and self._config.use_rfft:
-                mag_size = self._get_magnitude_size(self._config.image_size)
-                fft_magnitude = fft2_from_rfft(fft_magnitude, (mag_size, mag_size))
+            if not self._config.use_dct:
+                if self._config.use_rfft:
+                    mag_size = self._get_magnitude_size(self._config.image_size)
+                    fft_magnitude = fft2_from_rfft(fft_magnitude, (mag_size, mag_size))
+                fft_magnitude = torch.fft.fftshift(fft_magnitude, dim=(-2, -1))
 
-            fft_magnitude = torch.fft.fftshift(fft_magnitude, dim=(-2, -1))
             if fft_magnitude.shape[-1] != self._config.image_size:
                 fft_magnitude = F.interpolate(fft_magnitude, (self._config.image_size, self._config.image_size),
                                               mode='bilinear',
