@@ -22,12 +22,12 @@ class PhaseRetrievalAeModel:
         self.n_encoder_ch = config.n_features // 2**(self._config.deep_ae-1)
         if self._config.predict_out == 'features':
             self.ae_net: Optional[AeConv] = AeConv(n_encoder_ch=self.n_encoder_ch,
-                                 img_size=self._config.image_size,
-                                 deep=self._config.deep_ae,
-                                 active_type=self._config.activation_ae,
-                                 up_mode=self._config.up_sampling,
-                                 down_pool=self._config.down_pooling_ae,
-                                 features_sigmoid_active=self._config.features_sigmoid_active)
+                                                   img_size=self._config.image_size,
+                                                   deep=self._config.deep_ae,
+                                                   active_type=self._config.activation_ae,
+                                                   up_mode=self._config.up_sampling,
+                                                   down_pool=self._config.down_pooling_ae,
+                                                   features_sigmoid_active=self._config.features_sigmoid_active)
         else:
             self.ae_net: Optional[AeConv] = None
 

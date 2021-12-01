@@ -228,6 +228,8 @@ class ConfigTrainer(ConfigBase):
     activation_fc_ch_params: bool = False
     use_dct: bool = False
     use_dct_input: bool = False
+    norm_fc: str = None  # None: no, 'batch_norm', 'layer_norm', 'instance_norm'
+    magnitude_norm: str = None  # None: no, 'batch_norm', 'layer_norm', 'instance_norm'
 
 
 

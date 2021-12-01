@@ -1,7 +1,7 @@
 
 from torch import Tensor
 import torch.nn as nn
-from typing import Optional, List
+from typing import Optional, List, Union
 
 
 class BlockList(nn.ModuleList):
@@ -24,21 +24,22 @@ class BlockList(nn.ModuleList):
         return x
 
 
-def get_norm_layer(input_norm_type: str, input_ch: int, img_size: Optional[int] = None) -> nn.Module:
-    if img_size is not None:
-        is_2d = True
-        assert img_size
+def get_norm_layer(name_type: str, input_ch: int, img_size: Optional[Union[int, List[int]]] = None,
+                   is_2d: bool = True) -> nn.Module:
+    name_type = name_type.lower()
+    if isinstance(img_size, int) and is_2d:
+        img_size = (img_size, img_size)
 
-    if input_norm_type is None:
+    if name_type is None:
         norm_layer = nn.Identity()
-    elif input_norm_type == 'batch_norm':
+    elif name_type == 'batch_norm':
         norm_layer = nn.BatchNorm2d(input_ch) if is_2d else nn.BatchNorm1d(input_ch)
-    elif input_norm_type == 'layer_norm':
-        norm_layer = nn.LayerNorm((input_ch, img_size, img_size)) if is_2d else nn.LayerNorm(input_ch)
-    elif input_norm_type == 'instance_norm':
-        norm_layer = nn.InstanceNorm2d((input_ch, img_size, img_size)) if is_2d else nn.InstanceNorm1d(input_ch)
+    elif name_type == 'layer_norm':
+        norm_layer = nn.LayerNorm((input_ch, img_size[0], img_size[1])) if is_2d else nn.LayerNorm(input_ch)
+    elif name_type == 'instance_norm':
+        norm_layer = nn.InstanceNorm2d((input_ch, img_size[0], img_size[1])) if is_2d else nn.InstanceNorm1d(input_ch)
     else:
-        raise NameError(f'Non valid type: {input_norm_type}')
+        raise NameError(f'Non valid type: {name_type}')
     return norm_layer
 
 

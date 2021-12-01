@@ -6,9 +6,10 @@ import torch.nn as nn
 from typing import List
 import torchjpeg.dct as jpeg_dct
 
-from common import get_flatten_fft2_size, get_fft2_freq, ConfigTrainer
+from common import ConfigTrainer
+import common.utils as utils
 
-from models.untils import BlockList
+from models.untils import BlockList, get_norm_layer
 from models.layers import FcBlock, ConvBlock, ResBlock
 from models.conv_unet import UNetConv
 
@@ -33,13 +34,14 @@ class PhaseRetrievalPredictor(nn.Module):
         else:
             self.inter_ch = self._config.predict_img_int_features_multi_coeff * out_ch
 
-        self.inter_mag_out_size = self._get_magnitude_size(out_img_size)
-        in_mag_size = self._get_magnitude_size(self._config.image_size)
-        self.in_features = get_flatten_fft2_size(in_mag_size,
-                                                 use_rfft=(self._config.use_rfft and not self._config.use_dct_input))
-        inter_flatten_size = get_flatten_fft2_size(self.inter_mag_out_size,
-                                                   use_rfft=(self._config.use_rfft and not self._config.use_dct))
-        self.inter_features = self.inter_ch * inter_flatten_size
+        self.inter_mag_out_size = utils.get_magnitude_size_2d(out_img_size, self._config.add_pad,
+                                                              use_rfft=(self._config.use_rfft and not self._config.use_dct))
+
+        in_mag_size_2d = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad,
+                                                     use_rfft=(self._config.use_rfft and not self._config.use_dct_input))
+        self.in_features = in_mag_size_2d[0]*in_mag_size_2d[1]
+
+        self.inter_features = self.inter_ch * self.inter_mag_out_size[0] * self.inter_mag_out_size[1]
 
         if self._config.deep_predict_fc is None:
             deep_fc = int(math.floor(math.log(self.inter_features / self.in_features,
@@ -48,11 +50,7 @@ class PhaseRetrievalPredictor(nn.Module):
         else:
             deep_fc = self._config.deep_predict_fc
 
-        self.fft_out_freq = get_fft2_freq(self.inter_mag_out_size,
-                                          use_rfft=(self._config.use_rfft and not self._config.use_dct))
-
-        self.out_features = self.out_ch * get_flatten_fft2_size(self.inter_mag_out_size,
-                                                                use_rfft=(self._config.use_rfft and not self._config.use_dct))
+        self.out_features = self.out_ch * self.inter_mag_out_size[0] * self.inter_mag_out_size[1]
 
         if self._config.predict_type == 'spectral':
             if self._config.use_dct:
@@ -65,16 +63,18 @@ class PhaseRetrievalPredictor(nn.Module):
             raise NameError(f'Not supported type_recon: {self._config.predict_type}')
 
         in_fc = self.in_features
+        self.input_norm = get_norm_layer(name_type=self._config.magnitude_norm, input_ch=self.in_features,
+                                         img_size=in_mag_size_2d, is_2d=True)
         self.fc_blocks = BlockList()
         for ind in range(deep_fc):
             if ind == deep_fc - 1:
                 out_fc = out_fc_features
             else:
                 out_fc = in_fc * self._config.predict_fc_multy_coeff
-            use_bn = (self._config.use_norm_enc_fc == 'bn')
+
             fc_block = FcBlock(in_fc, out_fc,
                                use_dropout=self._config.use_dropout_enc_fc,
-                               use_bn=use_bn,
+                               norm_type=self._config.norm_fc,
                                active_type=self._config.activation_fc_enc,
                                active_params=out_fc if self._config.activation_fc_ch_params else 1)
             in_fc = out_fc
@@ -112,6 +112,7 @@ class PhaseRetrievalPredictor(nn.Module):
             self.conv_blocks.append(conv_out)
 
     def forward(self, magnitude: Tensor) -> (Tensor, Tensor):
+        magnitude = self.input_norm(magnitude)
         if self._config.predict_type == 'spectral':
             out_features, intermediate_features = self._spectral_pred(magnitude)
         elif self._config.predict_type == 'phase':
@@ -136,17 +137,16 @@ class PhaseRetrievalPredictor(nn.Module):
     def _spectral_pred(self, magnitude: Tensor) -> (Tensor, Tensor):
         mag_flatten = magnitude.view(-1, self.in_features)
         fc_features = self.fc_blocks(mag_flatten)
-        out_fft_size = len(self.fft_out_freq)
         if self._config.use_dct:
-            spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size, self.inter_mag_out_size)
+            spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size[0], self.inter_mag_out_size[1])
             intermediate_features = 4.0 * jpeg_dct.block_idct(spectral)
             out_features = intermediate_features
         else:
-            spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size, out_fft_size, 2)
+            spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size[0], self.inter_mag_out_size[1], 2)
             spectral = torch.view_as_complex(spectral)
 
             if self._config.use_rfft:
-                intermediate_features = torch.fft.irfft2(spectral, (self.inter_mag_out_size, self.inter_mag_out_size),
+                intermediate_features = torch.fft.irfft2(spectral, (self.inter_mag_out_size[0], self.inter_mag_out_size[0]),
                                                          norm=self._config.fft_norm)
                 out_features = intermediate_features
 
@@ -158,10 +158,6 @@ class PhaseRetrievalPredictor(nn.Module):
         out_features = self.conv_blocks(out_features)
 
         return out_features, intermediate_features
-
-    def _get_magnitude_size(self, img_size: int) -> int:
-        pad_val = int(0.5 * self._config.add_pad * img_size)
-        return 2 * pad_val + img_size
 
 
 
