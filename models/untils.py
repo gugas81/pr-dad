@@ -38,8 +38,7 @@ def get_norm_layer(name_type: str, input_ch: int, img_size: Optional[Union[int, 
         norm_layer = nn.LayerNorm((input_ch, img_size[0], img_size[1]), elementwise_affine=affine) if is_2d else \
             nn.LayerNorm(input_ch, elementwise_affine=affine)
     elif name_type == 'instance_norm':
-        norm_layer = nn.InstanceNorm2d(input_ch, affine=affine) if is_2d else \
-            nn.InstanceNorm1d(input_ch, affine=affine)
+        norm_layer = nn.InstanceNorm2d(input_ch, affine=affine) if is_2d else nn.InstanceNorm1d(input_ch, affine=affine)
     else:
         raise NameError(f'Non valid type: {name_type}')
     return norm_layer
