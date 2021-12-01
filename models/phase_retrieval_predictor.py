@@ -64,7 +64,7 @@ class PhaseRetrievalPredictor(nn.Module):
 
         in_fc = self.in_features
         self.input_norm = get_norm_layer(name_type=self._config.magnitude_norm,
-                                         input_ch=self.in_features,
+                                         input_ch=1,
                                          img_size=input_mag_size_2d,
                                          is_2d=True,
                                          affine=True)
