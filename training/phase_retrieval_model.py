@@ -171,7 +171,7 @@ class PhaseRetrievalAeModel:
             data_batch_pad = transforms.functional.pad(data_batch, pad_value, padding_mode='edge')
         else:
             data_batch_pad = data_batch
-        if self._config.use_dct:
+        if self._config.use_dct_input:
             magnitude_batch = 0.25 * jpeg_dct.block_dct(data_batch_pad).abs()
         elif self._config.use_rfft:
             magnitude_batch = torch.fft.rfft2(data_batch_pad, norm=self._config.fft_norm).abs()

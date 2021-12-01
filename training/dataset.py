@@ -173,7 +173,7 @@ class PhaseRetrievalDataset(Dataset):
             image_data_pad = transforms.functional.pad(image_data, pad_value, padding_mode='edge')
         else:
             image_data_pad = image_data
-        if self._config.use_dct:
+        if self._config.use_dct_input:
             fft_data_batch = 0.25 * jpeg_dct.block_dct(image_data_pad[None])[0]
         elif self._use_rfft:
             fft_data_batch = torch.fft.rfft2(image_data_pad, norm=self._fft_norm)
