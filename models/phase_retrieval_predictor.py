@@ -66,7 +66,8 @@ class PhaseRetrievalPredictor(nn.Module):
         self.input_norm = get_norm_layer(name_type=self._config.magnitude_norm,
                                          input_ch=self.in_features,
                                          img_size=input_mag_size_2d,
-                                         is_2d=True)
+                                         is_2d=True,
+                                         affine=True)
         self.fc_blocks = BlockList()
         for ind in range(deep_fc):
             if ind == deep_fc - 1:
