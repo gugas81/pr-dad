@@ -26,7 +26,7 @@ class BlockList(nn.ModuleList):
 
 def get_norm_layer(name_type: str, input_ch: int, img_size: Optional[Union[int, List[int]]] = None,
                    is_2d: bool = True) -> nn.Module:
-    name_type = name_type.lower()
+    name_type = name_type.lower() if name_type else None
     if isinstance(img_size, int) and is_2d:
         img_size = (img_size, img_size)
 

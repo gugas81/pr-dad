@@ -37,9 +37,9 @@ class PhaseRetrievalPredictor(nn.Module):
         self.inter_mag_out_size = utils.get_magnitude_size_2d(out_img_size, self._config.add_pad,
                                                               use_rfft=(self._config.use_rfft and not self._config.use_dct))
 
-        in_mag_size_2d = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad,
-                                                     use_rfft=(self._config.use_rfft and not self._config.use_dct_input))
-        self.in_features = in_mag_size_2d[0]*in_mag_size_2d[1]
+        input_mag_size_2d = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad,
+                                                        use_rfft=(self._config.use_rfft and not self._config.use_dct_input))
+        self.in_features = input_mag_size_2d[0]*input_mag_size_2d[1]
 
         self.inter_features = self.inter_ch * self.inter_mag_out_size[0] * self.inter_mag_out_size[1]
 
@@ -63,8 +63,10 @@ class PhaseRetrievalPredictor(nn.Module):
             raise NameError(f'Not supported type_recon: {self._config.predict_type}')
 
         in_fc = self.in_features
-        self.input_norm = get_norm_layer(name_type=self._config.magnitude_norm, input_ch=self.in_features,
-                                         img_size=in_mag_size_2d, is_2d=True)
+        self.input_norm = get_norm_layer(name_type=self._config.magnitude_norm,
+                                         input_ch=self.in_features,
+                                         img_size=input_mag_size_2d,
+                                         is_2d=True)
         self.fc_blocks = BlockList()
         for ind in range(deep_fc):
             if ind == deep_fc - 1:
