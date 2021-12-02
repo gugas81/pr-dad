@@ -85,6 +85,11 @@ class PhaseRetrievalPredictor(nn.Module):
             self.fc_blocks.append(fc_block)
 
         self.weights_fc: List[nn.Parameter] = [fc_block.fc_seq[0].weight for fc_block in self.fc_blocks]
+        self.inter_norm = get_norm_layer(name_type=self._config.inter_norm,
+                                         input_ch=self.inter_ch,
+                                         img_size=self.out_img_size,
+                                         is_2d=True,
+                                         affine=True)
         self._build_conv_blocks(self._config.predict_conv_type,
                                 self._config.deep_predict_conv,
                                 active_type=self._config.activation_enc)
@@ -121,7 +126,7 @@ class PhaseRetrievalPredictor(nn.Module):
         elif self._config.predict_type == 'phase':
             out_features = self._angle_pred(magnitude)
             intermediate_features = out_features
-            out_features = out_features.real
+            out_features = self.inter_norm(out_features.real)
 
         if self._config.features_sigmoid_active:
             out_features = torch.sigmoid(out_features)
@@ -143,22 +148,21 @@ class PhaseRetrievalPredictor(nn.Module):
         if self._config.use_dct:
             spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size[0], self.inter_mag_out_size[1])
             intermediate_features = 4.0 * jpeg_dct.block_idct(spectral)
-            out_features = intermediate_features
         else:
             spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size[0], self.inter_mag_out_size[1], 2)
             spectral = torch.view_as_complex(spectral)
 
             if self._config.use_rfft:
-                intermediate_features = torch.fft.irfft2(spectral, (self.inter_mag_out_size[0], self.inter_mag_out_size[0]),
+                intermediate_features = torch.fft.irfft2(spectral,
+                                                         (self.inter_mag_out_size[0], self.inter_mag_out_size[0]),
                                                          norm=self._config.fft_norm)
-                out_features = intermediate_features
-
             else:
                 intermediate_features = torch.fft.ifft2(spectral, norm=self._config.fft_norm)
-                out_features = intermediate_features.real
+                # out_features = intermediate_features.real
 
-        out_features = torchvision.transforms.functional.center_crop(out_features, self.out_img_size)
-        out_features = self.conv_blocks(out_features)
+        intermediate_features = torchvision.transforms.functional.center_crop(intermediate_features, self.out_img_size)
+        intermediate_features = self.inter_norm(intermediate_features)
+        out_features = self.conv_blocks(intermediate_features)
 
         return out_features, intermediate_features
 
