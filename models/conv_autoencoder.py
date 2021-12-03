@@ -10,7 +10,7 @@ class AeConv(nn.Module):
                  down_pool: str = 'avrg_pool', active_type: str = 'leakly_relu', up_mode: str = 'bilinear',
                  features_sigmoid_active: bool = True, use_dictionary: bool = False):
         super(AeConv, self).__init__()
-        self.use_dictinary=use_dictionary
+        self.use_dictinary = use_dictionary
         self.features_sigmoid_active = features_sigmoid_active
         self.n_encoder_ch = n_encoder_ch
         scale_factor = 2 ** (deep-1)
@@ -30,14 +30,15 @@ class AeConv(nn.Module):
 
     def encode(self, x: Tensor) -> Tensor:
         features = self._encoder(x)
-        if self.use_dictinary:
-            features = features * self.dictionary
+
         if self.features_sigmoid_active:
             features = torch.sigmoid(features)
 
         return features
 
     def decode(self,  features: Tensor) -> Tensor:
+        if self.use_dictinary:
+            features = features * self.dictionary
         x_out = self._decoder(features)
         x_out = self.out_layer(x_out)
         # x_out = torch.sigmoid(x_out)
