@@ -27,7 +27,8 @@ class PhaseRetrievalAeModel:
                                                    active_type=self._config.activation_ae,
                                                    up_mode=self._config.up_sampling,
                                                    down_pool=self._config.down_pooling_ae,
-                                                   features_sigmoid_active=self._config.features_sigmoid_active)
+                                                   features_sigmoid_active=self._config.features_sigmoid_active,
+                                                   use_dictionary=self._config.use_ae_dictionary)
         else:
             self.ae_net: Optional[AeConv] = None
 

@@ -232,6 +232,7 @@ class ConfigTrainer(ConfigBase):
     magnitude_norm: str = None  # None: no, 'batch_norm', 'layer_norm', 'instance_norm'
     inter_norm: str = None # None: no, 'batch_norm', 'layer_norm', 'instance_norm'
     spectral_factor: float = 1.0
+    use_ae_dictionary: bool = False
 
 
 

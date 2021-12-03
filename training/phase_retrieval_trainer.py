@@ -695,8 +695,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             enc_layers_features_ts = enc_layers_list(self.data_ts_batch.image, use_residual=True)[1:]
 
             dec_layers_list = self._generator_model.ae_net._decoder.get_layers()
-            dec_layers_features_tr = dec_layers_list(enc_layers_features_tr[-1], use_residual=True)[1:]
-            dec_layers_features_ts = dec_layers_list(enc_layers_features_ts[-1], use_residual=True)[1:]
+            dec_layers_features_tr = dec_layers_list(recon_data_tr_batch.feature_encoder, use_residual=True)[1:]
+            dec_layers_features_ts = dec_layers_list(recon_data_ts_batch.feature_encoder, use_residual=True)[1:]
 
         img_grid_tr = self._grid_images(self.data_tr_batch, recon_data_tr_batch)
         img_grid_ts = self._grid_images(self.data_ts_batch, recon_data_ts_batch)
@@ -715,6 +715,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self.log_image_grid(img_diff_grid_ts, 'test-ae/img-diff-origin-recon', step)
         self.log_image_grid(features_grid_tr, 'train-ae/features', step)
         self.log_image_grid(features_grid_ts, 'test-ae/features', step)
+        if self._config.use_ae_dictionary:
+            ae_dictionary_grid = self._build_grid_features_map(self._generator_model.ae_net.dictionary)
+            self.log_image_grid(ae_dictionary_grid, 'ae_dictionary', step)
 
         for ind, (enc_layer_tr, enc_layer_ts) in enumerate(zip(enc_layers_grid_tr, enc_layers_grid_ts)):
             self.log_image_grid(enc_layer_tr, f'train-ae/enc_layer_{ind+1}', step)
