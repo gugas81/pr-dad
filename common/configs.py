@@ -231,6 +231,7 @@ class ConfigTrainer(ConfigBase):
     norm_fc: str = None  # None: no, 'batch_norm', 'layer_norm', 'instance_norm'
     magnitude_norm: str = None  # None: no, 'batch_norm', 'layer_norm', 'instance_norm'
     inter_norm: str = None # None: no, 'batch_norm', 'layer_norm', 'instance_norm'
+    spectral_factor: float = 1.0
 
 
 

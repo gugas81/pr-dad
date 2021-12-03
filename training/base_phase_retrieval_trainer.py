@@ -221,12 +221,12 @@ class BaseTrainerPhaseRetrieval:
             data_batch_pad = data_batch
 
         if self._config.use_dct_input:
-            fft_data_batch = 0.25 * jpeg_dct.block_dct(data_batch_pad)
+            fft_data_batch = jpeg_dct.block_dct(data_batch_pad)
         elif self._config.use_rfft:
             fft_data_batch = torch.fft.rfft2(data_batch_pad, norm=self._config.fft_norm)
         else:
             fft_data_batch = torch.fft.fft2(data_batch_pad, norm=self._config.fft_norm)
-        magnitude_batch = torch.abs(fft_data_batch)
+        magnitude_batch = self._config.spectral_factor * torch.abs(fft_data_batch)
         return magnitude_batch
 
     def _log_images(self, image_batch: Tensor, step: int, tag_name: str, num_images: Optional[int] = None,

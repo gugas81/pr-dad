@@ -147,7 +147,7 @@ class PhaseRetrievalPredictor(nn.Module):
         fc_features = self.fc_blocks(mag_flatten)
         if self._config.use_dct:
             spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size[0], self.inter_mag_out_size[1])
-            intermediate_features = 4.0 * jpeg_dct.block_idct(spectral)
+            intermediate_features = jpeg_dct.block_idct(spectral)
         else:
             spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size[0], self.inter_mag_out_size[1], 2)
             spectral = torch.view_as_complex(spectral)
@@ -161,6 +161,7 @@ class PhaseRetrievalPredictor(nn.Module):
                 # out_features = intermediate_features.real
 
         intermediate_features = torchvision.transforms.functional.center_crop(intermediate_features, self.out_img_size)
+        intermediate_features = (1/self._config.spectral_factor) * intermediate_features
         intermediate_features = self.inter_norm(intermediate_features)
         out_features = self.conv_blocks(intermediate_features)
 

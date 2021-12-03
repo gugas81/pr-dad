@@ -174,12 +174,12 @@ class PhaseRetrievalDataset(Dataset):
         else:
             image_data_pad = image_data
         if self._config.use_dct_input:
-            fft_data_batch = 0.25 * jpeg_dct.block_dct(image_data_pad[None])[0]
+            fft_data_batch = jpeg_dct.block_dct(image_data_pad[None])[0]
         elif self._use_rfft:
             fft_data_batch = torch.fft.rfft2(image_data_pad, norm=self._fft_norm)
         else:
             fft_data_batch = torch.fft.fft2(image_data_pad, norm=self._fft_norm)
-        fft_magnitude = torch.abs(fft_data_batch)
+        fft_magnitude = self._config.spectral_factor * torch.abs(fft_data_batch)
         return fft_magnitude
 
     def get_normalize_transform(self) -> torch.nn.Module:
