@@ -3,7 +3,7 @@ from typing import Dict, OrderedDict, List, Any, Optional
 import torch
 from torch import nn, Tensor
 from torchvision import transforms
-
+import common.utils as utils
 from common import InferredBatch, ConfigTrainer, DataBatch, S3FileSystem
 
 from training.utils import ModulesNames
@@ -168,7 +168,7 @@ class PhaseRetrievalAeModel:
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
         if self._config.add_pad > 0.0:
-            pad_value = int(0.5 * self._config.add_pad * self._config.image_size)
+            pad_value = utils.get_pad_val(self._config.image_size, self._config.add_pad)
             data_batch_pad = transforms.functional.pad(data_batch, pad_value, padding_mode='edge')
         else:
             data_batch_pad = data_batch
@@ -195,8 +195,5 @@ class PhaseRetrievalAeModel:
         if self._config.use_ref_net:
             self.ref_unet.train()
 
-    def _get_magnitude_size(self, img_size: int) -> int:
-        pad_val = int(0.5 * self._config.add_pad * img_size)
-        return 2 * pad_val + img_size
 
 

@@ -93,8 +93,12 @@ def get_fft2_freq(img_size: int, use_rfft: bool) -> List[int]:
     return (fft_freq_1d * img_size).numpy().astype(int).tolist()
 
 
-def get_padded_size(img_size: int, pad_val: int) -> int:
-    pad_val = int(0.5 * pad_val * img_size)
+def get_pad_val(img_size: int, add_pad: float) -> int:
+    return int(0.5 * add_pad * img_size)
+
+
+def get_padded_size(img_size: int, add_pad: float) -> int:
+    pad_val = get_pad_val(img_size, add_pad)
     return 2 * pad_val + img_size
 
 

@@ -233,6 +233,7 @@ class ConfigTrainer(ConfigBase):
     inter_norm: str = None # None: no, 'batch_norm', 'layer_norm', 'instance_norm'
     spectral_factor: float = 1.0
     use_ae_dictionary: bool = False
+    add_pad_out: float = 0.0
 
 
 

@@ -34,7 +34,7 @@ class PhaseRetrievalPredictor(nn.Module):
         else:
             self.inter_ch = self._config.predict_img_int_features_multi_coeff * out_ch
 
-        self.inter_mag_out_size = utils.get_magnitude_size_2d(out_img_size, self._config.add_pad,
+        self.inter_mag_out_size = utils.get_magnitude_size_2d(out_img_size, self._config.add_pad_out,
                                                               use_rfft=(self._config.use_rfft and not self._config.use_dct))
 
         input_mag_size_2d = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad,
@@ -160,7 +160,10 @@ class PhaseRetrievalPredictor(nn.Module):
                 intermediate_features = torch.fft.ifft2(spectral, norm=self._config.fft_norm)
                 # out_features = intermediate_features.real
 
-        intermediate_features = torchvision.transforms.functional.center_crop(intermediate_features, self.out_img_size)
+        if self._config.add_pad_out:
+            intermediate_features = torchvision.transforms.functional.center_crop(intermediate_features,
+                                                                                  self.out_img_size)
+
         intermediate_features = (1/self._config.spectral_factor) * intermediate_features
         intermediate_features = self.inter_norm(intermediate_features)
         out_features = self.conv_blocks(intermediate_features)

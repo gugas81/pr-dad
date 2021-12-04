@@ -1,8 +1,18 @@
 import numpy as np
+from typing import Optional
 import torch
 from torch import Tensor
 import torch.nn as nn
 from models.seq_blocks import EncoderConv, DecoderConv
+
+
+class AttDictionary(nn.Module):
+    def __init__(self, n_ch: int, img_size: int):
+        super().__init__()
+        self.dictionary = nn.Parameter(torch.randn((n_ch, img_size, img_size)), requires_grad=True)
+
+    def forward(self, features: Tensor) -> Tensor:
+        return features * self.dictionary
 
 
 class AeConv(nn.Module):
@@ -18,10 +28,9 @@ class AeConv(nn.Module):
         self.n_features_size = int(np.ceil(img_size / scale_factor))
         # padding_mode = 'replicate'
         if self.use_dictinary:
-            self.dictionary = torch.randn((self.n_features_ch, self.n_features_size, self.n_features_size))
-            self.dictionary = nn.Parameter(self.dictionary, requires_grad=True)
+            self.dictionary: Optional[AttDictionary] = AttDictionary(self.n_features_ch, self.n_features_size)
         else:
-            self.dictionary = None
+            self.dictionary: Optional[AttDictionary] = None
         self._encoder = EncoderConv(in_ch=img_ch, encoder_ch=self.n_encoder_ch, deep=deep,
                                     active_type=active_type, down_pool=down_pool, padding_mode='zeros')
         self._decoder = DecoderConv(output_ch=None, img_ch=self.n_features_ch, deep=deep,
@@ -44,9 +53,12 @@ class AeConv(nn.Module):
         # x_out = torch.clip(x_out, -1.0, 1.0)
         return x_out
 
+    def get_dictionary_maps(self) -> Optional[Tensor]:
+        return self.dictionary.dictionary if self.use_dictinary else None
+
     def apply_dictionary(self,  features: Tensor) -> Tensor:
         if self.use_dictinary:
-            features = features * self.dictionary
+            features = self.dictionary(features)
         return features
 
     def forward(self, x: Tensor) -> (Tensor, Tensor):

@@ -80,8 +80,12 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         if self._config.is_train_ae and (self._generator_model.ae_net is not None):
             self.optimizer_ae = optim.Adam(params=self._generator_model.ae_net.parameters(), lr=self.learning_rate)
+            if self._config.use_ae_dictionary:
+                self.optimizer_dict = optim.Adam(params=self._generator_model.ae_net.dictionary.parameters(),
+                                                 lr=self.learning_rate)
         else:
             self.optimizer_ae = None
+            self.optimizer_dict = None
 
         self.optimizer_en = optim.Adam(params=self._generator_model.get_params(), lr=self.learning_rate)
 
@@ -114,6 +118,11 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self._lr_scheduler_ae = MultiStepLR(self.optimizer_ae,
                                                 self._config.lr_milestones_ae,
                                                 self._config.lr_reduce_rate_ae)
+            if self._config.use_ae_dictionary:
+                self._lr_scheduler_dict = MultiStepLR(self.optimizer_dict,
+                                                    self._config.lr_milestones_ae,
+                                                    self._config.lr_reduce_rate_ae)
+
         else:
             self._lr_scheduler_ae = None
 
@@ -171,21 +180,27 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         return train_en_losses, test_en_losses
 
-    def train_epoch_ae(self, epoch: int = 0) -> LossesPRFeatures:
+    def train_epoch_ae(self, epoch: int = 0, train_dict: bool = False) -> LossesPRFeatures:
         train_losses = []
         p_bar_train_data_loader = tqdm(self.train_paired_loader)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
             data_batch = self.prepare_data_batch(data_batch, is_train=True)
-            self.optimizer_ae.zero_grad()
+            if train_dict:
+                self.optimizer_dict.zero_grad()
+            else:
+                self.optimizer_ae.zero_grad()
             inferred_batch = self._generator_model.forward_ae(data_batch)
             ae_losses = self._ae_losses(data_batch, inferred_batch)
 
             ae_losses.total.backward()
-            self.optimizer_ae.step()
+            if train_dict:
+                self.optimizer_dict.step()
+            else:
+                self.optimizer_ae.step()
             train_losses.append(ae_losses.detach())
 
             if batch_idx % self.log_interval == 0:
-                self._log.info(f'Train Epoch: {epoch} '
+                self._log.info(f'Train Epoch: {epoch}, train_dict: {train_dict}, '
                                f'[{batch_idx * len(data_batch)}/{len(self.train_paired_loader)} '
                                 f'({100. * batch_idx / len(self.train_paired_loader):.0f}%)], ae_losses: {ae_losses}')
                 self._add_losses_tensorboard('ae/train', ae_losses, self._global_step)
@@ -270,16 +285,25 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self._log.info(f' AE training: init ts losses: {init_ae_losses}')
         self._log_ae_train_dbg_batch(0)
         self._add_losses_tensorboard('ae/test', init_ae_losses, self._global_step)
-        for epoch in range(1, self.n_epochs_ae + 1):
-            tr_losses_epoch = self.train_epoch_ae(epoch)
+        n_epochs = self.n_epochs_ae
+        if self._config.use_ae_dictionary:
+            n_epochs *= 2
+        for epoch in range(1, n_epochs):
+            train_dict = epoch > self.n_epochs_ae
+            tr_losses_epoch = self.train_epoch_ae(epoch, train_dict=train_dict)
             tr_losses_epoch = tr_losses_epoch.mean()
 
             ts_losses_epoch = self.test_eval_ae()
-            ts_losses_epoch.lr = torch.tensor(self._lr_scheduler_ae.get_last_lr()[0])
 
-            self._lr_scheduler_ae.step()
+            if train_dict:
+                ts_losses_epoch.lr = torch.tensor(self._lr_scheduler_dict.get_last_lr()[0])
+                self._lr_scheduler_dict.step()
+            else:
+                ts_losses_epoch.lr = torch.tensor(self._lr_scheduler_ae.get_last_lr()[0])
+                self._lr_scheduler_ae.step()
+
             self._add_losses_tensorboard('ae/test', ts_losses_epoch, self._global_step)
-            self._log.info(f'AE training: Epoch {epoch}, '
+            self._log.info(f'AE training: Epoch {epoch}, train_dict: {train_dict}, '
                            f'l2_recon_err_tr: {tr_losses_epoch}, '
                             f'l2_recon_err_ts: {ts_losses_epoch}')
             with torch.no_grad():
@@ -719,7 +743,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self.log_image_grid(features_grid_tr, 'train-ae/features', step)
         self.log_image_grid(features_grid_ts, 'test-ae/features', step)
         if self._config.use_ae_dictionary:
-            ae_dictionary_grid = self._build_grid_features_map(self._generator_model.ae_net.dictionary[None])
+            ae_dictionary_grid = self._build_grid_features_map(self._generator_model.ae_net.get_dictionary_maps()[None])
             self.log_image_grid(ae_dictionary_grid, 'ae_dictionary', step)
 
         for ind, (enc_layer_tr, enc_layer_ts) in enumerate(zip(enc_layers_grid_tr, enc_layers_grid_ts)):

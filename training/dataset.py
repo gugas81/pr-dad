@@ -12,6 +12,7 @@ from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from torchvision.transforms import InterpolationMode
 from common import ConfigTrainer
+import common.utils as utils
 from training.augmentations import RandomGammaCorrection
 from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
 import torchjpeg.dct as jpeg_dct
@@ -169,7 +170,7 @@ class PhaseRetrievalDataset(Dataset):
 
     def _forward_magnitude_fft(self, image_data: Tensor) -> Tensor:
         if self._config.add_pad > 0.0:
-            pad_value = int(0.5 * self._config.add_pad * self._config.image_size)
+            pad_value = utils.get_pad_val(self._config.image_size, self._config.add_pad)
             image_data_pad = transforms.functional.pad(image_data, pad_value, padding_mode='edge')
         else:
             image_data_pad = image_data
