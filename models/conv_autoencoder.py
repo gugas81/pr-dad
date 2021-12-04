@@ -18,7 +18,7 @@ class AeConv(nn.Module):
         self.n_features_size = int(np.ceil(img_size / scale_factor))
         # padding_mode = 'replicate'
         if self.use_dictinary:
-            self.dictionary = torch.randn((self.n_encoder_ch, self.n_features_size, self.n_features_size))
+            self.dictionary = torch.randn((self.n_features_ch, self.n_features_size, self.n_features_size))
             self.dictionary = nn.Parameter(self.dictionary, requires_grad=True)
         else:
             self.dictionary = None
@@ -37,13 +37,17 @@ class AeConv(nn.Module):
         return features
 
     def decode(self,  features: Tensor) -> Tensor:
-        if self.use_dictinary:
-            features = features * self.dictionary
+        features = self.apply_dictionary(features)
         x_out = self._decoder(features)
         x_out = self.out_layer(x_out)
         # x_out = torch.sigmoid(x_out)
         # x_out = torch.clip(x_out, -1.0, 1.0)
         return x_out
+
+    def apply_dictionary(self,  features: Tensor) -> Tensor:
+        if self.use_dictinary:
+            features = features * self.dictionary
+        return features
 
     def forward(self, x: Tensor) -> (Tensor, Tensor):
         features = self.encode(x)
