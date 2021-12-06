@@ -147,7 +147,7 @@ class ConfigTrainer(ConfigBase):
     log_image_interval: int = 500
     fft_norm: str = "ortho"
     predict_type: str = 'spectral'
-    predict_fc_multy_coeff: int = 2
+    predict_fc_multy_coeff: float = 2.0
     predict_conv_type: str = 'ConvBlock'
     seed: int = 1
     use_aug: bool = True

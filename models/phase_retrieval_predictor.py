@@ -73,7 +73,7 @@ class PhaseRetrievalPredictor(nn.Module):
             if ind == deep_fc - 1:
                 out_fc = out_fc_features
             else:
-                out_fc = in_fc * self._config.predict_fc_multy_coeff
+                out_fc = int(math.floor(in_fc * self._config.predict_fc_multy_coeff))
 
             fc_block = FcBlock(in_fc, out_fc,
                                use_dropout=self._config.use_dropout_enc_fc,
