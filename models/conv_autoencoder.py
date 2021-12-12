@@ -18,10 +18,12 @@ class AttDictionary(nn.Module):
 class MulDictionary(nn.Module):
     def __init__(self, dim: int, img_size: int):
         super().__init__()
+        self.dim = dim
+        self.img_size = img_size
         self.dictionary = nn.Parameter(torch.randn((dim, img_size, img_size)), requires_grad=True)
 
     def forward(self, coeff: Tensor) -> Tensor:
-        return coeff * self.dictionary
+        return torch.matmul(coeff,  self.dictionary.view(1, self.dim , -1)).view(-1,coeff.shape[1] , self.img_size, self.img_size)
 
 
 class MapToCoeff(nn.Module):
@@ -31,7 +33,7 @@ class MapToCoeff(nn.Module):
         self.out_ch = out_ch
         self.in_features = in_ch * (img_size ** 2)
 
-        self.mlp_maps = MlpDown(in_ch=self.in_features, deep=deep_mlp, out_ch=out_coeff)
+        self.mlp_maps = MlpDown(in_ch=self.in_features, deep=deep_mlp, out_ch=self.out_coeff*self.out_ch)
 
     def forward(self, features: Tensor) -> Tensor:
         coeff = self.mlp_maps(features.view(-1, self.in_features))
@@ -41,7 +43,7 @@ class MapToCoeff(nn.Module):
 class AeConv(nn.Module):
     def __init__(self, img_ch: int = 1, output_ch: int = 1, n_encoder_ch: int = 16, img_size: int = 32, deep: int = 3,
                  down_pool: str = 'avrg_pool', active_type: str = 'leakly_relu', up_mode: str = 'bilinear',
-                 features_sigmoid_active: bool = True, use_dictionary: bool = False):
+                 features_sigmoid_active: bool = True, use_dictionary: bool = False, dict_len: int = 16):
         super(AeConv, self).__init__()
         self.use_dictinary = use_dictionary
         self.features_sigmoid_active = features_sigmoid_active
@@ -51,8 +53,11 @@ class AeConv(nn.Module):
         self.n_features_size = int(np.ceil(img_size / scale_factor))
         # padding_mode = 'replicate'
         if self.use_dictinary:
-            self.dictionary: Optional[MulDictionary] = MulDictionary(self.n_features_ch, self.n_features_size)
-            self.map_to_coeff = MapToCoeff(self.n_features_ch, self.n_features_size,self.n_features_ch)
+            self.dictionary: Optional[MulDictionary] = MulDictionary(dict_len, self.n_features_size)
+            self.map_to_coeff = MapToCoeff(self.n_features_ch,
+                                           self.n_features_size,
+                                           out_coeff=dict_len,
+                                           out_ch=self.n_features_ch)
         else:
             self.dictionary: Optional[MulDictionary] = None
         self._encoder = EncoderConv(in_ch=img_ch, encoder_ch=self.n_encoder_ch, deep=deep,

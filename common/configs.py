@@ -234,6 +234,7 @@ class ConfigTrainer(ConfigBase):
     spectral_factor: float = 1.0
     use_ae_dictionary: bool = False
     add_pad_out: float = 0.0
+    dict_len: int = 16
 
 
 

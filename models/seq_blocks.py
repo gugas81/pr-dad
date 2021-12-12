@@ -14,6 +14,7 @@ class MlpDown(nn.Module):
                  norm_type: str = None,
                  active_type: str = 'leakly_relu',
                  active_params: int = 1):
+        super(MlpDown, self).__init__()
         self.fc_layers = BlockList()
 
         if ch_list is None or len(ch_list) == 0:
@@ -23,13 +24,12 @@ class MlpDown(nn.Module):
 
         for ind_block in range(deep-1):
             fc_block = FcBlock(in_features=ch_list[ind_block],
-                               out_features=ind_block[ind_block+1],
+                               out_features=ch_list[ind_block+1],
                                use_dropout=use_dropout,
                                norm_type=norm_type,
                                active_type=active_type,
                                active_params=active_params)
             self.fc_layers.append(fc_block)
-
 
     def forward(self, x: Tensor) -> Tensor:
         return self.fc_layers(x)
