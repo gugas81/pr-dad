@@ -142,14 +142,16 @@ class PhaseRetrievalAeModel:
         else:
             feature_encoder = None
             decoded_batch = None
+            dec_features_batch_recon = None
 
         inferred_batch = InferredBatch(img_recon=recon_batch,
                                        feature_recon=enc_features_batch_recon,
+                                       feature_recon_decoder=dec_features_batch_recon,
                                        feature_encoder=feature_encoder,
                                        decoded_img=decoded_batch,
                                        intermediate_features=intermediate_features)
         if self._config.use_ref_net:
-            inferred_batch.img_recon_ref = self.ref_unet(recon_batch.detach(), feature_decoder.detach())
+            inferred_batch.img_recon_ref = self.ref_unet(recon_batch.detach(), dec_features_batch_recon.detach())
             inferred_batch.fft_magnitude_recon_ref = self.forward_magnitude_fft(inferred_batch.img_recon_ref)
 
         if eval_mode:
