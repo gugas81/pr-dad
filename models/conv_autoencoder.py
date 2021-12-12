@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 from torch import Tensor
 import torch.nn as nn
-from models.seq_blocks import EncoderConv, DecoderConv
+from models.seq_blocks import EncoderConv, DecoderConv, MlpDown
 
 
 class AttDictionary(nn.Module):
@@ -13,6 +13,29 @@ class AttDictionary(nn.Module):
 
     def forward(self, features: Tensor) -> Tensor:
         return features * self.dictionary
+
+
+class MulDictionary(nn.Module):
+    def __init__(self, dim: int, img_size: int):
+        super().__init__()
+        self.dictionary = nn.Parameter(torch.randn((dim, img_size, img_size)), requires_grad=True)
+
+    def forward(self, coeff: Tensor) -> Tensor:
+        return coeff * self.dictionary
+
+
+class MapToCoeff(nn.Module):
+    def __init__(self, in_ch: int, img_size: int, out_coeff: int, out_ch: int, deep_mlp: int = 3):
+        super().__init__()
+        self.out_coeff = out_coeff
+        self.out_ch = out_ch
+        self.in_features = in_ch * (img_size ** 2)
+
+        self.mlp_maps = MlpDown(in_ch=self.in_features, deep=deep_mlp, out_ch=out_coeff)
+
+    def forward(self, features: Tensor) -> Tensor:
+        coeff = self.mlp_maps(features.view(-1, self.in_features))
+        return coeff.view(-1, self.out_ch,  self.out_coeff)
 
 
 class AeConv(nn.Module):
@@ -28,9 +51,10 @@ class AeConv(nn.Module):
         self.n_features_size = int(np.ceil(img_size / scale_factor))
         # padding_mode = 'replicate'
         if self.use_dictinary:
-            self.dictionary: Optional[AttDictionary] = AttDictionary(self.n_features_ch, self.n_features_size)
+            self.dictionary: Optional[MulDictionary] = MulDictionary(self.n_features_ch, self.n_features_size)
+            self.map_to_coeff = MapToCoeff(self.n_features_ch, self.n_features_size,self.n_features_ch)
         else:
-            self.dictionary: Optional[AttDictionary] = None
+            self.dictionary: Optional[MulDictionary] = None
         self._encoder = EncoderConv(in_ch=img_ch, encoder_ch=self.n_encoder_ch, deep=deep,
                                     active_type=active_type, down_pool=down_pool, padding_mode='zeros')
         self._decoder = DecoderConv(output_ch=None, img_ch=self.n_features_ch, deep=deep,
@@ -46,26 +70,34 @@ class AeConv(nn.Module):
         return features
 
     def decode(self,  features: Tensor) -> Tensor:
-        features = self.apply_dictionary(features)
+        # features = self.apply_dictionary(features)
         x_out = self._decoder(features)
         x_out = self.out_layer(x_out)
         # x_out = torch.sigmoid(x_out)
         # x_out = torch.clip(x_out, -1.0, 1.0)
         return x_out
 
-    def get_dictionary_maps(self) -> Optional[Tensor]:
+    def get_dictionary(self) -> Optional[Tensor]:
         return self.dictionary.dictionary if self.use_dictinary else None
 
-    def apply_dictionary(self,  features: Tensor) -> Tensor:
+    def apply_dictionary(self,  coeff: Tensor) -> Tensor:
+        return self.dictionary(coeff)
+
+    def map_to_dec_features(self, enc_features: Tensor) -> Tensor:
         if self.use_dictinary:
-            features = self.dictionary(features)
-        return features
+            coeff = self.map_to_coeff(enc_features)
+            dec_features = self.apply_dictionary(coeff)
+        else:
+            dec_features = enc_features
+
+        return dec_features
 
     def forward(self, x: Tensor) -> (Tensor, Tensor):
-        features = self.encode(x)
-        x_out = self.decode(features)
+        enc_features = self.encode(x)
+        dec_features = self.map_to_dec_features(enc_features)
+        x_out = self.decode(dec_features)
 
-        return x_out, features
+        return x_out, enc_features
 
 
 

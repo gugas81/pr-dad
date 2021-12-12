@@ -127,26 +127,28 @@ class PhaseRetrievalAeModel:
             fft_magnitude = data_batch.fft_magnitude_noised
         else:
             fft_magnitude = data_batch.fft_magnitude
-        features_batch_recon, intermediate_features = self.phase_predictor(fft_magnitude)
+        enc_features_batch_recon, intermediate_features = self.phase_predictor(fft_magnitude)
         if self._config.predict_out == 'features':
-            recon_batch = self.ae_net.decode(features_batch_recon)
+            dec_features_batch_recon = self.ae_net.map_to_dec_features(enc_features_batch_recon)
+            recon_batch = self.ae_net.decode(dec_features_batch_recon)
         elif self._config.predict_out == 'images':
-            recon_batch = features_batch_recon
+            recon_batch = enc_features_batch_recon
 
         if self._config.predict_out == 'features':
             feature_encoder = self.ae_net.encode(data_batch.image)
+            feature_decoder = self.ae_net.map_to_dec_features(feature_encoder)
             decoded_batch = self.ae_net.decode(feature_encoder)
         else:
             feature_encoder = None
             decoded_batch = None
 
         inferred_batch = InferredBatch(img_recon=recon_batch,
-                                       feature_recon=features_batch_recon,
+                                       feature_recon=enc_features_batch_recon,
                                        feature_encoder=feature_encoder,
                                        decoded_img=decoded_batch,
                                        intermediate_features=intermediate_features)
         if self._config.use_ref_net:
-            inferred_batch.img_recon_ref = self.ref_unet(recon_batch.detach(), features_batch_recon.detach())
+            inferred_batch.img_recon_ref = self.ref_unet(recon_batch.detach(), feature_decoder.detach())
             inferred_batch.fft_magnitude_recon_ref = self.forward_magnitude_fft(inferred_batch.img_recon_ref)
 
         if eval_mode:
@@ -160,11 +162,11 @@ class PhaseRetrievalAeModel:
             img_batch = data_batch.image_noised
         else:
             img_batch = data_batch.image
-        recon_batch, features_batch = self.ae_net(img_batch)
-        feature_recon = self.ae_net.encode(recon_batch)
+        recon_batch, enc_features_batch = self.ae_net(img_batch)
+        enc_feature_recon = self.ae_net.encode(recon_batch)
         if eval_mode:
             self.set_train_mode()
-        return InferredBatch(img_recon=recon_batch, feature_encoder=features_batch, feature_recon=feature_recon)
+        return InferredBatch(img_recon=recon_batch, feature_encoder=enc_features_batch, feature_recon=enc_feature_recon)
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
         if self._config.add_pad > 0.0:
