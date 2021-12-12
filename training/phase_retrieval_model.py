@@ -148,6 +148,7 @@ class PhaseRetrievalAeModel:
                                        feature_recon=enc_features_batch_recon,
                                        feature_recon_decoder=dec_features_batch_recon,
                                        feature_encoder=feature_encoder,
+                                       feature_decoder=feature_decoder,
                                        decoded_img=decoded_batch,
                                        intermediate_features=intermediate_features)
         if self._config.use_ref_net:

@@ -321,8 +321,12 @@ class BaseTrainerPhaseRetrieval:
 
     def _grid_features(self, inferred_batch: InferredBatch) -> Tensor:
         features_batch = [inferred_batch.feature_recon[:self._config.dbg_features_batch]]
+        if inferred_batch.feature_recon_decoder is not None:
+            features_batch.append(inferred_batch.feature_recon_decoder[:self._config.dbg_features_batch])
         if inferred_batch.feature_encoder is not None:
             features_batch.append(inferred_batch.feature_encoder[:self._config.dbg_features_batch])
+        if inferred_batch.feature_decoder is not None:
+            features_batch.append(inferred_batch.feature_decoder[:self._config.dbg_features_batch])
         features_batch = torch.cat(features_batch, dim=-2)
 
         features_grid = self._build_grid_features_map(features_batch)

@@ -454,8 +454,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         if self._config.predict_out == 'features':
             feature_disrm_loss = self._discrim_ls_loss(self.features_discriminator,
-                                                       real_img=inferred_batch.feature_encoder,
-                                                       generated_imgs=[inferred_batch.feature_recon],
+                                                       real_img=inferred_batch.feature_decoder,
+                                                       generated_imgs=[inferred_batch.feature_recon_decoder],
                                                        real_labels=real_labels,
                                                        fake_labels=fake_labels)
             tr_losses.disrm_loss += self._config.lambda_discrim_features * feature_disrm_loss
@@ -495,11 +495,11 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
         l1_img_loss = self.l1_loss(data_batch.image, inferred_batch.img_recon)
         l2_img_loss = self.l2_loss(data_batch.image, inferred_batch.img_recon)
-        l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
+        l1_sparsity_features = torch.mean(inferred_batch.feature_recon_decoder.abs())
         l1_magnitude_loss = self.l1_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
         l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
-        l1_features_loss = self.l1_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
-        l2_features_loss = self.l2_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
+        l1_features_loss = self.l1_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
+        l2_features_loss = self.l2_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
         total_loss = l1_img_loss + l2_img_loss + l2_features_loss + \
                       0.5 * self._config.lambda_sparsity_features * l1_sparsity_features
         losses = LossesPRFeatures(total=total_loss,
@@ -527,8 +527,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         l2_img_recon_loss = self.l2_img_loss(data_batch.image, inferred_batch.img_recon)
 
         if self._config.predict_out == 'features':
-            l1_features_loss = self.l1_img_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
-            l2_features_loss = self.l2_img_loss(inferred_batch.feature_encoder, inferred_batch.feature_recon)
+            l1_features_loss = self.l1_img_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
+            l2_features_loss = self.l2_img_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
             l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
         else:
             l1_features_loss = None
@@ -612,8 +612,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                 p_loss_discrim_ref_img = None
 
             if self._config.predict_out == 'features':
-                f_disc_generated_batch: DiscriminatorBatch = self.features_discriminator(inferred_batch.feature_recon)
-                f_disc_real_batch: DiscriminatorBatch = self.features_discriminator(inferred_batch.feature_encoder)
+                f_disc_generated_batch: DiscriminatorBatch = self.features_discriminator(inferred_batch.feature_recon_decoder)
+                f_disc_real_batch: DiscriminatorBatch = self.features_discriminator(inferred_batch.feature_decoder)
                 p_loss_discrim_f = l2_perceptual_loss(f_disc_generated_batch.features, f_disc_real_batch.features,
                                                       weights=self._config.weights_plos)
                 features_adv_loss = self.adv_loss(f_disc_generated_batch.validity, real_labels)

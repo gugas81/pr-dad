@@ -127,6 +127,7 @@ class InferredBatch(TensorBatch):
     feature_recon: Optional[Tensor] = None
     feature_recon_decoder: Optional[Tensor] = None
     feature_encoder: Optional[Tensor] = None
+    feature_decoder: Optional[Tensor] = None
     decoded_img: Optional[Tensor] = None
     intermediate_features: Optional[Tensor] = None
 
