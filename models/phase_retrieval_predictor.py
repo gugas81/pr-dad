@@ -37,9 +37,13 @@ class PhaseRetrievalPredictor(nn.Module):
         self.inter_mag_out_size = utils.get_magnitude_size_2d(out_img_size, self._config.add_pad_out,
                                                               use_rfft=(self._config.use_rfft and not self._config.use_dct))
 
-        input_mag_size_2d = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad,
-                                                        use_rfft=(self._config.use_rfft and not self._config.use_dct_input))
-        self.in_features = input_mag_size_2d[0]*input_mag_size_2d[1]
+        self.input_mag_size_2d = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad,
+                                                             use_rfft=(self._config.use_rfft and not self._config.use_dct_input))
+
+        # if self._config.use_dct and not self._config.use_dct_input:
+        #     self.input_mag_size_2d[0] = self.input_mag_size_2d[1]
+
+        self.in_features = self.input_mag_size_2d[0]*self.input_mag_size_2d[1]
 
         self.inter_features = self.inter_ch * self.inter_mag_out_size[0] * self.inter_mag_out_size[1]
 
@@ -65,7 +69,7 @@ class PhaseRetrievalPredictor(nn.Module):
         in_fc = self.in_features
         self.input_norm = get_norm_layer(name_type=self._config.magnitude_norm,
                                          input_ch=1,
-                                         img_size=input_mag_size_2d,
+                                         img_size=self.input_mag_size_2d,
                                          is_2d=True,
                                          affine=True)
         self.fc_blocks = BlockList()
@@ -143,6 +147,10 @@ class PhaseRetrievalPredictor(nn.Module):
         return out_features
 
     def _spectral_pred(self, magnitude: Tensor) -> (Tensor, Tensor):
+        magnitude = torchvision.transforms.functional.crop(magnitude, 0, 0,
+                                                           self.input_mag_size_2d[0],
+                                                           self.input_mag_size_2d[1])
+
         mag_flatten = magnitude.view(-1, self.in_features)
         fc_features = self.fc_blocks(mag_flatten)
         if self._config.use_dct:

@@ -102,13 +102,13 @@ def get_padded_size(img_size: int, add_pad: float) -> int:
     return 2 * pad_val + img_size
 
 
-def get_fft2_last_size(img_size: int, use_rfft: bool) -> int :
+def get_fft2_last_size(img_size: int, use_rfft: bool) -> int:
     return len(get_fft2_freq(img_size, use_rfft))
 
 
-def get_magnitude_size_2d(img_size: int, pad_val: int, use_rfft: bool) -> (int, int):
+def get_magnitude_size_2d(img_size: int, pad_val: int, use_rfft: bool) -> List[int]:
     pad_size = get_padded_size(img_size, pad_val)
-    return pad_size, get_fft2_last_size(pad_size, use_rfft)
+    return [pad_size, get_fft2_last_size(pad_size, use_rfft)]
 
 
 def get_flatten_fft2_size(img_size:  int, use_rfft: bool) -> int:
