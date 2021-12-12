@@ -97,12 +97,12 @@ class AeConv(nn.Module):
 
         return dec_features
 
-    def forward(self, x: Tensor) -> (Tensor, Tensor):
+    def forward(self, x: Tensor) -> (Tensor, Tensor, Tensor):
         enc_features = self.encode(x)
         dec_features = self.map_to_dec_features(enc_features)
         x_out = self.decode(dec_features)
 
-        return x_out, enc_features
+        return x_out, enc_features, dec_features
 
 
 

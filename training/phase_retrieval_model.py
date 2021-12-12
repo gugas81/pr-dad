@@ -166,11 +166,12 @@ class PhaseRetrievalAeModel:
             img_batch = data_batch.image_noised
         else:
             img_batch = data_batch.image
-        recon_batch, enc_features_batch = self.ae_net(img_batch)
+        recon_batch, enc_features_batch, dec_features_batch = self.ae_net(img_batch)
         enc_feature_recon = self.ae_net.encode(recon_batch)
         if eval_mode:
             self.set_train_mode()
-        return InferredBatch(img_recon=recon_batch, feature_encoder=enc_features_batch, feature_recon=enc_feature_recon)
+        return InferredBatch(img_recon=recon_batch, feature_encoder=enc_features_batch, feature_recon=enc_feature_recon,
+                             feature_decoder=dec_features_batch)
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
         if self._config.add_pad > 0.0:
