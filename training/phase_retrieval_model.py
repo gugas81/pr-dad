@@ -141,7 +141,7 @@ class PhaseRetrievalAeModel:
         if self._config.predict_out == 'features':
             feature_encoder = self.ae_net.encode(data_batch.image)
             feature_decoder = self.ae_net.map_to_dec_features(feature_encoder)
-            decoded_batch = self.ae_net.decode(feature_encoder)
+            decoded_batch = self.ae_net.decode(feature_decoder)
         else:
             feature_encoder = None
             decoded_batch = None
