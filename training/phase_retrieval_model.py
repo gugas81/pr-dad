@@ -21,7 +21,10 @@ class PhaseRetrievalAeModel:
         self._s3 = s3
         self.n_encoder_ch = config.n_features // 2**(self._config.deep_ae-1)
         if self._config.predict_out == 'features':
+            # n_enc_features: int = None, n_dec_features: int = None,
             self.ae_net: Optional[AeConv] = AeConv(n_encoder_ch=self.n_encoder_ch,
+                                                   n_enc_features=config.n_features,
+                                                   n_dec_features=config.n_features_dec,
                                                    img_size=self._config.image_size,
                                                    deep=self._config.deep_ae,
                                                    active_type=self._config.activation_ae,
@@ -36,7 +39,7 @@ class PhaseRetrievalAeModel:
         self._log.debug(f'=======AE-NET=======: \n {self.ae_net}')
 
         if self._config.predict_out == 'features':
-            predict_out_ch = self.ae_net.n_features_ch
+            predict_out_ch = self.ae_net.n_enc_features_ch
             predict_out_size = self.ae_net.n_features_size
         elif self._config.predict_out == 'images':
             predict_out_ch = 1
@@ -51,7 +54,7 @@ class PhaseRetrievalAeModel:
 
         if self._config.use_ref_net:
             if self._config.predict_out == 'features':
-                in_ch_features = self.ae_net.n_features_ch
+                in_ch_features = self.ae_net.n_enc_features_ch
             else:
                 in_ch_features = None
             self.ref_unet = UNetConv(n_encoder_ch=self.n_encoder_ch,
@@ -170,7 +173,10 @@ class PhaseRetrievalAeModel:
         enc_feature_recon = self.ae_net.encode(recon_batch)
         if eval_mode:
             self.set_train_mode()
-        return InferredBatch(img_recon=recon_batch, feature_encoder=enc_features_batch, feature_recon=enc_feature_recon,
+        return InferredBatch(img_recon=recon_batch,
+                             feature_encoder=enc_features_batch,
+                             feature_recon=enc_feature_recon,
+                             feature_recon_decoder=dec_features_batch,
                              feature_decoder=dec_features_batch)
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
@@ -186,7 +192,6 @@ class PhaseRetrievalAeModel:
         else:
             magnitude_batch = torch.fft.fft2(data_batch_pad, norm=self._config.fft_norm).abs()
         return self._config.spectral_factor * magnitude_batch
-
 
     def set_eval_mode(self):
         self.phase_predictor.eval()

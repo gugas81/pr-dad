@@ -46,9 +46,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         if self._config.use_gan:
             if self._config.predict_out == 'features':
-                in_conv_ch = self._generator_model.ae_net.n_features_ch \
+                in_conv_ch = self._generator_model.ae_net.n_enc_features_ch \
                     if self._config.discrim_features_ch is None else self._config.discrim_features_ch
-                self.features_discriminator = Discriminator(input_ch=self._generator_model.ae_net.n_features_ch,
+                self.features_discriminator = Discriminator(input_ch=self._generator_model.ae_net.n_enc_features_ch,
                                                             in_conv_ch=in_conv_ch,
                                                             input_norm_type=self._config.disrim_input_norm,
                                                             fc_norm_type=self._config.disrim_fc_norm,

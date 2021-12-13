@@ -42,6 +42,7 @@ class MapToCoeff(nn.Module):
 
 class AeConv(nn.Module):
     def __init__(self, img_ch: int = 1, output_ch: int = 1, n_encoder_ch: int = 16, img_size: int = 32, deep: int = 3,
+                 n_enc_features: int = None, n_dec_features: int = None,
                  down_pool: str = 'avrg_pool', active_type: str = 'leakly_relu', up_mode: str = 'bilinear',
                  features_sigmoid_active: bool = True, use_dictionary: bool = False, dict_len: int = 16):
         super(AeConv, self).__init__()
@@ -49,20 +50,22 @@ class AeConv(nn.Module):
         self.features_sigmoid_active = features_sigmoid_active
         self.n_encoder_ch = n_encoder_ch
         scale_factor = 2 ** (deep-1)
-        self.n_features_ch = self.n_encoder_ch * scale_factor
+        self.n_enc_features_ch = self.n_encoder_ch * scale_factor if n_enc_features is None else n_enc_features
+        self.n_dec_features_ch = self.n_enc_features_ch if n_dec_features is None else n_dec_features
         self.n_features_size = int(np.ceil(img_size / scale_factor))
         # padding_mode = 'replicate'
         if self.use_dictinary:
             self.dictionary: Optional[MulDictionary] = MulDictionary(dict_len, self.n_features_size)
-            self.map_to_coeff = MapToCoeff(self.n_features_ch,
-                                           self.n_features_size,
+            self.map_to_coeff = MapToCoeff(in_ch=self.n_enc_features_ch,
+                                           img_size=self.n_features_size,
                                            out_coeff=dict_len,
-                                           out_ch=self.n_features_ch)
+                                           out_ch=self.n_dec_features_ch)
         else:
+            assert self.n_enc_features_ch == self.n_dec_features_ch
             self.dictionary: Optional[MulDictionary] = None
         self._encoder = EncoderConv(in_ch=img_ch, encoder_ch=self.n_encoder_ch, deep=deep,
                                     active_type=active_type, down_pool=down_pool, padding_mode='zeros')
-        self._decoder = DecoderConv(output_ch=None, img_ch=self.n_features_ch, deep=deep,
+        self._decoder = DecoderConv(output_ch=None, img_ch=self.n_dec_features_ch, deep=deep,
                                     up_mode=up_mode, active_type=active_type)
         self.out_layer = nn.Conv2d(self._decoder.ch_out[-1], output_ch, kernel_size=1, stride=1, padding=0)
 

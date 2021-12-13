@@ -37,7 +37,10 @@ class MlpDown(nn.Module):
 
 class EncoderConv(nn.Module):
     def __init__(self, in_ch=1, encoder_ch=8, deep: int = 3, last_down: bool = True, use_res_blocks: bool = False,
-                 down_pool: str = 'avrg_pool', active_type: str = 'leakly_relu', padding_mode: str = 'zeros'):
+                 out_ch: Optional[int] = None,
+                 down_pool: str = 'avrg_pool',
+                 active_type: str = 'leakly_relu',
+                 padding_mode: str = 'zeros'):
         super(EncoderConv, self).__init__()
         self.encoder_ch = encoder_ch
         self.deep = deep
@@ -47,6 +50,9 @@ class EncoderConv(nn.Module):
         self.out_ch = []
         curr_out_ch = encoder_ch
         for ind_block in range(self.deep):
+            if ind_block == self.deep - 1 and out_ch:
+                curr_out_ch = out_ch
+
             self.out_ch.append(curr_out_ch)
             if ind_block == 0 or (ind_block == self.deep - 1 and not last_down):
                 # if use_res_blocks:
@@ -60,6 +66,7 @@ class EncoderConv(nn.Module):
 
             if ind_block < self.deep - 1:
                 curr_out_ch *= 2
+
 
             self.conv_down_blocks.append(conv_block)
 

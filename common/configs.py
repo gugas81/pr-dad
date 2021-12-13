@@ -235,6 +235,7 @@ class ConfigTrainer(ConfigBase):
     use_ae_dictionary: bool = False
     add_pad_out: float = 0.0
     dict_len: int = 16
+    n_features_dec: int = 64
 
 
 
