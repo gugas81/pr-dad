@@ -53,13 +53,10 @@ class PhaseRetrievalAeModel:
         self._log.debug(f'=======PhaseRetrievalPredictor=======: \n {self.phase_predictor}')
 
         if self._config.use_ref_net:
-            if self._config.predict_out == 'features':
-                in_ch_features = self.ae_net.n_enc_features_ch
-            else:
-                in_ch_features = None
+            ch_features = self.ae_net.n_dec_features_ch if self._config.predict_out == 'features' else None
             self.ref_unet = UNetConv(n_encoder_ch=self.n_encoder_ch,
                                      deep=self._config.deep_ae,
-                                     in_ch_features=in_ch_features,
+                                     in_ch_features=ch_features,
                                      skip_input=self._config.ref_net_skip_input,
                                      active_type=self._config.activation_refnet,
                                      up_mode=self._config.up_sampling,
