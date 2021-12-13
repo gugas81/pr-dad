@@ -178,7 +178,7 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         self._save_dbg_img(self.data_ts_batch, inferred_batch_ts, save_url, 'ts')
 
     def _save_dbg_img(self, data_batch: DataBatch, inferred_batch: InferredBatch, save_url: str, prefix: str):
-        img_grid_grid, img_diff_grid_grid, fft_magnitude_grid, features_grid_grid = \
+        img_grid_grid, img_diff_grid_grid, fft_magnitude_grid, features_enc_grid_grid, features_dec_grid_grid = \
             self._debug_images_grids(data_batch, inferred_batch, normalize_img=False)
         self._save_img_to_s3(img_grid_grid,
                              os.path.join(save_url, f'{prefix}-img-origin-ae-recon-ref.png'))
@@ -186,9 +186,12 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
                              os.path.join(save_url, f'{prefix}-fft_magnitude-origin-ae-recon.png'))
         self._save_img_to_s3(img_diff_grid_grid,
                              os.path.join(save_url, f'{prefix}-img-diff-origin-ae-recon-ref.png'))
-        if features_grid_grid is not None:
-            self._save_img_to_s3(features_grid_grid,
-                                 os.path.join(save_url, f'{prefix}-features-origin-recon.png'))
+        if features_enc_grid_grid is not None:
+            self._save_img_to_s3(features_enc_grid_grid,
+                                 os.path.join(save_url, f'{prefix}-features-enc-origin-recon.png'))
+        if features_dec_grid_grid is not None:
+            self._save_img_to_s3(features_dec_grid_grid,
+                                 os.path.join(save_url, f'{prefix}-features-dec-origin-recon.png'))
 
 
 if __name__ == '__main__':

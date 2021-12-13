@@ -319,18 +319,21 @@ class BaseTrainerPhaseRetrieval:
         img_grid = torchvision.utils.make_grid(img_grid, normalize=False)
         return img_grid
 
-    def _grid_features(self, inferred_batch: InferredBatch) -> Tensor:
-        features_batch = [inferred_batch.feature_recon[:self._config.dbg_features_batch]]
+    def _grid_features(self, inferred_batch: InferredBatch) -> (Tensor, Tensor):
+        features_batch_enc = [inferred_batch.feature_recon[:self._config.dbg_features_batch]]
+        features_batch_dec = []
         if inferred_batch.feature_recon_decoder is not None:
-            features_batch.append(inferred_batch.feature_recon_decoder[:self._config.dbg_features_batch])
+            features_batch_dec.append(inferred_batch.feature_recon_decoder[:self._config.dbg_features_batch])
         if inferred_batch.feature_encoder is not None:
-            features_batch.append(inferred_batch.feature_encoder[:self._config.dbg_features_batch])
+            features_batch_enc.append(inferred_batch.feature_encoder[:self._config.dbg_features_batch])
         if inferred_batch.feature_decoder is not None:
-            features_batch.append(inferred_batch.feature_decoder[:self._config.dbg_features_batch])
-        features_batch = torch.cat(features_batch, dim=-2)
+            features_batch_dec.append(inferred_batch.feature_decoder[:self._config.dbg_features_batch])
+        features_batch_enc = torch.cat(features_batch_enc, dim=-2)
+        features_batch_dec = torch.cat(features_batch_dec, dim=-2)
 
-        features_grid = self._build_grid_features_map(features_batch)
-        return features_grid
+        features_enc_grid = self._build_grid_features_map(features_batch_enc)
+        features_dec_grid = self._build_grid_features_map(features_batch_dec)
+        return features_enc_grid, features_dec_grid
 
     @staticmethod
     def _build_grid_features_map(features_batch: Tensor) -> Tensor:
@@ -363,10 +366,10 @@ class BaseTrainerPhaseRetrieval:
         img_diff_grid = self._grid_diff_images(data_batch, inferred_batch)
         fft_magnitude_grid_grid = self._grid_fft_magnitude(data_batch, inferred_batch)
         if self._config.predict_out == 'features':
-            features_grid_grid = self._grid_features(inferred_batch)
+            features_enc_grid, features_dec_grid = self._grid_features(inferred_batch)
         else:
-            features_grid_grid = None
-        return img_grid_grid, img_diff_grid, fft_magnitude_grid_grid, features_grid_grid
+            features_enc_grid, features_dec_grid = None, None
+        return img_grid_grid, img_diff_grid, fft_magnitude_grid_grid, features_enc_grid, features_dec_grid
 
     def __del__(self):
         if self._task is not None:

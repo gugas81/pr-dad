@@ -733,15 +733,17 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         dec_layers_grid_ts = [self._build_grid_features_map(dec_layer) for dec_layer in dec_layers_features_ts]
         img_diff_grid_tr = self._grid_diff_images(self.data_tr_batch, recon_data_tr_batch)
         img_diff_grid_ts = self._grid_diff_images(self.data_ts_batch, recon_data_ts_batch)
-        features_grid_tr = self._grid_features(recon_data_tr_batch)
-        features_grid_ts = self._grid_features(recon_data_ts_batch)
+        features_grid_enc_tr, features_grid_dec_tr = self._grid_features(recon_data_tr_batch)
+        features_grid_enc_ts, features_grid_dec_ts = self._grid_features(recon_data_ts_batch)
 
         self.log_image_grid(img_grid_tr, 'train-ae/img-origin-recon', step)
         self.log_image_grid(img_grid_ts, 'test-ae/img-origin-recon', step)
         self.log_image_grid(img_diff_grid_tr, 'train-ae/img-diff-origin-recon', step)
         self.log_image_grid(img_diff_grid_ts, 'test-ae/img-diff-origin-recon', step)
-        self.log_image_grid(features_grid_tr, 'train-ae/features', step)
-        self.log_image_grid(features_grid_ts, 'test-ae/features', step)
+        self.log_image_grid(features_grid_enc_tr, 'train-ae/features-enc', step)
+        self.log_image_grid(features_grid_enc_ts, 'test-ae/features-enc', step)
+        self.log_image_grid(features_grid_dec_tr, 'train-ae/features-dec', step)
+        self.log_image_grid(features_grid_dec_tr, 'test-ae/features-dec', step)
         if self._config.use_ae_dictionary:
             ae_dictionary_grid = self._build_grid_features_map(self._generator_model.ae_net.get_dictionary()[None])
             self.log_image_grid(ae_dictionary_grid, 'ae_dictionary', step)
@@ -761,10 +763,10 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             inferred_batch_tr = self._generator_model.forward_magnitude_encoder(self.data_tr_batch, eval_mode=False)
             inferred_batch_ts = self._generator_model.forward_magnitude_encoder(self.data_ts_batch, eval_mode=False)
 
-            img_grid_grid_tr, img_diff_grid_grid_tr, fft_magnitude_grid_tr, features_grid_grid_tr = \
+            img_grid_grid_tr, img_diff_grid_grid_tr, fft_magnitude_grid_tr, features_enc_grid_grid_tr, features_dec_grid_grid_tr = \
                 self._debug_images_grids(self.data_tr_batch, inferred_batch_tr)
 
-            img_grid_grid_ts, img_diff_grid_grid_ts, fft_magnitude_grid_ts, features_grid_grid_ts = \
+            img_grid_grid_ts, img_diff_grid_grid_ts, fft_magnitude_grid_ts, features_enc_grid_grid_ts, features_dec_grid_grid_ts = \
                 self._debug_images_grids(self.data_ts_batch, inferred_batch_ts)
 
             tr_losses = self._encoder_losses(self.data_tr_batch, inferred_batch_tr, use_adv_loss=use_adv_loss)
@@ -785,8 +787,19 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self.log_image_grid(fft_magnitude_grid_ts,
                                 tag_name='test_en_magnitude/fft_magnitude-origin-autoencoded-recon', step=step)
 
-            self.log_image_grid(features_grid_grid_tr, tag_name='train_en_magnitude/features-origin-recon', step=step)
-            self.log_image_grid(features_grid_grid_ts, tag_name='test_en_magnitude/features-origin-recon', step=step)
+            self.log_image_grid(features_enc_grid_grid_tr,
+                                tag_name='train_en_magnitude/features-enc-origin-recon',
+                                step=step)
+            self.log_image_grid(features_enc_grid_grid_ts,
+                                tag_name='test_en_magnitude/features-enc-origin-recon',
+                                step=step)
+
+            self.log_image_grid(features_dec_grid_grid_tr,
+                                tag_name='train_en_magnitude/features-dec-origin-recon',
+                                step=step)
+            self.log_image_grid(features_dec_grid_grid_ts,
+                                tag_name='test_en_magnitude/features-dec-origin-recon',
+                                step=step)
 
         return tr_losses, ts_losses
 
