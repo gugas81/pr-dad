@@ -1,8 +1,10 @@
-import numpy as np
 from typing import Optional
+
+import numpy as np
 import torch
-from torch import Tensor
 import torch.nn as nn
+from torch import Tensor
+
 from models.seq_blocks import EncoderConv, DecoderConv, MlpDown
 
 
@@ -25,7 +27,8 @@ class MulDictionary(nn.Module):
         self.dictionary = nn.Parameter(self.dictionary, requires_grad=True)
 
     def forward(self, coeff: Tensor) -> Tensor:
-        return torch.matmul(coeff,  self.dictionary.view(1, self.dim - 1)).view(-1, coeff.shape[1], self.img_size, self.img_size)
+        return torch.matmul(coeff, self.dictionary.view(1, self.dim, -1)).view(-1, coeff.shape[1], self.img_size,
+                                                                               self.img_size)
 
 
 class MapToCoeff(nn.Module):
@@ -35,11 +38,11 @@ class MapToCoeff(nn.Module):
         self.out_ch = out_ch
         self.in_features = in_ch * (img_size ** 2)
 
-        self.mlp_maps = MlpDown(in_ch=self.in_features, deep=deep_mlp, out_ch=self.out_coeff*self.out_ch)
+        self.mlp_maps = MlpDown(in_ch=self.in_features, deep=deep_mlp, out_ch=self.out_coeff * self.out_ch)
 
     def forward(self, features: Tensor) -> Tensor:
         coeff = self.mlp_maps(features.view(-1, self.in_features))
-        return coeff.view(-1, self.out_ch,  self.out_coeff)
+        return coeff.view(-1, self.out_ch, self.out_coeff)
 
 
 class AeConv(nn.Module):
@@ -51,7 +54,7 @@ class AeConv(nn.Module):
         self.use_dictinary = use_dictionary
         self.features_sigmoid_active = features_sigmoid_active
         self.n_encoder_ch = n_encoder_ch
-        scale_factor = 2 ** (deep-1)
+        scale_factor = 2 ** (deep - 1)
         self.n_enc_features_ch = self.n_encoder_ch * scale_factor if n_enc_features is None else n_enc_features
         self.n_dec_features_ch = self.n_enc_features_ch if n_dec_features is None else n_dec_features
         self.n_features_size = int(np.ceil(img_size / scale_factor))
@@ -79,7 +82,7 @@ class AeConv(nn.Module):
 
         return features
 
-    def decode(self,  features: Tensor) -> Tensor:
+    def decode(self, features: Tensor) -> Tensor:
         # features = self.apply_dictionary(features)
         x_out = self._decoder(features)
         x_out = self.out_layer(x_out)
@@ -90,7 +93,7 @@ class AeConv(nn.Module):
     def get_dictionary(self) -> Optional[Tensor]:
         return self.dictionary.dictionary if self.use_dictinary else None
 
-    def apply_dictionary(self,  coeff: Tensor) -> Tensor:
+    def apply_dictionary(self, coeff: Tensor) -> Tensor:
         return self.dictionary(coeff)
 
     def map_to_dec_features(self, enc_features: Tensor) -> Tensor:
@@ -108,8 +111,3 @@ class AeConv(nn.Module):
         x_out = self.decode(dec_features)
 
         return x_out, enc_features, dec_features
-
-
-
-
-
