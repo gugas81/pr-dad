@@ -20,10 +20,12 @@ class MulDictionary(nn.Module):
         super().__init__()
         self.dim = dim
         self.img_size = img_size
-        self.dictionary = nn.Parameter(torch.randn((dim, img_size, img_size)), requires_grad=True)
+        self.dictionary = torch.empty(self.dim, self.img_size, self.img_size)
+        nn.init.xavier_uniform_(self.dictionary)
+        self.dictionary = nn.Parameter(self.dictionary, requires_grad=True)
 
     def forward(self, coeff: Tensor) -> Tensor:
-        return torch.matmul(coeff,  self.dictionary.view(1, self.dim , -1)).view(-1,coeff.shape[1] , self.img_size, self.img_size)
+        return torch.matmul(coeff,  self.dictionary.view(1, self.dim - 1)).view(-1, coeff.shape[1], self.img_size, self.img_size)
 
 
 class MapToCoeff(nn.Module):
