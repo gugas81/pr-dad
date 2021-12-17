@@ -2,10 +2,11 @@ import numpy as np
 import fire
 import os
 from tqdm import tqdm
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Union
 import pandas as pd
 from dataclasses import dataclass, field
 from skimage.metrics import structural_similarity as _ssim
+from copy import deepcopy
 
 from common import DataBatch, InferredBatch, NumpyBatch
 
@@ -62,14 +63,40 @@ class CalculateMetrics:
         return EvaluationMetrics(mse=mse, ssim=ssim, mae=mae)
 
 
-class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
+class Evaluator(BaseTrainerPhaseRetrieval):
     EVAL_MODE = True
+    MEAN = 'mean'
+    STD = 'std'
+    MIN = 'min'
+    MAX = 'max'
 
-    def __init__(self, model_path: str, config_path: Optional[str] = None, debug: bool = False, rot180: bool = False):
-        loaded_sate = self.load_state(model_path)
-        assert ('config' in loaded_sate) or (config_path is not None)
-        config_obj = loaded_sate['config'] if 'config' in loaded_sate else config_path
-        config = self.load_config(config_obj)
+    COLUMNS = [MEAN, STD, MIN, MAX]
+
+    RECON = 'recon'
+    RECON_REF = 'recon_ref_net'
+    AE = 'ae'
+    MAIN_KEYS = [RECON_REF, RECON, AE]
+
+    def __init__(self,
+                 model_type:  Union[str, PhaseRetrievalAeModel],
+                 config: Optional[str] = None,
+                 debug: bool = False,
+                 rot180: bool = False):
+
+        if isinstance(model_type, str):
+            loaded_sate = self.load_state(model_type)
+        else:
+            assert isinstance(model_type, PhaseRetrievalAeModel)
+            loaded_sate = None
+
+        assert ('config' in loaded_sate) or isinstance(config, str) or isinstance(model_type, PhaseRetrievalAeModel)
+
+        if isinstance(model_type, PhaseRetrievalAeModel):
+            config = deepcopy(model_type._config)
+        else:
+            config_obj = loaded_sate['config'] if 'config' in loaded_sate else config
+            config = self.load_config(config_obj)
+
         config.use_tensor_board = False
         config.use_gan = False
         config.part_supervised_pairs = 1.0
@@ -81,8 +108,13 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         if debug:
             config.n_dataloader_workers = 0
 
-        super(TrainerPhaseRetrievalEvaluator, self).__init__(config=config)
-        self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
+        super(Evaluator, self).__init__(config=config)
+
+        if isinstance(model_type, PhaseRetrievalAeModel):
+            self.self._generator_model = model_type
+        else:
+            self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
+
         if self.EVAL_MODE:
             self._generator_model.set_eval_mode()
         else:
@@ -90,7 +122,7 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
 
         self._generator_model.set_device(self.device)
 
-        self._log.debug(f'loaded_sate from {model_path}')
+        self._log.debug(f'loaded_sate from {model_type}')
 
         self._generator_model.load_modules(loaded_sate, force=True)
 
@@ -106,16 +138,17 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         df_ts_url_csv = self.benchmark_dataset(save_out_url, type_ds='train')
         self._log.debug(f'Eval table was saved in {df_ts_url_csv}')
 
-    def benchmark_dataset(self, save_out_url: str, type_ds: str = 'test') -> str:
+    def benchmark_dataset(self, save_out_url: Optional[str] = None, type_ds: str = 'test') -> Union[str, pd.DataFrame]:
         if type_ds == 'test':
-            p_bar_data_loader = tqdm(self.test_loader)
+            data_loader = self.test_loader
             inv_norm = self.test_ds.get_inv_normalize_transform()
         elif type_ds == 'train':
-            p_bar_data_loader = tqdm(self.train_paired_loader)
+            data_loader = self.train_paired_loader
             inv_norm = self.train_ds.get_inv_normalize_transform()
         else:
             raise NameError(f'Non valid ds type: {type_ds}, must train/test')
 
+        p_bar_data_loader = tqdm(data_loader)
         eval_metrics_recon_ref_net = []
         eval_metrics_recon = []
         eval_metrics_ae = []
@@ -149,26 +182,29 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
 
         self._log.debug(f'\n{eval_df}')
 
-        save_out_url_csv = os.path.join(save_out_url, f'eval-metrics-{type_ds}.csv')
-        self._s3.save_object(save_out_url_csv, saver=lambda save_path: eval_df.to_csv(save_path))
-        self.eval_dbg_batch(save_out_url)
-        return save_out_url_csv
+        if save_out_url:
+            save_out_url_csv = os.path.join(save_out_url, f'eval-metrics-{type_ds}.csv')
+            self._s3.save_object(save_out_url_csv, saver=lambda save_path: eval_df.to_csv(save_path))
+            self.eval_dbg_batch(save_out_url)
+            out_eval = save_out_url_csv
+        else:
+            out_eval = eval_df
+        return out_eval
 
     @staticmethod
     def _get_eval_df(evaluation_metrics: List[EvaluationMetrics]) -> pd.DataFrame:
         evaluation_metrics = EvaluationMetrics.merge(evaluation_metrics)
         keys = evaluation_metrics.get_keys()
-        eval_df = pd.DataFrame(index=keys,
-                               columns=['mean', 'std', 'min', 'max'])
+        eval_df = pd.DataFrame(index=keys, columns=Evaluator.COLUMNS)
         mean_metrics = evaluation_metrics.mean()
         std_metrics = evaluation_metrics.std()
         min_metrics = evaluation_metrics.min()
         max_metrics = evaluation_metrics.max()
         for key in keys:
-            eval_df.loc[key]['mean'] = mean_metrics.as_dict()[key]
-            eval_df.loc[key]['std'] = std_metrics.as_dict()[key]
-            eval_df.loc[key]['min'] = min_metrics.as_dict()[key]
-            eval_df.loc[key]['max'] = max_metrics.as_dict()[key]
+            eval_df.loc[key][Evaluator.MEAN] = mean_metrics.as_dict()[key]
+            eval_df.loc[key][Evaluator.STD] = std_metrics.as_dict()[key]
+            eval_df.loc[key][Evaluator.MIN] = min_metrics.as_dict()[key]
+            eval_df.loc[key][Evaluator.MAX] = max_metrics.as_dict()[key]
         return eval_df
 
     def eval_dbg_batch(self, save_url: str):
@@ -197,7 +233,7 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
 
 
 if __name__ == '__main__':
-    fire.Fire(TrainerPhaseRetrievalEvaluator)
+    fire.Fire(Evaluator)
 
 
 

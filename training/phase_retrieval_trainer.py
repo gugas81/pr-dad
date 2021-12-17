@@ -3,9 +3,10 @@ import numpy as np
 from torch import Tensor
 import torch.nn as nn
 import torch.optim as optim
+import pandas as pd
 import fire
 import os
-import copy
+
 from typing import Optional, List
 from tqdm import tqdm
 from models import Discriminator
@@ -17,6 +18,7 @@ from common import im_concatenate, l2_perceptual_loss, DataBatch, LossImg
 from training.base_phase_retrieval_trainer import BaseTrainerPhaseRetrieval
 from training.phase_retrieval_model import PhaseRetrievalAeModel
 from training.utils import ModulesNames
+from training.phase_retrival_evaluator import Evaluator
 
 
 class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
@@ -44,36 +46,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
 
-        if self._config.use_gan:
-            if self._config.predict_out == 'features':
-                in_conv_ch = self._generator_model.ae_net.n_enc_features_ch \
-                    if self._config.discrim_features_ch is None else self._config.discrim_features_ch
-                self.features_discriminator = Discriminator(input_ch=self._generator_model.ae_net.n_enc_features_ch,
-                                                            in_conv_ch=in_conv_ch,
-                                                            input_norm_type=self._config.disrim_input_norm,
-                                                            fc_norm_type=self._config.disrim_fc_norm,
-                                                            img_size=self._generator_model.ae_net.n_features_size,
-                                                            n_fc_layers=self._config.disrim_features_fc_layers,
-                                                            deep_conv_net=1,
-                                                            reduce_validity=True,
-                                                            use_res_blocks=False,
-                                                            active_type=self._config.activation_discrim)
-                self._log.debug(f'Features Discriminator \n {self.features_discriminator}')
-            else:
-                self.features_discriminator = None
-
-            self.img_discriminator = Discriminator(in_conv_ch=self._config.disrim_in_conv_ch,
-                                                   input_norm_type=self._config.disrim_input_norm,
-                                                   fc_norm_type=self._config.disrim_fc_norm,
-                                                   img_size=self.img_size,
-                                                   n_fc_layers=self._config.disrim_fc_layers,
-                                                   deep_conv_net=self._config.deep_ae,
-                                                   reduce_validity=True,
-                                                   active_type=self._config.activation_discrim)
-            self._log.debug(f'Image Discriminator \n {self.img_discriminator}')
-        else:
-            self.img_discriminator = None
-            self.features_discriminator = None
+        self._init_discriminators()
 
         self._generator_model.set_train_mode()
         self._generator_model.set_device(self.device)
@@ -128,6 +101,38 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         self.load_models()
 
+    def _init_discriminators(self):
+        if self._config.use_gan:
+            if self._config.predict_out == 'features':
+                in_conv_ch = self._generator_model.ae_net.n_enc_features_ch \
+                    if self._config.discrim_features_ch is None else self._config.discrim_features_ch
+                self.features_discriminator = Discriminator(input_ch=self._generator_model.ae_net.n_enc_features_ch,
+                                                            in_conv_ch=in_conv_ch,
+                                                            input_norm_type=self._config.disrim_input_norm,
+                                                            fc_norm_type=self._config.disrim_fc_norm,
+                                                            img_size=self._generator_model.ae_net.n_features_size,
+                                                            n_fc_layers=self._config.disrim_features_fc_layers,
+                                                            deep_conv_net=1,
+                                                            reduce_validity=True,
+                                                            use_res_blocks=False,
+                                                            active_type=self._config.activation_discrim)
+                self._log.debug(f'Features Discriminator \n {self.features_discriminator}')
+            else:
+                self.features_discriminator = None
+
+            self.img_discriminator = Discriminator(in_conv_ch=self._config.disrim_in_conv_ch,
+                                                   input_norm_type=self._config.disrim_input_norm,
+                                                   fc_norm_type=self._config.disrim_fc_norm,
+                                                   img_size=self.img_size,
+                                                   n_fc_layers=self._config.disrim_fc_layers,
+                                                   deep_conv_net=self._config.deep_ae,
+                                                   reduce_validity=True,
+                                                   active_type=self._config.activation_discrim)
+            self._log.debug(f'Image Discriminator \n {self.img_discriminator}')
+        else:
+            self.img_discriminator = None
+            self.features_discriminator = None
+
     def train(self) -> (LossesPRFeatures, LossesPRFeatures, LossesPRFeatures):
         train_en_losses, test_en_losses, test_ae_losses = [], [], []
         if self._config.debug_mode:
@@ -153,8 +158,10 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self._log.info(f'train_en_magnitude is Staring')
         init_ts_losses = self.test_eval_en_magnitude(use_adv_loss)
         self._add_losses_tensorboard('en-magnitude/test', init_ts_losses, self._global_step)
+        evaluator = Evaluator(model_type=self._generator_model)
         for epoch in range(1, self.n_epochs + 1):
             self._log.info(f'Train Epoch{epoch}')
+            self._generator_model.set_train_mode()
             tr_losses = self.train_epoch_en_magnitude(epoch, use_adv_loss)
             ts_losses = self.test_eval_en_magnitude(use_adv_loss)
             ts_losses.lr = torch.tensor(self._lr_schedulers_en[0].get_last_lr()[0])
@@ -174,11 +181,22 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             losses_dbg_batch_tr, losses_dbg_batch_ts = self._log_en_magnitude_dbg_batch(use_adv_loss, self._global_step)
             self._add_losses_tensorboard('dbg-batch-en-magnitude/train', losses_dbg_batch_tr, self._global_step)
             self._add_losses_tensorboard('dbg-batch-en-magnitude/test', losses_dbg_batch_ts, self._global_step)
+            eval_test_df = self._add_metrics_evaluator_test(evaluator, self._global_step)
+            self._log.info(f'Epoch:{epoch} -- Evaluation test data \n {eval_test_df}')
 
         train_en_losses = LossesPRFeatures.merge(train_en_losses)
         test_en_losses = LossesPRFeatures.merge(test_en_losses)
 
         return train_en_losses, test_en_losses
+
+    def _add_metrics_evaluator_test(self, evaluator: Evaluator, step: int = None) -> pd.DataFrame:
+        eval_test_df: pd.DataFrame = evaluator.benchmark_dataset(type_ds='test')
+        for metric_type in [evaluator.RECON_REF, evaluator.RECON]:
+            recon_eval = eval_test_df.loc(metric_type).iloc[1:, ]
+            for metric_name, row in recon_eval.iterrows():
+                mean_val = row[evaluator.MEAN]
+                self._tensorboard.add_scalar(f"{metric_name}/eval-{metric_type}-{evaluator.RECON}", mean_val, step)
+        return eval_test_df
 
     def train_epoch_ae(self, epoch: int = 0, train_dict: bool = False) -> LossesPRFeatures:
         train_losses = []
@@ -346,69 +364,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                   self.optimizer_ae,
                                                   ModulesNames.opt_ae)
 
-    def fit(self, data_batch: DataBatch, lr: float, lr_milestones: List[int], lr_reduce_rate: float, n_iter: int,
-            name: str) -> (InferredBatch, LossesPRFeatures):
-        self._global_step = 0
-        init_params_state_state = copy.deepcopy(self._generator_model.phase_predictor.state_dict())
-        fit_optimizer = optim.Adam(params=self._generator_model.phase_predictor.parameters(), lr=lr)
-        lr_scheduler_fitter = MultiStepLR(fit_optimizer, lr_milestones, lr_reduce_rate)
 
-        real_labels = torch.ones((data_batch.image.shape[0], 1), device=self.device, dtype=data_batch.image.dtype)
-        losses_fit = []
-        for ind_iter in tqdm(range(n_iter)):
-            fit_optimizer.zero_grad()
-            inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
-            fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
-
-            l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
-            l2_realness_features = 0.5 * torch.mean(torch.square(inferred_batch.intermediate_features.imag.abs()))
-            l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
-            img_adv_loss = self.adv_loss(self.img_discriminator(inferred_batch.img_recon).validity,
-                                         real_labels)
-
-            if self._config.predict_out == 'features':
-                features_adv_loss = self.adv_loss(self.features_discriminator(inferred_batch.feature_recon).validity,
-                                                  real_labels)
-                total_loss = 0.01 * features_adv_loss
-            else:
-                features_adv_loss = None
-
-            total_loss += 2.0 * l2_magnitude_loss + 1.0 * l2_realness_features + 0.01 * l1_sparsity_features + \
-                          0.01 * img_adv_loss
-
-            losses = LossesPRFeatures(total=total_loss,
-                                      l2_magnitude=l2_magnitude_loss,
-                                      l1_sparsity_features=l1_sparsity_features,
-                                      realness_features=l2_realness_features,
-                                      img_adv_loss=img_adv_loss,
-                                      features_adv_loss=features_adv_loss,
-                                      lr=torch.tensor(lr_scheduler_fitter.get_last_lr()[0]))
-
-            losses_fit.append(losses.detach())
-
-            total_loss.backward()
-            fit_optimizer.step()
-            lr_scheduler_fitter.step()
-
-            if (ind_iter % 50 == 0) or (ind_iter == n_iter - 1):
-                l2_grad_encoder_norm, _ = l2_grad_norm(self._generator_model.phase_predictor)
-                l2_grad = LossesGradNorms(l2_grad_magnitude_encoder=l2_grad_encoder_norm)
-                self._log.info(f'Fitter: iter={ind_iter}, {losses}, {l2_grad}')
-                self._add_losses_tensorboard(f'fit-{name}', losses, step=self._global_step)
-                self._add_losses_tensorboard(f'fit-{name}', l2_grad, step=self._global_step)
-
-            if (ind_iter % 100 == 0) or (ind_iter == n_iter - 1):
-                dbg_data_batch = self.get_dbg_batch(data_batch, inferred_batch)
-                dbg_enc_features_batch = self.prepare_dbg_batch(inferred_batch.feature_encoder, grid_ch=True)
-                self._log_images(dbg_data_batch, tag_name=f'fit/{name}-magnitude-recon', step=self._global_step)
-                self._log_images(dbg_enc_features_batch, tag_name=f'fit/{name}-features_encode', step=self._global_step)
-
-            self._global_step += 1
-
-        losses_fit = LossesPRFeatures.merge(losses_fit)
-        self._generator_model.phase_predictor.load_state_dict(init_params_state_state)
-
-        return inferred_batch, losses_fit
 
     def _discrim_ls_loss(self, discriminator: nn.Module, real_img: Tensor, generated_imgs: List[Tensor],
                          real_labels: Tensor, fake_labels: Tensor) -> Tensor:
@@ -824,8 +780,6 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
 def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
                             config_path: str = None,
-                            train_model: bool = True,
-                            fit_batch: bool = False,
                             **kwargs):
 
     config = TrainerPhaseRetrievalAeFeatures.load_config(config_path, **kwargs)
@@ -833,21 +787,11 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
     trainer = TrainerPhaseRetrievalAeFeatures(config=config, experiment_name=experiment_name)
     task_s3_path = trainer.get_task_s3_path()
 
-    if train_model:
-        train_en_losses, test_en_losses, test_ae_losses = trainer.train()
+    train_en_losses, test_en_losses, test_ae_losses = trainer.train()
 
-    if fit_batch:
-        trainer.get_log().info(f'FITTING TEST BATCH')
+    eval_test = Evaluator(model_type=trainer._generator_model).self.benchmark_dataset(type_ds='test')
 
-        for num_img_fit in range(len(trainer.data_ts_batch)):
-            trainer.get_log().info(f'fit ts batch num - {num_img_fit}')
-            fit_batch = torch.unsqueeze(trainer.data_ts_batch[num_img_fit], 0)
-            data_ts_batch_fitted, losses_fit = trainer.fit(fit_batch,
-                                                           lr=0.00001, n_iter=1000,
-                                                           lr_milestones=[250, 5000, 750],
-                                                           lr_reduce_rate=0.5,
-                                                           name=str(num_img_fit))
-    return task_s3_path
+    return task_s3_path, eval_test
 
 
 if __name__ == '__main__':
