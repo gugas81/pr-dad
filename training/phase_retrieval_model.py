@@ -130,14 +130,14 @@ class PhaseRetrievalAeModel:
             fft_magnitude = data_batch.fft_magnitude
         enc_features_batch_recon, intermediate_features = self.phase_predictor(fft_magnitude)
         if self._config.predict_out == 'features':
-            dec_features_batch_recon = self.ae_net.map_to_dec_features(enc_features_batch_recon)
+            dec_features_batch_recon, coeff_recon = self.ae_net.map_to_dec_features(enc_features_batch_recon)
             recon_batch = self.ae_net.decode(dec_features_batch_recon)
         elif self._config.predict_out == 'images':
             recon_batch = enc_features_batch_recon
 
         if self._config.predict_out == 'features':
             feature_encoder = self.ae_net.encode(data_batch.image)
-            feature_decoder = self.ae_net.map_to_dec_features(feature_encoder)
+            feature_decoder, coeff_enc = self.ae_net.map_to_dec_features(feature_encoder)
             decoded_batch = self.ae_net.decode(feature_decoder)
         else:
             feature_encoder = None
@@ -150,7 +150,10 @@ class PhaseRetrievalAeModel:
                                        feature_encoder=feature_encoder,
                                        feature_decoder=feature_decoder,
                                        decoded_img=decoded_batch,
-                                       intermediate_features=intermediate_features)
+                                       intermediate_features=intermediate_features,
+                                       dict_coeff_encoder=coeff_enc,
+                                       dict_coeff_recon=coeff_recon)
+
         if self._config.use_ref_net:
             inferred_batch.img_recon_ref = self.ref_unet(recon_batch.detach(), dec_features_batch_recon.detach())
             inferred_batch.fft_magnitude_recon_ref = self.forward_magnitude_fft(inferred_batch.img_recon_ref)
@@ -166,7 +169,7 @@ class PhaseRetrievalAeModel:
             img_batch = data_batch.image_noised
         else:
             img_batch = data_batch.image
-        recon_batch, enc_features_batch, dec_features_batch = self.ae_net(img_batch)
+        recon_batch, enc_features_batch, dec_features_batch, coeff_enc = self.ae_net(img_batch)
         enc_feature_recon = self.ae_net.encode(recon_batch)
         if eval_mode:
             self.set_train_mode()
@@ -174,7 +177,8 @@ class PhaseRetrievalAeModel:
                              feature_encoder=enc_features_batch,
                              feature_recon=enc_feature_recon,
                              feature_recon_decoder=dec_features_batch,
-                             feature_decoder=dec_features_batch)
+                             feature_decoder=dec_features_batch,
+                             dict_coeff_encoder=coeff_enc)
 
     def forward_magnitude_fft(self, data_batch: Tensor) -> Tensor:
         if self._config.add_pad > 0.0:

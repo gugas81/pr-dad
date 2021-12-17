@@ -63,7 +63,7 @@ class CalculateMetrics:
 
 
 class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
-    eval_mode = True
+    EVAL_MODE = True
 
     def __init__(self, model_path: str, config_path: Optional[str] = None, debug: bool = False, rot180: bool = False):
         loaded_sate = self.load_state(model_path)
@@ -74,6 +74,8 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         config.use_gan = False
         config.part_supervised_pairs = 1.0
         config.batch_size_test = 128
+        config.use_aug = False
+        config.use_aug_test = False
         config.load_modules = ['all']
         config.loss_rot180 = (config.loss_rot180 or rot180)
         if debug:
@@ -81,7 +83,7 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
 
         super(TrainerPhaseRetrievalEvaluator, self).__init__(config=config)
         self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
-        if self.eval_mode:
+        if self.EVAL_MODE:
             self._generator_model.set_eval_mode()
         else:
             self._generator_model.set_train_mode()
@@ -120,7 +122,7 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
         rot_180 = self._config.loss_rot180
         for batch_idx, data_batch in enumerate(p_bar_data_loader):
             data_batch = self.prepare_data_batch(data_batch)
-            inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=self.eval_mode)
+            inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=self.EVAL_MODE)
             gt_images = inv_norm(data_batch.image).detach().cpu().numpy()
             recon_ref_images = inv_norm(inferred_batch.img_recon_ref).detach().cpu().numpy()
             recon_images = inv_norm(inferred_batch.img_recon).detach().cpu().numpy()
@@ -171,9 +173,9 @@ class TrainerPhaseRetrievalEvaluator(BaseTrainerPhaseRetrieval):
 
     def eval_dbg_batch(self, save_url: str):
         inferred_batch_tr = self._generator_model.forward_magnitude_encoder(self.data_tr_batch,
-                                                                            eval_mode=self.eval_mode)
+                                                                            eval_mode=self.EVAL_MODE)
         inferred_batch_ts = self._generator_model.forward_magnitude_encoder(self.data_ts_batch,
-                                                                            eval_mode=self.eval_mode)
+                                                                            eval_mode=self.EVAL_MODE)
         self._save_dbg_img(self.data_tr_batch, inferred_batch_tr, save_url, 'tr')
         self._save_dbg_img(self.data_ts_batch, inferred_batch_ts, save_url, 'ts')
 

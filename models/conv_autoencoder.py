@@ -23,7 +23,7 @@ class MulDictionary(nn.Module):
         self.dim = dim
         self.img_size = img_size
         self.dictionary = torch.empty(self.dim, self.img_size, self.img_size)
-        nn.init.xavier_uniform_(self.dictionary)
+        nn.init.xavier_uniform_(self.dictionary, gain=0.01)
         self.dictionary = nn.Parameter(self.dictionary, requires_grad=True)
 
     def forward(self, coeff: Tensor) -> Tensor:
@@ -96,18 +96,19 @@ class AeConv(nn.Module):
     def apply_dictionary(self, coeff: Tensor) -> Tensor:
         return self.dictionary(coeff)
 
-    def map_to_dec_features(self, enc_features: Tensor) -> Tensor:
+    def map_to_dec_features(self, enc_features: Tensor) -> (Tensor, Tensor):
         if self.use_dictinary:
             coeff = self.map_to_coeff(enc_features)
             dec_features = self.apply_dictionary(coeff)
         else:
             dec_features = enc_features
+            coeff = None
 
-        return dec_features
+        return dec_features, coeff
 
-    def forward(self, x: Tensor) -> (Tensor, Tensor, Tensor):
+    def forward(self, x: Tensor) -> (Tensor, Tensor, Tensor, Tensor):
         enc_features = self.encode(x)
-        dec_features = self.map_to_dec_features(enc_features)
+        dec_features, coeff = self.map_to_dec_features(enc_features)
         x_out = self.decode(dec_features)
 
-        return x_out, enc_features, dec_features
+        return x_out, enc_features, dec_features, coeff

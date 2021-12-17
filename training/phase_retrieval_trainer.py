@@ -496,12 +496,14 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         l1_img_loss = self.l1_loss(data_batch.image, inferred_batch.img_recon)
         l2_img_loss = self.l2_loss(data_batch.image, inferred_batch.img_recon)
         l1_sparsity_features = torch.mean(inferred_batch.feature_recon_decoder.abs())
+        l1_sparsity_dict_coeff = torch.mean(inferred_batch.dict_coeff_encoder.abs())
         l1_magnitude_loss = self.l1_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
         l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
         l1_features_loss = self.l1_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
         l2_features_loss = self.l2_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
         total_loss = l1_img_loss + l2_img_loss + l2_features_loss + \
-                      0.5 * self._config.lambda_sparsity_features * l1_sparsity_features
+                      0.5 * self._config.lambda_sparsity_features * l1_sparsity_features +  \
+                     0.5 * self._config.lambda_sparsity_features * l1_sparsity_dict_coeff
         losses = LossesPRFeatures(total=total_loss,
                                   l1_img=l1_img_loss,
                                   l2_img=l2_img_loss,
@@ -509,7 +511,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                   l2_features=l2_features_loss,
                                   l1_magnitude=l1_magnitude_loss,
                                   l2_magnitude=l2_magnitude_loss,
-                                  l1_sparsity_features=l1_sparsity_features)
+                                  l1_sparsity_features=l1_sparsity_features,
+                                  l1_sparsity_dict_coeff=l1_sparsity_dict_coeff)
 
         self._recon_statistics_metrics(inferred_batch, losses)
 
@@ -720,9 +723,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
             dec_layers_list = self._generator_model.ae_net._decoder.get_layers()
 
-            dec_layers_features_tr = dec_layers_list(self._generator_model.ae_net.map_to_dec_features(recon_data_tr_batch.feature_encoder),
+            dec_layers_features_tr = dec_layers_list(self._generator_model.ae_net.map_to_dec_features(recon_data_tr_batch.feature_encoder)[0],
                                                      use_residual=True)
-            dec_layers_features_ts = dec_layers_list(self._generator_model.ae_net.map_to_dec_features(recon_data_ts_batch.feature_encoder),
+            dec_layers_features_ts = dec_layers_list(self._generator_model.ae_net.map_to_dec_features(recon_data_ts_batch.feature_encoder)[0],
                                                      use_residual=True)
 
         img_grid_tr = self._grid_images(self.data_tr_batch, recon_data_tr_batch)

@@ -130,6 +130,8 @@ class InferredBatch(TensorBatch):
     feature_decoder: Optional[Tensor] = None
     decoded_img: Optional[Tensor] = None
     intermediate_features: Optional[Tensor] = None
+    dict_coeff_encoder: Optional[Tensor] = None
+    dict_coeff_recon: Optional[Tensor] = None
 
 
 @dataclass
@@ -176,6 +178,7 @@ class LossesPRFeatures(Losses):
     l2_magnitude: Optional[Tensor] = None
     l1_ref_magnitude: Optional[Tensor] = None
     l2_ref_magnitude: Optional[Tensor] = None
+    l1_sparsity_dict_coeff: Optional[Tensor] = None
     realness_features: Optional[Tensor] = None
     img_adv_loss: Optional[Tensor] = None
     ref_img_adv_loss: Optional[Tensor] = None
@@ -205,6 +208,7 @@ class LossesPRFeatures(Losses):
     std_img_ref: Optional[Tensor] = None
     max_img_ref: Optional[Tensor] = None
     min_img_ref: Optional[Tensor] = None
+
     total: Optional[Tensor] = None
 
 
