@@ -107,7 +107,6 @@ class BaseTrainerPhaseRetrieval:
 
     def load_state(self, model_path: str) -> Dict[str, Any]:
         self._log.debug(f'Load state dict from: {model_path}')
-        model_path.startswith()
         if model_path.startswith(self._s3.S3_CML_PATH):
             assert self._s3.isfile(model_path), f'not valid s3 path of model: {model_path}'
             rel_path_model = Path(model_path).relative_to(self._s3.S3_CML_PATH)
