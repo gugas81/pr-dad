@@ -20,6 +20,10 @@ class S3FileSystem(s3fs.S3FileSystem):
     def is_s3_url(cls, url: str) -> bool:
         return url.startswith(cls.URL_PREFIX)
 
+    @classmethod
+    def s3_url(cls, path: str) -> str:
+        return cls.URL_PREFIX + path
+
     def load_object(self, url: str, loader: Callable) -> Any:
         assert self.isfile(url), f'not file:{url}'
 

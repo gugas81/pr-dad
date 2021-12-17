@@ -130,6 +130,9 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         self._generator_model.load_modules(loaded_sate, force=True)
 
     def benchmark_evaluation(self, save_out_url: str):
+        if self._s3.exists(save_out_url):
+            self._log.warning(f'Exists save_out_url: {save_out_url}')
+
         self._log.debug(f'Benchmark evaluation will be saved in {save_out_url}')
         self.eval_dbg_batch(save_out_url)
 
