@@ -9,6 +9,7 @@ import s3fs
 class S3FileSystem(s3fs.S3FileSystem):
     HOST = 's3'
     URL_PREFIX = 's3://'
+    S3_CML_PATH = 's3://data-clearml/phase-retrieval'
 
     def __init__(self, *, key=None, secret=None):
         super().__init__(key=key,

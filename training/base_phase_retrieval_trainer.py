@@ -3,6 +3,7 @@ import os
 import clearml
 import tensorboardX
 import torch
+from pathlib import Path
 from functools import partial
 from datetime import datetime
 from torch import Tensor
@@ -28,6 +29,7 @@ class BaseTrainerPhaseRetrieval:
     _task_s3_path = None
     _log = logging.getLogger('BaseTrainerPhaseRetrieval')
     _s3 = S3FileSystem()
+    _MODEL_CACHE_LOCAL_PATH = '/data/cache'
 
     def __init__(self, config: ConfigTrainer, experiment_name: Optional[str] = None):
         self._base_init()
@@ -105,7 +107,20 @@ class BaseTrainerPhaseRetrieval:
 
     def load_state(self, model_path: str) -> Dict[str, Any]:
         self._log.debug(f'Load state dict from: {model_path}')
-        if self._s3.is_s3_url(model_path):
+        model_path.startswith()
+        if model_path.startswith(self._s3.S3_CML_PATH):
+            assert self._s3.isfile(model_path), f'not valid s3 path of model: {model_path}'
+            rel_path_model = Path(model_path).relative_to(self._s3.S3_CML_PATH)
+            local_model_path = os.path.join(self._MODEL_CACHE_LOCAL_PATH, rel_path_model)
+            if os.path.isfile(local_model_path):
+                self._log.debug(f'Exist cached model file in: {local_model_path} will be load from here')
+            else:
+                self._log.debug(f'Not Exist cached model file in: {local_model_path} will be cached here')
+                os.makedirs(os.path.dirname(local_model_path), exist_ok=True)
+                self._s3.download(model_path, local_model_path)
+            loaded_sate = torch.load(local_model_path)
+
+        elif self._s3.is_s3_url(model_path):
             assert self._s3.isfile(model_path), f'not valid s3 path of model: {model_path}'
             loaded_sate = self._s3.load_object(model_path, torch.load)
         else:

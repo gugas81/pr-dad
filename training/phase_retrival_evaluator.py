@@ -126,7 +126,8 @@ class Evaluator(BaseTrainerPhaseRetrieval):
 
         self._log.debug(f'loaded_sate from {model_type}')
 
-        self._generator_model.load_modules(loaded_sate, force=True)
+        if loaded_sate:
+            self._generator_model.load_modules(loaded_sate, force=True)
 
     def benchmark_evaluation(self, save_out_url: str):
         if self._s3.exists(save_out_url):
