@@ -159,6 +159,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         init_ts_losses = self.test_eval_en_magnitude(use_adv_loss)
         self._add_losses_tensorboard('en-magnitude/test', init_ts_losses, self._global_step)
         evaluator = Evaluator(model_type=self._generator_model)
+        eval_test_df = self._add_metrics_evaluator_test(evaluator, self._global_step)
+        self._log.debug(f'INIT  -- Evaluation test data \n {eval_test_df}')
         for epoch in range(1, self.n_epochs + 1):
             self._log.info(f'Train Epoch{epoch}')
             self._generator_model.set_train_mode()
@@ -182,7 +184,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self._add_losses_tensorboard('dbg-batch-en-magnitude/train', losses_dbg_batch_tr, self._global_step)
             self._add_losses_tensorboard('dbg-batch-en-magnitude/test', losses_dbg_batch_ts, self._global_step)
             eval_test_df = self._add_metrics_evaluator_test(evaluator, self._global_step)
-            self._log.info(f'Epoch:{epoch} -- Evaluation test data \n {eval_test_df}')
+            self._log.debug(f'Epoch:{epoch} -- Evaluation test data \n {eval_test_df}')
 
         train_en_losses = LossesPRFeatures.merge(train_en_losses)
         test_en_losses = LossesPRFeatures.merge(test_en_losses)
@@ -192,7 +194,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def _add_metrics_evaluator_test(self, evaluator: Evaluator, step: int = None) -> pd.DataFrame:
         eval_test_df: pd.DataFrame = evaluator.benchmark_dataset(type_ds='test')
         for metric_type in [evaluator.RECON_REF, evaluator.RECON]:
-            recon_eval = eval_test_df.loc(metric_type).iloc[1:, ]
+            recon_eval = eval_test_df.loc[metric_type].iloc[1:, :]
             for metric_name, row in recon_eval.iterrows():
                 mean_val = row[evaluator.MEAN]
                 self._tensorboard.add_scalar(f"{metric_name}/eval-{metric_type}-{evaluator.RECON}", mean_val, step)
