@@ -1,6 +1,7 @@
 import numpy as np
 import fire
 import os
+import torch
 from tqdm import tqdm
 from typing import List, Optional, Callable, Union
 import pandas as pd
@@ -154,11 +155,12 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         eval_metrics_ae = []
         rot_180 = self._config.loss_rot180
         for batch_idx, data_batch in enumerate(p_bar_data_loader):
-            data_batch = self.prepare_data_batch(data_batch)
-            inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=self.EVAL_MODE)
-            gt_images = inv_norm(data_batch.image).detach().cpu().numpy()
-            recon_ref_images = inv_norm(inferred_batch.img_recon_ref).detach().cpu().numpy()
-            recon_images = inv_norm(inferred_batch.img_recon).detach().cpu().numpy()
+            with torch.no_grad():
+                data_batch = self.prepare_data_batch(data_batch)
+                inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=self.EVAL_MODE)
+                gt_images = inv_norm(data_batch.image).detach().cpu().numpy()
+                recon_ref_images = inv_norm(inferred_batch.img_recon_ref).detach().cpu().numpy()
+                recon_images = inv_norm(inferred_batch.img_recon).detach().cpu().numpy()
             if self._config.predict_out == 'features':
                 ae_images = inv_norm(inferred_batch.decoded_img).detach().cpu().numpy()
             else:
