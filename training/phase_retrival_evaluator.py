@@ -112,7 +112,7 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         super(Evaluator, self).__init__(config=config)
 
         if isinstance(model_type, PhaseRetrievalAeModel):
-            self.self._generator_model = model_type
+            self._generator_model = model_type
         else:
             self._log.info(f'Build generator_model for config: \n  {self._config} \n')
             self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
