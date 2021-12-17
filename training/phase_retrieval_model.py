@@ -195,6 +195,7 @@ class PhaseRetrievalAeModel:
         return self._config.spectral_factor * magnitude_batch
 
     def set_eval_mode(self):
+        self._log.debug('Set model  eval mode')
         self.phase_predictor.eval()
         if self.ae_net is not None:
             self.ae_net.eval()
@@ -202,6 +203,7 @@ class PhaseRetrievalAeModel:
             self.ref_unet.eval()
 
     def set_train_mode(self):
+        self._log.debug('Set model  train mode')
         self.phase_predictor.train()
         if self.ae_net is not None:
             self.ae_net.train()

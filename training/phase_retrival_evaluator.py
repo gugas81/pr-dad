@@ -85,6 +85,7 @@ class Evaluator(BaseTrainerPhaseRetrieval):
                  rot180: bool = False):
 
         if isinstance(model_type, str):
+            self._log.info(f'load state of the model from:  {model_type}')
             loaded_sate = self.load_state(model_type)
         else:
             assert isinstance(model_type, PhaseRetrievalAeModel)
@@ -114,6 +115,7 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         if isinstance(model_type, PhaseRetrievalAeModel):
             self.self._generator_model = model_type
         else:
+            self._log.info(f'Build generator_model for config: \n  {self._config} \n')
             self._generator_model = PhaseRetrievalAeModel(config=self._config, s3=self._s3, log=self._log)
 
         if self.EVAL_MODE:
