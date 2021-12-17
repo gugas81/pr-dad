@@ -87,11 +87,10 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         if isinstance(model_type, str):
             self._log.info(f'load state of the model from:  {model_type}')
             loaded_sate = self.load_state(model_type)
+            assert ('config' in loaded_sate) or isinstance(config, str)
         else:
             assert isinstance(model_type, PhaseRetrievalAeModel)
             loaded_sate = None
-
-        assert ('config' in loaded_sate) or isinstance(config, str) or isinstance(model_type, PhaseRetrievalAeModel)
 
         if isinstance(model_type, PhaseRetrievalAeModel):
             config = deepcopy(model_type._config)
