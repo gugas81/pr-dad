@@ -179,7 +179,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                             f'Train Losses: {tr_losses}, '
                             f'Test Losses: {ts_losses} ')
 
-            self._save_gan_models(epoch)
+            self._save_gan_models(epoch, force=(epoch == self.n_epochs))
             losses_dbg_batch_tr, losses_dbg_batch_ts = self._log_en_magnitude_dbg_batch(use_adv_loss, self._global_step)
             self._add_losses_tensorboard('dbg-batch-en-magnitude/train', losses_dbg_batch_tr, self._global_step)
             self._add_losses_tensorboard('dbg-batch-en-magnitude/test', losses_dbg_batch_ts, self._global_step)
@@ -660,7 +660,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             losses.min_features = inferred_batch.feature_recon.min()
             losses.max_features = inferred_batch.feature_recon.max()
 
-    def _save_gan_models(self, step: int) -> None:
+    def _save_gan_models(self, step: int, force: bool = False) -> None:
         if self.models_path is not None:
             save_state = self._generator_model.get_state_dict()
             save_state[ModulesNames.opt_magnitude_encoder] = self.optimizer_en.state_dict()
@@ -671,7 +671,11 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                     save_state[ModulesNames.features_discriminator] = self.features_discriminator.state_dict()
             if self._config.is_train_ae:
                 save_state[ModulesNames.opt_ae] = self.optimizer_ae.state_dict()
-            torch.save(save_state, os.path.join(self.models_path, f'phase-retrieval-gan-model.pt'))
+
+            if ((step - 1) % self._config.save_model_interval == 0) or force:
+                save_model_path = os.path.join(self.models_path, f'phase-retrieval-gan-model-{step}.pt')
+                self._log.debug(f'Save model in {save_model_path}')
+                torch.save(save_state, save_model_path)
 
     def _log_ae_train_dbg_batch(self, step: Optional[int] = None) -> None:
         if not step:
@@ -788,18 +792,18 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
 def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
                             config_path: str = None,
-                            **kwargs):
+                            **kwargs) -> (str, pd.DataFrame):
 
     config = TrainerPhaseRetrievalAeFeatures.load_config(config_path, **kwargs)
 
     trainer = TrainerPhaseRetrievalAeFeatures(config=config, experiment_name=experiment_name)
-    task_s3_path = trainer.get_task_s3_path()
+    model_last_s3_path = trainer.get_last_model_s3_path()
 
     train_en_losses, test_en_losses, test_ae_losses = trainer.train()
 
-    eval_test = Evaluator(model_type=trainer._generator_model).benchmark_dataset(type_ds='test')
+    eval_test = Evaluator(model_type=model_last_s3_path).benchmark_dataset(type_ds='test')
 
-    return task_s3_path, eval_test
+    return model_last_s3_path, eval_test
 
 
 if __name__ == '__main__':

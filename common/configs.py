@@ -236,6 +236,7 @@ class ConfigTrainer(ConfigBase):
     add_pad_out: float = 0.0
     dict_len: int = 16
     n_features_dec: int = 64
+    save_model_interval: int = 10
 
 
 

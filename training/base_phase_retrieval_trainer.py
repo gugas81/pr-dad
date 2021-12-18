@@ -416,6 +416,16 @@ class BaseTrainerPhaseRetrieval:
             self._set_task_s3_path()
         return self._task_s3_path
 
+    def get_last_model_s3_path(self) -> Optional[str]:
+        task_path = self.get_task_s3_path()
+        if task_path:
+            model_base_path = os.path.join(task_path, 'models', f'phase-retrieval-gan-model*.pt')
+            model_paths = sorted(self._s3.glob(model_base_path))
+            model_path = self._s3.s3_url(model_paths[-1])
+            return model_path
+        else:
+            return None
+
     def _set_task_s3_path(self):
         if self._task is not None:
             self._task_s3_path = os.path.join(self._task.logger.get_default_upload_destination(),
