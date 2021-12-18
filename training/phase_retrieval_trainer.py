@@ -194,7 +194,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def _add_metrics_evaluator_test(self, evaluator: Evaluator, step: int = None) -> pd.DataFrame:
         eval_test_df: pd.DataFrame = evaluator.benchmark_dataset(type_ds='test')
         for metric_type in [evaluator.RECON_REF, evaluator.RECON]:
-            recon_eval = eval_test_df.loc[metric_type].iloc[1:, :]
+            recon_eval = eval_test_df.loc[metric_type]
             for metric_name, row in recon_eval.iterrows():
                 mean_val = row[evaluator.MEAN]
                 self._tensorboard.add_scalar(f"{metric_name}/eval-{metric_type}-{evaluator.RECON}", mean_val, step)
