@@ -797,7 +797,7 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
 
     train_en_losses, test_en_losses, test_ae_losses = trainer.train()
 
-    eval_test = Evaluator(model_type=trainer._generator_model).self.benchmark_dataset(type_ds='test')
+    eval_test = Evaluator(model_type=trainer._generator_model).benchmark_dataset(type_ds='test')
 
     return task_s3_path, eval_test
 
