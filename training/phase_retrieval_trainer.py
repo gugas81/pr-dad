@@ -797,9 +797,10 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
     config = TrainerPhaseRetrievalAeFeatures.load_config(config_path, **kwargs)
 
     trainer = TrainerPhaseRetrievalAeFeatures(config=config, experiment_name=experiment_name)
-    model_last_s3_path = trainer.get_last_model_s3_path()
 
     train_en_losses, test_en_losses, test_ae_losses = trainer.train()
+
+    model_last_s3_path = trainer.get_last_model_s3_path()
 
     eval_test = Evaluator(model_type=model_last_s3_path).benchmark_dataset(type_ds='test')
 

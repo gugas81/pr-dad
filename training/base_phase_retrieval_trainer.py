@@ -421,7 +421,7 @@ class BaseTrainerPhaseRetrieval:
         if task_path:
             model_base_path = os.path.join(task_path, 'models', f'phase-retrieval-gan-model*.pt')
             model_paths = sorted(self._s3.glob(model_base_path))
-            model_path = self._s3.s3_url(model_paths[-1])
+            model_path = self._s3.s3_url(model_paths[-1]) if len(model_paths) > 0 else None
             return model_path
         else:
             return None
