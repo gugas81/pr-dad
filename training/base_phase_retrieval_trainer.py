@@ -29,7 +29,6 @@ class BaseTrainerPhaseRetrieval:
     _task_s3_path = None
     _log = logging.getLogger('BaseTrainerPhaseRetrieval')
     _s3 = S3FileSystem()
-    _MODEL_CACHE_LOCAL_PATH = '/data/cache'
 
     def __init__(self, config: ConfigTrainer, experiment_name: Optional[str] = None):
         self._base_init()
@@ -112,10 +111,10 @@ class BaseTrainerPhaseRetrieval:
 
     def load_state(self, model_path: str) -> Dict[str, Any]:
         self._log.debug(f'Load state dict from: {model_path}')
-        if model_path.startswith(self._s3.S3_CML_PATH):
+        if model_path.startswith(PATHS.S3_CML_PROJECT):
             assert self._s3.isfile(model_path), f'not valid s3 path of model: {model_path}'
-            rel_path_model = Path(model_path).relative_to(self._s3.S3_CML_PATH)
-            local_model_path = os.path.join(self._MODEL_CACHE_LOCAL_PATH, rel_path_model)
+            rel_path_model = Path(model_path).relative_to(PATHS.S3_CML_PROJECT)
+            local_model_path = os.path.join(PATHS.MODEL_CACHE_LOCAL, rel_path_model)
             if os.path.isfile(local_model_path):
                 self._log.debug(f'Exist cached model file in: {local_model_path} will be load from here')
             else:
