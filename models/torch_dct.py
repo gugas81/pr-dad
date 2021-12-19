@@ -30,9 +30,8 @@ class Dct2DForward(nn.Module):
     def __init__(self, img_size: int):
         super(Dct2DForward, self).__init__()
         self._scale_factor = 1 / math.sqrt(2 * img_size)
-        self._norm_matrix = normalize_matrix(img_size)
-
-        self._harmonics_matrix = harmonics(img_size)
+        self._norm_matrix = nn.Parameter(normalize_matrix(img_size), requires_grad=False)
+        self._harmonics_matrix = nn.Parameter(harmonics(img_size), requires_grad=False)
 
     def forward(self, img: Tensor) -> Tensor:
         coeff = self._scale_factor * self._norm_matrix * (self._harmonics_matrix.t() @ img @ self._harmonics_matrix)
