@@ -19,7 +19,7 @@ from common import im_concatenate, square_grid_im_concat, PATHS, im_save, fft2_f
 from common import InferredBatch
 import common.utils as utils
 from training.augmentations import get_rnd_gauss_noise_like
-import torchjpeg.dct as jpeg_dct
+from models.torch_dct import Dct2DForward
 
 logging.basicConfig(level=logging.INFO)
 
@@ -52,6 +52,11 @@ class BaseTrainerPhaseRetrieval:
         self.img_size = config.image_size
 
         set_seed(self.seed)
+
+        if self._config.use_dct_input:
+            self.dct_input = Dct2DForward(utils.get_padded_size(self._config.image_size, self._config.add_pad))
+        else:
+            self.dct_input = None
 
         if self._config.debug_mode:
             torch.autograd.set_detect_anomaly(True)
@@ -232,7 +237,7 @@ class BaseTrainerPhaseRetrieval:
             data_batch_pad = data_batch
 
         if self._config.use_dct_input:
-            fft_data_batch = jpeg_dct.block_dct(data_batch_pad)
+            fft_data_batch = self.dct_input(data_batch_pad)
         elif self._config.use_rfft:
             fft_data_batch = torch.fft.rfft2(data_batch_pad, norm=self._config.fft_norm)
         else:

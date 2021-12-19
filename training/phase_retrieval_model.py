@@ -8,7 +8,7 @@ from common import InferredBatch, ConfigTrainer, DataBatch, S3FileSystem
 
 from training.utils import ModulesNames
 from models import PhaseRetrievalPredictor,   AeConv, UNetConv
-import torchjpeg.dct as jpeg_dct
+from models.torch_dct import Dct2DForward
 
 
 class PhaseRetrievalAeModel:
@@ -35,6 +35,11 @@ class PhaseRetrievalAeModel:
                                                    dict_len=self._config.dict_len)
         else:
             self.ae_net: Optional[AeConv] = None
+
+        if self._config.use_dct_input:
+            self.dct_input = Dct2DForward(utils.get_padded_size(self._config.image_size, self._config.add_pad))
+        else:
+            self.dct_input = None
 
         self._log.debug(f'=======AE-NET=======: \n {self.ae_net}')
 
@@ -187,7 +192,7 @@ class PhaseRetrievalAeModel:
         else:
             data_batch_pad = data_batch
         if self._config.use_dct_input:
-            magnitude_batch = jpeg_dct.block_dct(data_batch_pad).abs()
+            magnitude_batch = self.dct_input(data_batch_pad).abs()
         elif self._config.use_rfft:
             magnitude_batch = torch.fft.rfft2(data_batch_pad, norm=self._config.fft_norm).abs()
         else:

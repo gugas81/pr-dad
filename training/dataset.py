@@ -15,7 +15,8 @@ from common import ConfigTrainer
 import common.utils as utils
 from training.augmentations import RandomGammaCorrection
 from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
-import torchjpeg.dct as jpeg_dct
+from models.torch_dct import Dct2DForward, Dct2DInverse
+
 
 class PhaseRetrievalDataset(Dataset):
     def __init__(self,
@@ -40,6 +41,11 @@ class PhaseRetrievalDataset(Dataset):
         self._use_rfft = config.use_rfft
         self._log = log
         self._s3 = S3FileSystem() if s3 is None else s3
+
+        if self._config.use_dct_input:
+            self.dct_input = Dct2DForward(utils.get_padded_size(self._config.image_size, self._config.add_pad))
+        else:
+            self.dct_input = None
 
         ds_name = config.dataset_name.lower()
         ds_path = os.path.join(PATHS.DATASETS, ds_name)
@@ -175,7 +181,7 @@ class PhaseRetrievalDataset(Dataset):
         else:
             image_data_pad = image_data
         if self._config.use_dct_input:
-            fft_data_batch = jpeg_dct.block_dct(image_data_pad[None])[0]
+            fft_data_batch = self.dct_input(image_data_pad)
         elif self._use_rfft:
             fft_data_batch = torch.fft.rfft2(image_data_pad, norm=self._fft_norm)
         else:

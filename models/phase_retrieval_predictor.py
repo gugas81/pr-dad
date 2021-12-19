@@ -4,7 +4,6 @@ from torch import Tensor
 import torchvision
 import torch.nn as nn
 from typing import List
-import torchjpeg.dct as jpeg_dct
 
 from common import ConfigTrainer
 import common.utils as utils
@@ -12,6 +11,7 @@ import common.utils as utils
 from models.untils import BlockList, get_norm_layer
 from models.layers import FcBlock, ConvBlock, ResBlock
 from models.conv_unet import UNetConv
+from models.torch_dct import Dct2DInverse, Dct2DForward
 
 
 class PhaseRetrievalPredictor(nn.Module):
@@ -36,6 +36,11 @@ class PhaseRetrievalPredictor(nn.Module):
 
         self.inter_mag_out_size = utils.get_magnitude_size_2d(out_img_size, self._config.add_pad_out,
                                                               use_rfft=(self._config.use_rfft and not self._config.use_dct))
+        if self._config.use_dct:
+            assert self.inter_mag_out_size[0] == self.inter_mag_out_size[1]
+            self._idct_features = Dct2DInverse(self.inter_mag_out_size[0])
+        else:
+            self._idct_features = None
 
         self.input_mag_size_2d = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad,
                                                              use_rfft=(self._config.use_rfft and not self._config.use_dct_input))
@@ -155,7 +160,7 @@ class PhaseRetrievalPredictor(nn.Module):
         fc_features = self.fc_blocks(mag_flatten)
         if self._config.use_dct:
             spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size[0], self.inter_mag_out_size[1])
-            intermediate_features = jpeg_dct.block_idct(spectral)
+            intermediate_features = self._idct_features(spectral)
         else:
             spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size[0], self.inter_mag_out_size[1], 2)
             spectral = torch.view_as_complex(spectral)
