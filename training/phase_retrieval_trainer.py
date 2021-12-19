@@ -802,7 +802,8 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
 
     model_last_s3_path = trainer.get_last_model_s3_path()
 
-    eval_test = Evaluator(model_type=model_last_s3_path).benchmark_dataset(type_ds='test')
+    if model_last_s3_path:
+        eval_test = Evaluator(model_type=model_last_s3_path).benchmark_dataset(type_ds='test')
 
     return model_last_s3_path, eval_test
 
