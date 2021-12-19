@@ -171,6 +171,7 @@ class ConfigTrainer(ConfigBase):
     lambda_ref_magnitude_recon_loss: float = 1.0
     lambda_features_realness: float = 1.0
     lambda_sparsity_features: float = 1.0
+    lambda_sparsity_dict_coeff: float = 1.0
     lambda_discrim_img: float = 1.0
     lambda_discrim_ref_img: float = 1.0
     lambda_discrim_features: float = 1.0

@@ -497,10 +497,15 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             l1_features_loss = self.l1_img_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
             l2_features_loss = self.l2_img_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
             l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
+            if self._config.use_ae_dictionary:
+                l1_sparsity_dict_coeff = torch.mean(inferred_batch.dict_coeff_recon.abs())
+            else:
+                l1_sparsity_dict_coeff = None
         else:
             l1_features_loss = None
             l2_features_loss = None
             l1_sparsity_features = None
+            l1_sparsity_dict_coeff = None
 
         l1_magnitude_loss = self.l1_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
         l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
@@ -608,6 +613,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             total_loss += self._config.lambda_features_recon_loss * l2_features_loss + \
                           self._config.lambda_features_recon_loss_l1 * l1_features_loss + \
                           self._config.lambda_sparsity_features * l1_sparsity_features
+            if self._config.use_ae_dictionary:
+                total_loss += self._config.lambda_sparsity_dict_coeff * l1_sparsity_dict_coeff
 
         if self._config.use_ref_net:
             total_loss += self._config.lambda_ref_magnitude_recon_loss_l1 * l1_ref_magnitude_loss + \
@@ -629,6 +636,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                   l1_ref_magnitude=l1_ref_magnitude_loss,
                                   l2_ref_magnitude=l2_ref_magnitude_loss,
                                   l1_sparsity_features=l1_sparsity_features,
+                                  l1_sparsity_dict_coeff=l1_sparsity_dict_coeff,
                                   realness_features=l2_features_realness,
                                   img_adv_loss=img_adv_loss,
                                   ref_img_adv_loss=ref_img_adv_loss,
