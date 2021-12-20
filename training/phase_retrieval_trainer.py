@@ -466,7 +466,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                       0.5 * self._config.lambda_sparsity_features * l1_sparsity_features
 
         if self._config.use_ae_dictionary:
-            total_loss + 0.5 * self._config.lambda_sparsity_features * l1_sparsity_dict_coeff
+            total_loss += self._config.lambda_sparsity_dict_coeff * l1_sparsity_dict_coeff
 
         losses = LossesPRFeatures(total=total_loss,
                                   l1_img=l1_img_loss,
