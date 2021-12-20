@@ -1,4 +1,6 @@
 import json
+import warnings
+
 import yaml
 import jsonpickle
 import numpy as np
@@ -80,7 +82,9 @@ class ConfigBase:
             obj_dict = json_obj.__dict_
         non_valid_keys = [key for key in obj_dict.keys() if key not in cls.get_fields_names()]
         if len(non_valid_keys) > 0:
-            raise NameError(f'Not valid name: {non_valid_keys}')
+            warnings.warn(f'Not valid name: {non_valid_keys}, will be removed from config dict')
+            [obj_dict.pop(key_to_remove, None) for key_to_remove in non_valid_keys]
+            
         obj = cls.from_dict(obj_dict)
 
         return obj
