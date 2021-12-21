@@ -1,8 +1,10 @@
 import logging
 import os
 from functools import partial
-from typing import Union, Tuple, Dict, Any, Optional, Callable, Sequence
+from typing import Union, Tuple, Dict, Any, Optional, Callable, Sequence, List
 import fire
+from tqdm import tqdm
+import PIL
 import numpy as np
 import torch
 import torchvision
@@ -194,6 +196,84 @@ class PhaseRetrievalDataset(Dataset):
 
     def get_inv_normalize_transform(self) -> torch.nn.Module:
         return NormalizeInverse((self.norm_mean,), (self.norm_std,))
+
+
+class CelebASmallGray(torchvision.datasets.CelebA):
+    def __init__(
+            self,
+            root: str,
+            split: str = "train",
+            target_type: Union[List[str], str] = "attr",
+            transform: Optional[Callable] = None,
+            target_transform: Optional[Callable] = None,
+            download: bool = False,
+            image_size: int = 32
+    ) -> None:
+        super(CelebASmallGray, self).__init__(root,
+                                              transform=transform,
+                                               target_transform=target_transform,
+                                              split=split,
+                                              target_type=target_type,
+                                              download=download)
+        self.image_path = os.path.join(self.root, self.base_folder, f"img_align_celeba_{image_size}")
+        assert os.path.isdir(self.image_path)
+
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        X = PIL.Image.open(os.path.join(self.image_path, self.filename[index]))
+
+        target: Any = []
+        for t in self.target_type:
+            if t == "attr":
+                target.append(self.attr[index, :])
+            elif t == "identity":
+                target.append(self.identity[index, 0])
+            elif t == "bbox":
+                target.append(self.bbox[index, :])
+            elif t == "landmarks":
+                target.append(self.landmarks_align[index, :])
+            else:
+                # TODO: refactor with utils.verify_str_arg
+                raise ValueError("Target type \"{}\" is not recognized.".format(t))
+
+        if self.transform is not None:
+            X = self.transform(X)
+
+        if target:
+            target = tuple(target) if len(target) > 1 else target[0]
+
+            if self.target_transform is not None:
+                target = self.target_transform(target)
+        else:
+            target = None
+
+        return X, target
+
+
+def create_down_sampled_celeba(image_size: int = 32):
+    def get_celeba_ds(root: str, split_: str, download: bool, transform: Optional[Callable] = None) -> torchvision.datasets.CelebA:
+        return torchvision.datasets.CelebA(root=root,
+                                           split=split_,
+                                           download=download,
+                                           transform=transform)
+
+    alignment_transform = transforms.Compose([
+        transforms.Resize(image_size),
+        transforms.CenterCrop(image_size)])
+
+    data_transforms = [alignment_transform, transforms.Grayscale(num_output_channels=1)]
+    data_transforms = transforms.Compose(data_transforms)
+
+    splits = ['train', 'test']
+    for split in splits:
+        ds_path = os.path.join(PATHS.DATASETS, 'celeba')
+        celeba_ds = get_celeba_ds(root=ds_path, split=split, download=True,  transform=data_transforms)
+        new_img_path = os.path.join(celeba_ds.root, celeba_ds.base_folder, f"img_align_celeba_{image_size}")
+        os.makedirs(new_img_path, exist_ok=True)
+        len_ds = len(celeba_ds)
+        for ds_ind in tqdm(range(len_ds)):
+            img, _ = celeba_ds[ds_ind]
+            img_out_path = os.path.join(new_img_path, celeba_ds.filename[ds_ind])
+            img.save(img_out_path)
 
 
 def create_data_loaders(config: ConfigTrainer,
