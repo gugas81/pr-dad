@@ -28,11 +28,16 @@ class PhaseRetrievalDataset(Dataset):
                  s3: Optional[S3FileSystem] = None,
                  is_gan: bool = False
                  ):
-        def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None):
-            return torchvision.datasets.CelebA(root=root,
-                                               split='train' if train else 'test',
-                                               download=download,
-                                               transform=transform)
+        def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None) ->torchvision.datasets.CelebA:
+            # return torchvision.datasets.CelebA(root=root,
+            #                                    split='train' if train else 'test',
+            #                                    download=download,
+            #                                    transform=transform)
+            return CelebASmallGray(root=root,
+                                   split='train' if train else 'test',
+                                   download=download,
+                                   transform=transform,
+                                   image_size=self._config.image_size)
 
         np.random.seed(seed=config.seed)
         self._config = config
@@ -68,13 +73,13 @@ class PhaseRetrievalDataset(Dataset):
             self._download_ds_from_s3(ds_name, ds_path)
             self.norm_mean = 0.5
             self.norm_std = 0.5
-            is_rgb = True
+            is_rgb = False
             ds_class = celeba_ds
-            alignment_transform = transforms.Compose([
-                transforms.Resize(self._config.image_size),
-                transforms.CenterCrop(self._config.image_size)])
-            normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
-                                                       (self.norm_std, self.norm_std, self.norm_std))
+            # alignment_transform = transforms.Compose([
+            #     transforms.Resize(self._config.image_size),
+            #     transforms.CenterCrop(self._config.image_size)])
+            # normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
+            #                                            (self.norm_std, self.norm_std, self.norm_std))
         else:
             raise NameError(f'Not valid ds type {ds_name}')
 
@@ -266,7 +271,7 @@ def create_down_sampled_celeba(image_size: int = 32):
     splits = ['train', 'test']
     for split in splits:
         ds_path = os.path.join(PATHS.DATASETS, 'celeba')
-        celeba_ds = get_celeba_ds(root=ds_path, split=split, download=True,  transform=data_transforms)
+        celeba_ds = get_celeba_ds(root=ds_path, split_=split, download=True,  transform=data_transforms)
         new_img_path = os.path.join(celeba_ds.root, celeba_ds.base_folder, f"img_align_celeba_{image_size}")
         os.makedirs(new_img_path, exist_ok=True)
         len_ds = len(celeba_ds)
