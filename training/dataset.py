@@ -73,7 +73,7 @@ class PhaseRetrievalDataset(Dataset):
             self._download_ds_from_s3(ds_name, ds_path)
             self.norm_mean = 0.5
             self.norm_std = 0.5
-            is_rgb = False
+            is_rgb = True
             ds_class = celeba_ds
             alignment_transform = transforms.Compose([
                 transforms.Resize(self._config.image_size),
