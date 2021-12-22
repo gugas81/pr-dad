@@ -158,7 +158,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self._log.info(f'train_en_magnitude is Staring')
         init_ts_losses = self.test_eval_en_magnitude(use_adv_loss)
         self._add_losses_tensorboard('en-magnitude/test', init_ts_losses, self._global_step)
-        evaluator = Evaluator(model_type=self._generator_model)
+        evaluator = Evaluator(model_type=self._generator_model, data_holder=self._data_holder)
         eval_test_df = self._add_metrics_evaluator_test(evaluator, self._global_step)
         self._log.debug(f'INIT  -- Evaluation test data \n {eval_test_df}')
         for epoch in range(1, self.n_epochs + 1):
@@ -202,7 +202,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
     def train_epoch_ae(self, epoch: int = 0, train_dict: bool = False) -> LossesPRFeatures:
         train_losses = []
-        p_bar_train_data_loader = tqdm(self.train_paired_loader)
+        p_bar_train_data_loader = tqdm(self._data_holder.train_paired_loader)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
             data_batch = self.prepare_data_batch(data_batch, is_train=True)
             if train_dict:
@@ -221,8 +221,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
             if batch_idx % self.log_interval == 0:
                 self._log.info(f'Train Epoch: {epoch}, train_dict: {train_dict}, '
-                               f'[{batch_idx * len(data_batch)}/{len(self.train_paired_loader)} '
-                                f'({100. * batch_idx / len(self.train_paired_loader):.0f}%)], ae_losses: {ae_losses}')
+                               f'[{batch_idx * len(data_batch)}/{len(self._data_holder.train_paired_loader)} '
+                                f'({100. * batch_idx / len(self._data_holder.train_paired_loader):.0f}%)], ae_losses: {ae_losses}')
                 self._add_losses_tensorboard('ae/train', ae_losses, self._global_step)
 
             if batch_idx % self._config.log_image_interval == 0:
@@ -236,7 +236,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
     def train_epoch_en_magnitude(self, epoch: int = 0, use_adv_loss: bool = False) -> LossesPRFeatures:
         train_losses = []
-        p_bar_train_data_loader = tqdm(self.train_paired_loader)
+        p_bar_train_data_loader = tqdm(self._data_holder.train_paired_loader)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
             data_batch = self.prepare_data_batch(data_batch, is_train=True)
             inferred_batch, tr_losses = self._train_step_generator(data_batch, use_adv_loss=use_adv_loss)
@@ -254,8 +254,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                     if self._config.predict_out == 'features':
                         grad_losses.l2_grad_features_discriminator, _ = l2_grad_norm(self.features_discriminator)
 
-                self._log.info(f'Train Epoch: {epoch} [{batch_idx * len(data_batch)}/{len(self.train_paired_loader.dataset)}'
-                                f'({100. * batch_idx / len(self.train_paired_loader):.0f}%)], {train_losses[batch_idx]}, '
+                self._log.info(f'Train Epoch: {epoch} [{batch_idx * len(data_batch)}/{len(self._data_holder.train_paired_loader.dataset)}'
+                                f'({100. * batch_idx / len(self._data_holder.train_paired_loader):.0f}%)], {train_losses[batch_idx]}, '
                                 f'{grad_losses}')
                 self._add_losses_tensorboard('en-magnitude/train', tr_losses, self._global_step)
                 self._add_losses_tensorboard('en-magnitude/train', grad_losses, self._global_step)
@@ -275,7 +275,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         ae_losses = []
         self._generator_model.set_eval_mode()
         with torch.no_grad():
-            for batch_idx, data_batch in enumerate(self.test_loader):
+            for batch_idx, data_batch in enumerate(self._data_holder.test_loader):
                 data_batch = self.prepare_data_batch(data_batch, is_train=False)
                 inferred_batch = self._generator_model.forward_ae(data_batch)
                 ae_losses_batch = self._ae_losses(data_batch, inferred_batch)
@@ -287,7 +287,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def test_eval_en_magnitude(self, use_adv_loss: bool = False) -> LossesPRFeatures:
         losses_ts = []
         with torch.no_grad():
-            for batch_idx, data_batch in enumerate(self.test_loader):
+            for batch_idx, data_batch in enumerate(self._data_holder.test_loader):
                 data_batch = self.prepare_data_batch(data_batch, is_train=False)
                 inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=False)
                 losses_ts_ = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
@@ -809,6 +809,8 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
     train_en_losses, test_en_losses, test_ae_losses = trainer.train()
 
     model_last_s3_path = trainer.get_last_model_s3_path()
+
+    del trainer
 
     if model_last_s3_path:
         eval_test = Evaluator(model_type=model_last_s3_path).benchmark_dataset(type_ds='test')

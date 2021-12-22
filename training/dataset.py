@@ -133,6 +133,9 @@ class PhaseRetrievalDataset(Dataset):
         if isinstance(data_transforms, list) and len(data_transforms) > 0:
             data_transforms = transforms.Compose(data_transforms)
 
+        if isinstance(data_transforms, list) and len(data_transforms) == 0:
+            data_transforms = None
+
         self.image_dataset = ds_class(root=ds_path,
                                       train=self._is_train,
                                       download=True,
@@ -224,7 +227,7 @@ class CelebASmallGray(torchvision.datasets.CelebA):
                                               target_type=target_type,
                                               download=download)
         image_path = os.path.join(self.root, self.base_folder, f"img_align_celeba_{image_size}")
-        data_file_file = os.path.join(image_path, 'img_data.pt')
+        data_file_file = os.path.join(image_path, f'img_data_{split}.pt')
         assert os.path.isfile(data_file_file)
         self._img_data = torch.load(data_file_file)
 
@@ -293,9 +296,9 @@ def create_down_sampled_celeba(image_size: int = 32):
         len_ds = len(celeba_ds)
         img_data = [celeba_ds[ds_ind][0] for ds_ind in tqdm(range(len_ds))]
         img_data: Tensor = torch.stack(img_data)
-        out_file = os.path.join(out_img_path, 'img_data.pt')
-        print(f'will saved in: {img_data}')
-        img_data.save(out_file)
+        out_file = os.path.join(out_img_path, f'img_data_{split}.pt')
+        print(f'Image data: {img_data.shape} will saved in: {out_file}')
+        torch.save(img_data, out_file)
         # for ds_ind in tqdm(range(len_ds)):
         #     img, _ = celeba_ds[ds_ind]
         #     img_data.append(img)

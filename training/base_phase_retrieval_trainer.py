@@ -13,15 +13,26 @@ from torch.nn import functional as F
 from training.dataset import create_data_loaders
 from typing import Optional, Any, Dict, Union
 import logging
-
+from dataclasses import dataclass
 from common import ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
 from common import im_concatenate, square_grid_im_concat, PATHS, im_save, fft2_from_rfft
 from common import InferredBatch
 import common.utils as utils
 from training.augmentations import get_rnd_gauss_noise_like
 from models.torch_dct import Dct2DForward
+from torch.utils.data.dataset import Dataset
+from torch.utils.data.dataloader import DataLoader
 
 logging.basicConfig(level=logging.INFO)
+
+
+@dataclass
+class DataHolder:
+    train_paired_loader: Optional[DataLoader] = None
+    train_unpaired_loader: Optional[DataLoader] = None
+    test_loader: Optional[DataLoader] = None
+    train_ds: Optional[Dataset] = None
+    test_ds: Optional[Dataset] = None
 
 
 class BaseTrainerPhaseRetrieval:
@@ -30,7 +41,7 @@ class BaseTrainerPhaseRetrieval:
     _log = logging.getLogger('BaseTrainerPhaseRetrieval')
     _s3 = S3FileSystem()
 
-    def __init__(self, config: ConfigTrainer, experiment_name: Optional[str] = None):
+    def __init__(self, config: ConfigTrainer, experiment_name: Optional[str] = None, data_holder: Optional[DataHolder] = None):
         self._base_init()
         self._config: ConfigTrainer = config
         self._log.debug(f'Config params: \n {config} \n')
@@ -63,10 +74,13 @@ class BaseTrainerPhaseRetrieval:
             if self._task:
                 self._task.add_tags(['DEBUG'])
 
-        self._log.debug('init data loaders')
-        self._init_data_loaders()
+        if data_holder is None:
+            self._log.debug('init data loaders')
+            self._data_holder = self._init_data_loaders()
+        else:
+            self._data_holder = data_holder
 
-        self._init_dbg_data_batches()
+            self._init_dbg_data_batches()
 
     def _init_experiment(self, experiment_name: str):
         self._create_log_dir(experiment_name)
@@ -86,8 +100,8 @@ class BaseTrainerPhaseRetrieval:
         dbg_batch_tr = min(self.batch_size_train, self._dbg_img_batch)
         dbg_batch_ts = min(self.batch_size_test, self._dbg_img_batch)
 
-        self.data_tr_batch = self.prepare_data_batch(iter(self.train_paired_loader).next(), is_train=True)
-        self.data_ts_batch = self.prepare_data_batch(iter(self.test_loader).next(), is_train=False)
+        self.data_tr_batch = self.prepare_data_batch(iter(self._data_holder.train_paired_loader).next(), is_train=True)
+        self.data_ts_batch = self.prepare_data_batch(iter(self._data_holder.test_loader).next(), is_train=False)
 
         self.data_tr_batch.image = self.data_tr_batch.image[:dbg_batch_tr]
         self.data_tr_batch.fft_magnitude = self.data_tr_batch.fft_magnitude[:dbg_batch_tr]
@@ -103,11 +117,17 @@ class BaseTrainerPhaseRetrieval:
             self.data_ts_batch.image_noised = self.data_ts_batch.image_noised[:dbg_batch_ts]
             self.data_ts_batch.fft_magnitude_noised = self.data_ts_batch.fft_magnitude_noised[:dbg_batch_ts]
 
-    def _init_data_loaders(self):
-        self.train_paired_loader, self.train_unpaired_loader, self.test_loader, self.train_ds, self.test_ds = \
+    def _init_data_loaders(self) -> DataHolder:
+        train_paired_loader, train_unpaired_loader, test_loader, train_ds, test_ds = \
             create_data_loaders(config=self._config,
                                 log=self._log,
                                 s3=self._s3)
+
+        return DataHolder(train_paired_loader=train_paired_loader,
+                          train_unpaired_loader=train_unpaired_loader,
+                          test_loader=test_loader,
+                          train_ds=train_ds,
+                          test_ds=test_ds)
 
     def load_state(self, model_path: str) -> Dict[str, Any]:
         self._log.debug(f'Load state dict from: {model_path}')
@@ -268,7 +288,7 @@ class BaseTrainerPhaseRetrieval:
             self._log.error(f'Non valid s3 path to save images: {task_s3_path}')
 
     def _grid_images(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize: bool = True) -> Tensor:
-        inv_norm_transform = self.test_ds.get_inv_normalize_transform()
+        inv_norm_transform = self._data_holder.test_ds.get_inv_normalize_transform()
         img_grid = [inv_norm_transform(data_batch.image)]
         if (self._config.gauss_noise is not None) and self._config.use_aug:
             img_grid.append(inv_norm_transform(data_batch.image_noised))
@@ -284,7 +304,7 @@ class BaseTrainerPhaseRetrieval:
         return img_grid
 
     def _grid_diff_images(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
-        inv_norm_transform = self.test_ds.get_inv_normalize_transform()
+        inv_norm_transform = self._data_holder.test_ds.get_inv_normalize_transform()
         norm_orig_img = inv_norm_transform(data_batch.image)
         img_grid = [norm_orig_img]
         if (self._config.gauss_noise is not None) and self._config.use_aug:

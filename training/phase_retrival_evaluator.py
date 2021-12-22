@@ -11,7 +11,7 @@ from copy import deepcopy
 
 from common import DataBatch, InferredBatch, NumpyBatch
 
-from training.base_phase_retrieval_trainer import BaseTrainerPhaseRetrieval
+from training.base_phase_retrieval_trainer import BaseTrainerPhaseRetrieval, DataHolder
 from training.phase_retrieval_model import PhaseRetrievalAeModel
 
 
@@ -81,6 +81,7 @@ class Evaluator(BaseTrainerPhaseRetrieval):
     def __init__(self,
                  model_type:  Union[str, PhaseRetrievalAeModel],
                  config: Optional[str] = None,
+                 data_holder: Optional[DataHolder] = None,
                  debug: bool = False,
                  rot180: bool = False):
 
@@ -109,7 +110,7 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         if debug:
             config.n_dataloader_workers = 0
 
-        super(Evaluator, self).__init__(config=config)
+        super(Evaluator, self).__init__(config=config, data_holder=data_holder)
 
         if isinstance(model_type, PhaseRetrievalAeModel):
             self._generator_model = model_type
@@ -146,11 +147,11 @@ class Evaluator(BaseTrainerPhaseRetrieval):
 
     def benchmark_dataset(self, save_out_url: Optional[str] = None, type_ds: str = 'test') -> Union[str, pd.DataFrame]:
         if type_ds == 'test':
-            data_loader = self.test_loader
-            inv_norm = self.test_ds.get_inv_normalize_transform()
+            data_loader = self._data_holder.test_loader
+            inv_norm = self._data_holder.test_ds.get_inv_normalize_transform()
         elif type_ds == 'train':
-            data_loader = self.train_paired_loader
-            inv_norm = self.train_ds.get_inv_normalize_transform()
+            data_loader = self._data_holder.train_paired_loader
+            inv_norm = self._data_holder.train_ds.get_inv_normalize_transform()
         else:
             raise NameError(f'Non valid ds type: {type_ds}, must train/test')
 
