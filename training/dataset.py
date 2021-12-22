@@ -87,6 +87,9 @@ class PhaseRetrievalDataset(Dataset):
         if is_rgb:
             data_transforms.append(transforms.Grayscale(num_output_channels=1))
 
+        if ds_name == 'celeba':
+            data_transforms = []
+
         if self._use_aug:
             prob_aug = self._config.prob_aug
             augmentations_transforms = []
@@ -220,11 +223,16 @@ class CelebASmallGray(torchvision.datasets.CelebA):
                                               split=split,
                                               target_type=target_type,
                                               download=download)
-        self.image_path = os.path.join(self.root, self.base_folder, f"img_align_celeba_{image_size}")
-        assert os.path.isdir(self.image_path)
+        image_path = os.path.join(self.root, self.base_folder, f"img_align_celeba_{image_size}")
+        data_file_file = os.path.join(image_path, 'img_data.pt')
+        assert os.path.isfile(data_file_file)
+        self._img_data = torch.load(data_file_file)
 
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
-        X = PIL.Image.open(os.path.join(self.image_path, self.filename[index]))
+        # img_out_path = os.path.join(self.image_path, f'{self.filename[index]}'.pt)
+        # X = torch.load(img_out_path)
+        # X = PIL.Image.open(os.path.join(self.image_path, self.filename[index]))
+        X = self._img_data[index]
 
         target: Any = []
         for t in self.target_type:
@@ -265,20 +273,35 @@ def create_down_sampled_celeba(image_size: int = 32):
         transforms.Resize(image_size),
         transforms.CenterCrop(image_size)])
 
-    data_transforms = [alignment_transform, transforms.Grayscale(num_output_channels=1)]
+    norm_mean = 0.5
+    norm_std = 0.5
+
+    normalize_transform = transforms.Normalize((norm_mean, norm_mean, norm_mean),
+                                               (norm_std, norm_std, norm_std))
+
+    data_transforms = [alignment_transform, transforms.ToTensor(), normalize_transform, transforms.Grayscale(num_output_channels=1)]
+
+    # data_transforms = [alignment_transform, transforms.Grayscale(num_output_channels=1), transforms.ToTensor()]
     data_transforms = transforms.Compose(data_transforms)
 
     splits = ['train', 'test']
     for split in splits:
         ds_path = os.path.join(PATHS.DATASETS, 'celeba')
         celeba_ds = get_celeba_ds(root=ds_path, split_=split, download=True,  transform=data_transforms)
-        new_img_path = os.path.join(celeba_ds.root, celeba_ds.base_folder, f"img_align_celeba_{image_size}")
-        os.makedirs(new_img_path, exist_ok=True)
+        out_img_path = os.path.join(celeba_ds.root, celeba_ds.base_folder, f"img_align_celeba_{image_size}")
+        os.makedirs(out_img_path, exist_ok=True)
         len_ds = len(celeba_ds)
-        for ds_ind in tqdm(range(len_ds)):
-            img, _ = celeba_ds[ds_ind]
-            img_out_path = os.path.join(new_img_path, celeba_ds.filename[ds_ind])
-            img.save(img_out_path)
+        img_data = [celeba_ds[ds_ind][0] for ds_ind in tqdm(range(len_ds))]
+        img_data: Tensor = torch.stack(img_data)
+        out_file = os.path.join(out_img_path, 'img_data.pt')
+        print(f'will saved in: {img_data}')
+        img_data.save(out_file)
+        # for ds_ind in tqdm(range(len_ds)):
+        #     img, _ = celeba_ds[ds_ind]
+        #     img_data.append(img)
+            # img_out_path = os.path.join(out_img_path, f'{celeba_ds.filename[ds_ind]}'.pt)
+            # torch.save(img, img_out_path)
+            # img.save(img_out_path)
 
 
 def create_data_loaders(config: ConfigTrainer,
