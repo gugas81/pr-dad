@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from models.seq_blocks import EncoderConv, DecoderConv, MlpDown
+from models.seq_blocks import EncoderConv, DecoderConv, MlpNet
 
 
 class AttDictionary(nn.Module):
@@ -38,7 +38,10 @@ class MapToCoeff(nn.Module):
         self.out_ch = out_ch
         self.in_features = in_ch * (img_size ** 2)
 
-        self.mlp_maps = MlpDown(in_ch=self.in_features, deep=deep_mlp, out_ch=self.out_coeff * self.out_ch)
+        self.mlp_maps = MlpNet(in_ch=self.in_features,
+                               deep=deep_mlp,
+                               out_ch=self.out_coeff * self.out_ch,
+                               multy_coeff=0.5)
 
     def forward(self, features: Tensor) -> Tensor:
         coeff = self.mlp_maps(features.view(-1, self.in_features))

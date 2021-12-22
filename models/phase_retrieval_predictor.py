@@ -9,6 +9,8 @@ from common import ConfigTrainer
 import common.utils as utils
 
 from models.untils import BlockList, get_norm_layer
+from models.seq_blocks import MlpNet
+from models.mlp_features_embeding import MlpFeaturesEmedings
 from models.layers import FcBlock, ConvBlock, ResBlock
 from models.conv_unet import UNetConv
 from models.torch_dct import Dct2DInverse, Dct2DForward

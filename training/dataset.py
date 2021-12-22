@@ -29,15 +29,15 @@ class PhaseRetrievalDataset(Dataset):
                  is_gan: bool = False
                  ):
         def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None) ->torchvision.datasets.CelebA:
-            # return torchvision.datasets.CelebA(root=root,
-            #                                    split='train' if train else 'test',
-            #                                    download=download,
-            #                                    transform=transform)
-            return CelebASmallGray(root=root,
-                                   split='train' if train else 'test',
-                                   download=download,
-                                   transform=transform,
-                                   image_size=self._config.image_size)
+            return torchvision.datasets.CelebA(root=root,
+                                               split='train' if train else 'test',
+                                               download=download,
+                                               transform=transform)
+            # return CelebASmallGray(root=root,
+            #                        split='train' if train else 'test',
+            #                        download=download,
+            #                        transform=transform,
+            #                        image_size=self._config.image_size)
 
         np.random.seed(seed=config.seed)
         self._config = config
@@ -75,11 +75,11 @@ class PhaseRetrievalDataset(Dataset):
             self.norm_std = 0.5
             is_rgb = False
             ds_class = celeba_ds
-            # alignment_transform = transforms.Compose([
-            #     transforms.Resize(self._config.image_size),
-            #     transforms.CenterCrop(self._config.image_size)])
-            # normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
-            #                                            (self.norm_std, self.norm_std, self.norm_std))
+            alignment_transform = transforms.Compose([
+                transforms.Resize(self._config.image_size),
+                transforms.CenterCrop(self._config.image_size)])
+            normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
+                                                       (self.norm_std, self.norm_std, self.norm_std))
         else:
             raise NameError(f'Not valid ds type {ds_name}')
 
@@ -87,8 +87,8 @@ class PhaseRetrievalDataset(Dataset):
         if is_rgb:
             data_transforms.append(transforms.Grayscale(num_output_channels=1))
 
-        if ds_name == 'celeba':
-            data_transforms = []
+        # if ds_name == 'celeba':
+        #     data_transforms = []
 
         if self._use_aug:
             prob_aug = self._config.prob_aug
@@ -229,13 +229,13 @@ class CelebASmallGray(torchvision.datasets.CelebA):
         image_path = os.path.join(self.root, self.base_folder, f"img_align_celeba_{image_size}")
         data_file_file = os.path.join(image_path, f'img_data_{split}.pt')
         assert os.path.isfile(data_file_file)
-        self._img_data = torch.load(data_file_file)
+        self._img_data = torch.load(data_file_file, map_location=torch.device('cpu')).detach().numpy()
 
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         # img_out_path = os.path.join(self.image_path, f'{self.filename[index]}'.pt)
         # X = torch.load(img_out_path)
         # X = PIL.Image.open(os.path.join(self.image_path, self.filename[index]))
-        X = self._img_data[index]
+        X = torch.tensor(self._img_data[index], device=torch.device('cpu'))
 
         target: Any = []
         for t in self.target_type:
@@ -290,7 +290,7 @@ def create_down_sampled_celeba(image_size: int = 32):
     splits = ['train', 'test']
     for split in splits:
         ds_path = os.path.join(PATHS.DATASETS, 'celeba')
-        celeba_ds = get_celeba_ds(root=ds_path, split_=split, download=True,  transform=data_transforms)
+        celeba_ds = get_celeba_ds(root=ds_path, split_=split, download=True,  transform=[])
         out_img_path = os.path.join(celeba_ds.root, celeba_ds.base_folder, f"img_align_celeba_{image_size}")
         os.makedirs(out_img_path, exist_ok=True)
         len_ds = len(celeba_ds)

@@ -6,29 +6,35 @@ from typing import Optional, List, Union
 from models.untils import BlockList
 
 
-class MlpDown(nn.Module):
-    def __init__(self, in_ch: int, deep: int,
+class MlpNet(nn.Module):
+    def __init__(self,
+                 in_ch: int,
+                 deep: int,
                  out_ch: Optional[int] = None,
                  ch_list: List[int] = None,
                  use_dropout: bool = False,
+                 multy_coeff: float = 2.0,
                  norm_type: str = None,
                  active_type: str = 'leakly_relu',
-                 active_params: int = 1):
-        super(MlpDown, self).__init__()
+                 active_ch: bool = True):
+        super(MlpNet, self).__init__()
         self.fc_layers = BlockList()
 
         if ch_list is None or len(ch_list) == 0:
             ch_list = [in_ch]
             for ind_block in range(1, deep, 1):
-                ch_list.append(out_ch if ind_block == deep - 1 and out_ch else ch_list[ind_block-1] // 2)
+                if ind_block == deep - 1 and out_ch:
+
+                    ch_list.append(out_ch if ind_block == deep - 1 and out_ch else ch_list[ind_block-1] * multy_coeff)
 
         for ind_block in range(deep-1):
-            fc_block = FcBlock(in_features=ch_list[ind_block],
-                               out_features=ch_list[ind_block+1],
+            in_ch, out_ch = ch_list[ind_block], ch_list[ind_block+1]
+            fc_block = FcBlock(in_features=in_ch,
+                               out_features=out_ch,
                                use_dropout=use_dropout,
                                norm_type=norm_type,
                                active_type=active_type,
-                               active_params=active_params)
+                               active_params=out_ch if active_ch else 1)
             self.fc_layers.append(fc_block)
 
     def forward(self, x: Tensor) -> Tensor:

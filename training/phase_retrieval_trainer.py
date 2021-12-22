@@ -275,7 +275,14 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         ae_losses = []
         self._generator_model.set_eval_mode()
         with torch.no_grad():
-            for batch_idx, data_batch in enumerate(self._data_holder.test_loader):
+            len_data = len(self._data_holder.test_loader)
+            data_iter = iter(self._data_holder.test_loader)
+            for batch_idx in tqdm(range(len_data)):
+                try:
+                    data_batch = next(data_iter)
+                except Exception as e:
+                    self._log.error(f'Error loading item {batch_idx} from the dataset: {e}')
+
                 data_batch = self.prepare_data_batch(data_batch, is_train=False)
                 inferred_batch = self._generator_model.forward_ae(data_batch)
                 ae_losses_batch = self._ae_losses(data_batch, inferred_batch)

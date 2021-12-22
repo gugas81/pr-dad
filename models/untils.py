@@ -1,4 +1,4 @@
-
+import torch
 from torch import Tensor
 import torch.nn as nn
 from typing import Optional, List, Union
@@ -22,6 +22,13 @@ class BlockList(nn.ModuleList):
         for block in self:
             x = block(x)
         return x
+
+
+class ConcatList(nn.ModuleList):
+    def forward(self, x: Tensor) -> List[Tensor]:
+        out = [block(x) for block in self]
+        # out = torch.stack(out, 1)
+        return out
 
 
 def get_norm_layer(name_type: str, input_ch: int, img_size: Optional[Union[int, List[int]]] = None,

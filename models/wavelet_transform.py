@@ -24,7 +24,8 @@ WAVELET_HAAR_WEIGHTS_PATH = os.path.join(PATHS.PROJECT_ROOT, 'models', 'wavelet_
 
 
 class WaveletHaarTransform(nn.Module):
-    def __init__(self, img_channels=1, scale=1, decomposition=True, params_path=WAVELET_HAAR_WEIGHTS_PATH, transpose=True):
+    def __init__(self, img_channels: int = 1, scale: int = 1, decomposition: bool = True,  transpose=True,
+                 params_path: str = WAVELET_HAAR_WEIGHTS_PATH):
         super(WaveletHaarTransform, self).__init__()
         assert img_channels == 1 or img_channels == 3
         self.scale = scale
@@ -34,7 +35,6 @@ class WaveletHaarTransform(nn.Module):
 
         self.kernel_size = int(math.pow(2, self.scale))
         self.subband_channels = img_channels * self.kernel_size * self.kernel_size
-        print(f'subband_channels:{self.subband_channels}, kernel_size:{self.kernel_size}')
 
         if self.decomposition:
             self.wavelet_conv_transform = nn.Conv2d(in_channels=img_channels,
@@ -89,3 +89,26 @@ class WaveletHaarTransform(nn.Module):
                 xx = xx.view(in_size[0], -1, self.img_channels, in_size[2], in_size[3]).transpose(1, 2).contiguous().view(in_size)
             output = self.wavelet_conv_transform(xx)
         return output
+
+
+class WaveletHaarTransformAutoencoder(nn.Module):
+    def __init__(self, in_ch: int = 1, deep: int = 3):
+        super(WaveletHaarTransformAutoencoder, self).__init__()
+        self._encoder = WaveletHaarTransform(img_channels=in_ch, scale=deep, decomposition=True)
+        self._decoder = WaveletHaarTransform(img_channels=in_ch, scale=deep, decomposition=False)
+
+    def encode(self, x: Tensor) -> Tensor:
+        features = self._encoder(x)
+        return features
+
+    def forward(self, features: Tensor) -> Tensor:
+        x_out = self._decoder(features)
+        return x_out
+
+    def forward(self, x: Tensor) -> (Tensor, Tensor, Tensor, Tensor):
+        enc_features = self.encode(x)
+        dec_features = enc_features
+        coeff = enc_features
+        x_out = self.decode(dec_features)
+
+        return x_out, enc_features, dec_features, coeff

@@ -80,7 +80,7 @@ class BaseTrainerPhaseRetrieval:
         else:
             self._data_holder = data_holder
 
-            self._init_dbg_data_batches()
+        self._init_dbg_data_batches()
 
     def _init_experiment(self, experiment_name: str):
         self._create_log_dir(experiment_name)
