@@ -79,6 +79,8 @@ class PhaseRetrievalPredictor(nn.Module):
                                          img_size=self.input_mag_size_2d,
                                          is_2d=True,
                                          affine=True)
+
+        # self.fc_blocks = MlpNet(in_ch=in_fc, deep=0)
         self.fc_blocks = BlockList()
         for ind in range(deep_fc):
             if ind == deep_fc - 1:
