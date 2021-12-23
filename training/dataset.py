@@ -80,6 +80,12 @@ class PhaseRetrievalDataset(Dataset):
                 transforms.CenterCrop(self._config.image_size)])
             normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
                                                        (self.norm_std, self.norm_std, self.norm_std))
+        elif ds_name == 'cifar10':
+            ds_class = torchvision.datasets.CIFAR10
+            is_rgb = True
+            self.norm_mean = 0.48
+            self.norm_std = 0.20
+            normalize_transform = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
         else:
             raise NameError(f'Not valid ds type {ds_name}')
 
