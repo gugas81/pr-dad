@@ -43,6 +43,25 @@ class ConvBlock(nn.Module):
         return x
 
 
+class SpatialAttentionBlock(nn.Module):
+    def __init__(self, in_ch: int,  kernel_size: int = 3):
+        super(SpatialAttentionBlock, self).__init__()
+
+        self.conv_s = nn.Conv2d(in_ch, in_ch, kernel_size, padding=kernel_size//2, bias=False)
+
+    @staticmethod
+    def soft_max_special(x):
+        x_flatten = x.view(x.size(0), x.size(1), -1)
+        return nn.Softmax(dim=2)(x_flatten)
+
+    def forward(self, features_input: Tensor) -> Tensor:
+        s_att = self.conv_s(features_input)
+        s_att = self.soft_max_special(s_att)
+        s_max, _ = torch.max(s_att.abs(), dim=2, keepdim=True)
+        s_att /= s_max
+        return s_att.view_as(features_input)
+
+
 class ResBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, padding: int = 1, bias: bool = False,
                  bias_out: bool = True, active_type: str = 'leakly_relu'):

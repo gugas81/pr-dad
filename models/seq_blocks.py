@@ -73,7 +73,6 @@ class EncoderConv(nn.Module):
             if ind_block < self.deep - 1:
                 curr_out_ch *= 2
 
-
             self.conv_down_blocks.append(conv_block)
 
     def forward(self, x: Tensor, use_residual: bool = False) -> Union[Tensor, List[Tensor]]:

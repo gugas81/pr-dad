@@ -66,7 +66,8 @@ class PhaseRetrievalAeModel:
                                      active_type=self._config.activation_refnet,
                                      up_mode=self._config.up_sampling,
                                      down_pool=self._config.down_pooling_refnet,
-                                     features_sigmoid_active=self._config.features_sigmoid_active)
+                                     features_sigmoid_active=self._config.features_sigmoid_active,
+                                     special_attention=self._config.spat_ref_net)
 
             self._log.debug(f'=======RefNet=======: \n {self.ref_unet}')
         else:

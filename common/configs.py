@@ -242,6 +242,7 @@ class ConfigTrainer(ConfigBase):
     dict_len: int = 16
     n_features_dec: int = 64
     save_model_interval: int = 10
+    spat_ref_net:  bool = False
 
 
 
