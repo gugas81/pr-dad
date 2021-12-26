@@ -58,7 +58,6 @@ class BaseTrainerPhaseRetrieval:
         self.n_epochs = self._config.n_epochs_pr
         self.batch_size_train = self._config.batch_size_train
         self.batch_size_test = self._config.batch_size_test
-        self.learning_rate = self._config.learning_rate
         self.img_size = config.image_size
 
         set_seed(self.seed)
