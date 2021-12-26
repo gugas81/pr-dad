@@ -36,18 +36,24 @@ class DataBatch:
 
     def apply(self, apply_func: Callable):
         torch_data = {}
+        apply_func_tn = lambda x: apply_func(x) if isinstance(x, Tensor) else x
         for key, val in self.__dict__.items():
-            if val is not None:
-                torch_data[key] = apply_func(val)
+            if isinstance(val, Tensor):
+                torch_data[key] = apply_func_tn(val)
+            elif isinstance(val, dict):
+                torch_data[key] = {key_: apply_func_tn(val_) for key_, val_ in val.items()}
             else:
                 torch_data[key] = None
         return self.__class__(**torch_data)
 
     def reduce(self, merge_func: Callable):
+        merge_func_tn = lambda x: merge_func(x) if isinstance(x, Tensor) else x
         torch_data = {}
         for key, val in self.__dict__.items():
-            if val is not None:
-                torch_data[key] = merge_func(val)
+            if isinstance(val, Tensor):
+                torch_data[key] = merge_func_tn(val)
+            elif isinstance(val, dict):
+                torch_data[key] = {key_: merge_func_tn(val_) for key_, val_ in val.items()}
             else:
                 torch_data[key] = None
 
