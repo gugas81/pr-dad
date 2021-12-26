@@ -91,18 +91,19 @@ class TensorBatch(DataBatch):
     def merge(params: List['TensorBatch']):
         return TensorBatch._merge(params, torch.stack)
 
-    def to(self, device: str):
+    def to(self, device: str) -> 'TensorBatch':
+        def to_device(val_x: Any) -> Any:
+            return val_x.to(device=device) if isinstance(val_x, Tensor) else val_x
+
         torch_data = {}
         for key, val in dataclasses.asdict(self).items():
             if val is not None:
-                if isinstance(val, Tensor):
-                    torch_data[key] = val.to(device=device)
-                elif isinstance(val, dict):
-                    torch_data[key] = {key_: val_.to(device=device) for key_, val_ in val.items()}
+                if isinstance(val, dict):
+                    torch_data[key] = {key_: to_device(val_) for key_, val_ in val.items()}
                 else:
-                    raise ValueError(f'Key: {key}, type={type(val)}')
+                    torch_data[key] = to_device(device=device)
             else:
-                torch_data[key] = val
+                torch_data[key] = None
         return self.__class__(**torch_data)
 
     def mean(self):
