@@ -66,13 +66,13 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self.optimizer_dict = None
 
         if ModulesNames.magnitude_encoder not in self._config.optim_exclude:
-            self.optimizer_en = optim.Adam(params=self._generator_model.phase_predictor.get_params(),
+            self.optimizer_en = optim.Adam(params=self._generator_model.phase_predictor.parameters(),
                                            lr=self._config.lr_enc)
             self.optimizers_generator.update({ModulesNames.opt_magnitude_encoder: self.optimizer_en})
         else:
             self.optimizer_en = None
         if self._config.use_ref_net and (ModulesNames.ref_net not in self._config.optim_exclude):
-            self.optimizer_ref_net = optim.Adam(params=self._generator_model.ref_unet.get_params(),
+            self.optimizer_ref_net = optim.Adam(params=self._generator_model.ref_unet.parameters(),
                                                 lr=self._config.lr_ref_net)
             self.optimizers_generator.update({ModulesNames.opt_ref_net: self.optimizer_ref_net})
         else:
