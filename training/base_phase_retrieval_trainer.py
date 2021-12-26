@@ -146,14 +146,11 @@ class BaseTrainerPhaseRetrieval:
                 loaded_sate = torch.load(local_model_path)
             except Exception as e:
                 self._log.error(f'Cannot load from local cached path: {local_model_path}, remove and '
-                                f'download load again from: {model_path}')
+                                f'download load again from: {model_path}, error: {e}')
                 shutil.rmtree(local_model_dir)
                 os.makedirs(local_model_dir, exist_ok=True)
                 self._s3.download(model_path, local_model_path)
                 loaded_sate = torch.load(local_model_path)
-
-
-
 
         elif self._s3.is_s3_url(model_path):
             assert self._s3.isfile(model_path), f'not valid s3 path of model: {model_path}'
