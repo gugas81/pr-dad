@@ -101,7 +101,7 @@ class TensorBatch(DataBatch):
                 if isinstance(val, dict):
                     torch_data[key] = {key_: to_device(val_) for key_, val_ in val.items()}
                 else:
-                    torch_data[key] = to_device(device=device)
+                    torch_data[key] = to_device(val)
             else:
                 torch_data[key] = None
         return self.__class__(**torch_data)
