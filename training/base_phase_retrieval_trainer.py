@@ -150,6 +150,7 @@ class BaseTrainerPhaseRetrieval:
                 shutil.rmtree(local_model_dir)
                 os.makedirs(local_model_dir, exist_ok=True)
                 self._s3.download(model_path, local_model_path)
+                loaded_sate = torch.load(local_model_path)
 
 
 
