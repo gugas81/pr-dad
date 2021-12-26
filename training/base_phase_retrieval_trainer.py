@@ -7,6 +7,7 @@ from pathlib import Path
 from functools import partial
 from datetime import datetime
 from torch import Tensor
+import shutil
 import torchvision
 from torchvision import transforms
 from torch.nn import functional as F
@@ -134,13 +135,24 @@ class BaseTrainerPhaseRetrieval:
             assert self._s3.isfile(model_path), f'not valid s3 path of model: {model_path}'
             rel_path_model = Path(model_path).relative_to(PATHS.S3_CML_PROJECT)
             local_model_path = os.path.join(PATHS.MODEL_CACHE_LOCAL, rel_path_model)
+            local_model_dir = os.path.dirname(local_model_path)
             if os.path.isfile(local_model_path):
                 self._log.debug(f'Exist cached model file in: {local_model_path} will be load from here')
             else:
                 self._log.debug(f'Not Exist cached model file in: {local_model_path} will be cached here')
-                os.makedirs(os.path.dirname(local_model_path), exist_ok=True)
+                os.makedirs(local_model_dir, exist_ok=True)
                 self._s3.download(model_path, local_model_path)
-            loaded_sate = torch.load(local_model_path)
+            try:
+                loaded_sate = torch.load(local_model_path)
+            except Exception as e:
+                self._log.error(f'Cannot load from local cached path: {local_model_path}, remove and '
+                                f'download load again from: {model_path}')
+                shutil.rmtree(local_model_dir)
+                os.makedirs(local_model_dir, exist_ok=True)
+                self._s3.download(model_path, local_model_path)
+
+
+
 
         elif self._s3.is_s3_url(model_path):
             assert self._s3.isfile(model_path), f'not valid s3 path of model: {model_path}'
