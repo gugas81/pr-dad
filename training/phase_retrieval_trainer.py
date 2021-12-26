@@ -7,7 +7,7 @@ import pandas as pd
 import fire
 import os
 
-from typing import Optional, List
+from typing import Optional, List, Dict
 from tqdm import tqdm
 from models import Discriminator
 from torch.optim.lr_scheduler import MultiStepLR
@@ -68,7 +68,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         if ModulesNames.magnitude_encoder not in self._config.optim_exclude:
             self.optimizer_en = optim.Adam(params=self._generator_model.phase_predictor.parameters(),
                                            lr=self._config.lr_enc)
-            self.optimizers_generator.update({ModulesNames.opt_magnitude_encoder: self.optimizer_en})
+            self.optimizers_generator.update({ModulesNames.opt_magnitude_enc: self.optimizer_en})
         else:
             self.optimizer_en = None
         if self._config.use_ref_net and (ModulesNames.ref_net not in self._config.optim_exclude):
@@ -93,25 +93,30 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         else:
             self.optimizer_discr = None
 
-        self._lr_schedulers_en = []
+        self._lr_schedulers = {}
         if self.optimizer_en:
-            self._lr_schedulers_en.append(MultiStepLR(self.optimizer_en,
-                                                      self._config.lr_milestones_en,
-                                                      self._config.lr_reduce_rate_en))
+            self._lr_schedulers.update({ModulesNames.opt_magnitude_enc: MultiStepLR(self.optimizer_en,
+                                                                                    self._config.lr_milestones_en,
+                                                                                    self._config.lr_reduce_rate_en)})
 
         if self.optimizer_discr:
-            self._lr_schedulers_en.append(MultiStepLR(self.optimizer_discr,
-                                                      self._config.lr_milestones_en,
-                                                      self._config.lr_reduce_rate_en))
+            self._lr_schedulers.update({ModulesNames.opt_discriminators: MultiStepLR(self.optimizer_discr,
+                                                                                     self._config.lr_milestones_en,
+                                                                                     self._config.lr_reduce_rate_en)})
+
         if self.optimizer_ref_net:
-            self._lr_schedulers_en.append(MultiStepLR(self.optimizer_ref_net,
-                                                      self._config.lr_milestones_en,
-                                                      self._config.lr_reduce_rate_en))
+            self._lr_schedulers.update({ModulesNames.opt_ref_net: MultiStepLR(self.optimizer_ref_net,
+                                                                              self._config.lr_milestones_en,
+                                                                              self._config.lr_reduce_rate_en)})
 
         if self._config.is_train_ae:
+            # self._lr_schedulers.update({ModulesNames.opt_ae: MultiStepLR(self.optimizer_ae,
+            #                                                              self._config.lr_milestones_en,
+            #                                                              self._config.lr_reduce_rate_en)})
             self._lr_scheduler_ae = MultiStepLR(self.optimizer_ae,
-                                                self._config.lr_milestones_ae,
-                                                self._config.lr_reduce_rate_ae)
+                                                self._config.lr_milestones_en,
+                                                self._config.lr_reduce_rate_en)
+
             if self._config.use_ae_dictionary:
                 self._lr_scheduler_dict = MultiStepLR(self.optimizer_dict,
                                                       self._config.lr_milestones_ae,
@@ -187,10 +192,10 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self._generator_model.set_train_mode()
             tr_losses = self.train_epoch_en_magnitude(epoch, use_adv_loss)
             ts_losses = self.test_eval_en_magnitude(use_adv_loss)
-            ts_losses.lr = torch.tensor(self._lr_schedulers_en[0].get_last_lr()[0])
+            ts_losses.lr = self.get_last_lr_enc()
             self._add_losses_tensorboard('en-magnitude/test', ts_losses, self._global_step)
 
-            for lr_scheduler in self._lr_schedulers_en:
+            for name_optim, lr_scheduler in self._lr_schedulers.items():
                 lr_scheduler.step()
 
             train_en_losses.append(tr_losses)
@@ -211,6 +216,12 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         test_en_losses = LossesPRFeatures.merge(test_en_losses)
 
         return train_en_losses, test_en_losses
+
+    def get_last_lr_enc(self) -> Dict[str, Tensor]:
+        return  {name_optim: torch.tensor(lr_scheduler.get_last_lr()[0])
+                 for name_optim, lr_scheduler in self._lr_schedulers.items()}
+
+        # torch.tensor(self._lr_schedulers[0].get_last_lr()[0])
 
     def _add_metrics_evaluator_test(self, evaluator: Evaluator, step: int = None) -> pd.DataFrame:
         eval_test_df: pd.DataFrame = evaluator.benchmark_dataset(type_ds='test')

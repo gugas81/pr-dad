@@ -94,8 +94,13 @@ class TensorBatch(DataBatch):
     def to(self, device: str):
         torch_data = {}
         for key, val in dataclasses.asdict(self).items():
-            if val is not None and isinstance(val, Tensor):
-                torch_data[key] = val.to(device=device)
+            if val is not None:
+                if isinstance(val, Tensor):
+                    torch_data[key] = val.to(device=device)
+                elif isinstance(val, dict):
+                    torch_data[key] = {key_: val_.to(device=device) for key_, val_ in val.items()}
+                else:
+                    raise ValueError(f'Key: {key}, type={type(val)}')
             else:
                 torch_data[key] = val
         return self.__class__(**torch_data)
@@ -191,7 +196,7 @@ class LossesPRFeatures(Losses):
     perceptual_disrim_img: Optional[Tensor] = None
     perceptual_disrim_ref_img: Optional[Tensor] = None
     perceptual_disrim_features: Optional[Tensor] = None
-    lr:  Optional[Tensor] = None
+    lr:  Optional[Dict[str,Tensor]] = None
     mean_img: Optional[Tensor] = None
     std_img: Optional[Tensor] = None
     max_img: Optional[Tensor] = None

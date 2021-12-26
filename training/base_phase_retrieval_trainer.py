@@ -437,9 +437,16 @@ class BaseTrainerPhaseRetrieval:
         self._config.to_json(os.path.join(self._log_dir, 'config_params.json'))
 
     def _add_losses_tensorboard(self,  tag: str, losses: Losses, step: int = None) -> None:
-        for metric_name, value in losses.__dict__.items():
-            if value is not None:
-                self._tensorboard.add_scalar(f"{metric_name}/{tag}", value.mean(), step)
+        for metric_name, metric_val in losses.__dict__.items():
+            if metric_val is not None:
+                if isinstance(metric_val, Tensor):
+                    self._tensorboard.add_scalar(f"{metric_name}/{tag}", metric_val.mean(), step)
+                elif isinstance(metric_val, dict):
+                    for key, val in metric_val.items():
+                        assert isinstance(val, Tensor)  or isinstance(val, np.ndarray)
+                        self._tensorboard.add_scalar(f"{metric_name}_{key}/{tag}", val.mean(), step)
+                else:
+                    raise ValueError(f'not valid type of loss {metric_name}, of type {type(metric_val)}')
 
     def get_task_name_id(self) -> str:
         return f'{self._task.name}.{self._task.task_id}'

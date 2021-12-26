@@ -9,7 +9,7 @@ class ModulesNames:
     ref_net = 'ref_net'
     img_discriminator = 'img_discriminator'
     features_discriminator = 'features_discriminator'
-    opt_magnitude_encoder = 'opt_magnitude_encoder'
+    opt_magnitude_enc = 'opt_magnitude_encoder'
     opt_ref_net = 'opt_ref_net'
     opt_discriminators = 'opt_discriminators'
     opt_ae = 'opt_ae'
