@@ -152,7 +152,9 @@ class DiscriminatorBatch(TensorBatch):
 @dataclass
 class Losses(TensorBatch):
     def __str__(self) -> str:
-        losses_batch_str = [f'{metric_name}: {val_losses.mean().detach().cpu().numpy(): .4f}'
+        def get_repr(val) -> str:
+            return f'{val.mean().detach().cpu().numpy(): .4f}' if isinstance(val, Tensor) else str(val)
+        losses_batch_str = [f'{metric_name}: {get_repr(val_losses)}'
                             for metric_name, val_losses in self.__dict__.items() if val_losses is not None]
         losses_batch_str = ' '.join(losses_batch_str)
         return losses_batch_str
