@@ -80,7 +80,11 @@ class PhaseRetrievalAeModel:
 
         if is_load_module():
             self._log.info(f'Load weights of {name}')
-            module.load_state_dict(state_dict[name])
+            missing_keys, unexpected_keys = module.load_state_dict(state_dict[name], strict=False)
+            if len(missing_keys):
+                self._log.warning(f'{name}: Missing key  in state_dict:{missing_keys}')
+            if len(unexpected_keys):
+                self._log.error(f'{name}: Unexpected key  in state_dict:{unexpected_keys}')
             self._log.debug(f'Weights of {name} was been loaded')
             return True
         elif force:
