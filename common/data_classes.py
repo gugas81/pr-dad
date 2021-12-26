@@ -1,5 +1,6 @@
 import torch
 from torch import Tensor
+import numbers
 import numpy as np
 import dataclasses
 from typing import Optional, List, Callable, Dict, Any
@@ -36,26 +37,22 @@ class DataBatch:
 
     def apply(self, apply_func: Callable):
         torch_data = {}
-        apply_func_tn = lambda x: apply_func(x) if isinstance(x, Tensor) else x
+        apply_f = lambda x: apply_func(x) if isinstance(x, Tensor) or isinstance(x, np.ndarray) or isinstance(x, numbers.Number) else x
         for key, val in self.__dict__.items():
-            if isinstance(val, Tensor):
-                torch_data[key] = apply_func_tn(val)
-            elif isinstance(val, dict):
-                torch_data[key] = {key_: apply_func_tn(val_) for key_, val_ in val.items()}
+            if isinstance(val, dict):
+                torch_data[key] = {key_: apply_f(val_) for key_, val_ in val.items()}
             else:
-                torch_data[key] = None
+                torch_data[key] = apply_f(val)
         return self.__class__(**torch_data)
 
     def reduce(self, merge_func: Callable):
-        merge_func_tn = lambda x: merge_func(x) if isinstance(x, Tensor) else x
+        merge_f = lambda x: merge_func(x) if isinstance(x, Tensor) or isinstance(x, np.ndarray) or isinstance(x, numbers.Number) else x
         torch_data = {}
         for key, val in self.__dict__.items():
-            if isinstance(val, Tensor):
-                torch_data[key] = merge_func_tn(val)
-            elif isinstance(val, dict):
-                torch_data[key] = {key_: merge_func_tn(val_) for key_, val_ in val.items()}
+            if isinstance(val, dict):
+                torch_data[key] = {key_: merge_f(val_) for key_, val_ in val.items()}
             else:
-                torch_data[key] = None
+                torch_data[key] = merge_f(val)
 
         return self.__class__(**torch_data)
 
