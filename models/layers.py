@@ -50,7 +50,7 @@ class SpatialAttentionBlock(nn.Module):
         self.conv_s = nn.Conv2d(in_ch, in_ch, kernel_size, padding=kernel_size//2, bias=False)
 
     @staticmethod
-    def soft_max_special(x):
+    def soft_max_special(x: Tensor) -> Tensor:
         x_flatten = x.view(x.size(0), x.size(1), -1)
         return nn.Softmax(dim=2)(x_flatten)
 

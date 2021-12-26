@@ -51,16 +51,32 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self._generator_model.set_train_mode()
         self._generator_model.set_device(self.device)
 
-        if self._config.is_train_ae and (self._generator_model.ae_net is not None):
-            self.optimizer_ae = optim.Adam(params=self._generator_model.ae_net.parameters(), lr=self.learning_rate)
+        self.optimizers_generator = {}
+
+        if self._config.is_train_ae and (self._generator_model.ae_net is not None) and (ModulesNames.ae_model not in self._config.optim_exclude):
+
+            self.optimizer_ae = optim.Adam(params=self._generator_model.ae_net.parameters(), lr=self._config.lr_ae)
+            self.optimizers_generator.update({ModulesNames.opt_ae: self.optimizer_ae})
+
             if self._config.use_ae_dictionary:
                 self.optimizer_dict = optim.Adam(params=self._generator_model.ae_net.dictionary.parameters(),
-                                                 lr=self.learning_rate)
+                                                 lr=self._config.lr_dict)
         else:
             self.optimizer_ae = None
             self.optimizer_dict = None
 
-        self.optimizer_en = optim.Adam(params=self._generator_model.get_params(), lr=self.learning_rate)
+        if ModulesNames.magnitude_encoder not in self._config.optim_exclude:
+            self.optimizer_en = optim.Adam(params=self._generator_model.phase_predictor.get_params(),
+                                           lr=self._config.lr_enc)
+            self.optimizers_generator.update({ModulesNames.opt_magnitude_encoder: self.optimizer_en})
+        else:
+            self.optimizer_en = None
+        if self._config.use_ref_net and (ModulesNames.ref_net not in self._config.optim_exclude):
+            self.optimizer_ref_net = optim.Adam(params=self._generator_model.ref_unet.get_params(),
+                                                lr=self._config.lr_ref_net)
+            self.optimizers_generator.update({ModulesNames.opt_ref_net: self.optimizer_ref_net})
+        else:
+            self.optimizer_ref_net = None
 
         if self._config.use_gan:
             if self._config.predict_out == 'features':
@@ -72,20 +88,25 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             disrim_params = list(self.img_discriminator.parameters())
             if self._config.predict_out == 'features':
                 disrim_params += list(self.features_discriminator.parameters())
-            self.optimizer_discr = optim.Adam(params=disrim_params, lr=self.learning_rate)
+            self.optimizer_discr = optim.Adam(params=disrim_params, lr=self._config.lr_discr)
 
         else:
             self.optimizer_discr = None
 
-        if self._config.use_gan:
-            self._lr_schedulers_en = [
-                MultiStepLR(self.optimizer_en, self._config.lr_milestones_en, self._config.lr_reduce_rate_en),
-                MultiStepLR(self.optimizer_discr, self._config.lr_milestones_en, self._config.lr_reduce_rate_en)
-            ]
-        else:
-            self._lr_schedulers_en = [
-                MultiStepLR(self.optimizer_en, self._config.lr_milestones_en, self._config.lr_reduce_rate_en)
-            ]
+        self._lr_schedulers_en = []
+        if self.optimizer_en:
+            self._lr_schedulers_en.append(MultiStepLR(self.optimizer_en,
+                                                      self._config.lr_milestones_en,
+                                                      self._config.lr_reduce_rate_en))
+
+        if self.optimizer_discr:
+            self._lr_schedulers_en.append(MultiStepLR(self.optimizer_discr,
+                                                      self._config.lr_milestones_en,
+                                                      self._config.lr_reduce_rate_en))
+        if self.optimizer_ref_net:
+            self._lr_schedulers_en.append(MultiStepLR(self.optimizer_ref_net,
+                                                      self._config.lr_milestones_en,
+                                                      self._config.lr_reduce_rate_en))
 
         if self._config.is_train_ae:
             self._lr_scheduler_ae = MultiStepLR(self.optimizer_ae,
@@ -93,8 +114,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                 self._config.lr_reduce_rate_ae)
             if self._config.use_ae_dictionary:
                 self._lr_scheduler_dict = MultiStepLR(self.optimizer_dict,
-                                                    self._config.lr_milestones_ae,
-                                                    self._config.lr_reduce_rate_ae)
+                                                      self._config.lr_milestones_ae,
+                                                      self._config.lr_reduce_rate_ae)
 
         else:
             self._lr_scheduler_ae = None
@@ -365,15 +386,15 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                       self.features_discriminator,
                                                       ModulesNames.features_discriminator)
 
-            self._generator_model.load_module(loaded_sate,
-                                              self.optimizer_en,
-                                              ModulesNames.opt_magnitude_encoder)
+            for opt_name, optim_ in self.optimizers_generator.items():
+                self._generator_model.load_module(loaded_sate,
+                                                  optim_,
+                                                  opt_name)
+
             if self._config.is_train_ae:
                 self._generator_model.load_module(loaded_sate,
                                                   self.optimizer_ae,
                                                   ModulesNames.opt_ae)
-
-
 
     def _discrim_ls_loss(self, discriminator: nn.Module, real_img: Tensor, generated_imgs: List[Tensor],
                          real_labels: Tensor, fake_labels: Tensor) -> Tensor:
@@ -438,7 +459,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
     def _train_step_generator(self, data_batch: DataBatch,
                               use_adv_loss: bool = False) -> (InferredBatch, LossesPRFeatures):
-        self.optimizer_en.zero_grad()
+        self._zero_grad_optimizers_gen()
+
         # with torch.cuda.amp.autocast(enabled=self._config.use_amp):
         inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
         tr_losses = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
@@ -449,12 +471,21 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         if self._config.clip_encoder_grad is not None:
             torch.nn.utils.clip_grad_norm_(self._generator_model.phase_predictor.parameters(),
                                            self._config.clip_encoder_grad)
-        if self._config.use_amp:
-            self._scaler.step(self.optimizer_en)
-        else:
-            self.optimizer_en.step()
+
+        self._step_optimizers()
 
         return inferred_batch, tr_losses
+
+    def _zero_grad_optimizers_gen(self):
+        for opt_name, optim_ in self.optimizers_generator.items():
+            optim_.zero_grad()
+
+    def _step_optimizers(self):
+        for opt_name, optim_ in self.optimizers_generator.items():
+            if self._config.use_amp:
+                self._scaler.step(optim_)
+            else:
+                optim_.step()
 
     def _ae_losses(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> LossesPRFeatures:
         fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
@@ -678,14 +709,13 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def _save_gan_models(self, step: int, force: bool = False) -> None:
         if self.models_path is not None:
             save_state = self._generator_model.get_state_dict()
-            save_state[ModulesNames.opt_magnitude_encoder] = self.optimizer_en.state_dict()
+            save_state.update({opt_name: opt_ for opt_name, opt_ in self.optimizers_generator.items()})
             if self._config.use_gan:
                 save_state[ModulesNames.img_discriminator] = self.img_discriminator.state_dict()
-                save_state[ModulesNames.opt_discriminators] = self.optimizer_discr.state_dict()
-                if self._config.predict_out == 'features':
+                if self.optimizer_discr:
+                    save_state[ModulesNames.opt_discriminators] = self.optimizer_discr.state_dict()
+                if self._config.predict_out == 'features' and self.features_discriminator:
                     save_state[ModulesNames.features_discriminator] = self.features_discriminator.state_dict()
-            if self._config.is_train_ae:
-                save_state[ModulesNames.opt_ae] = self.optimizer_ae.state_dict()
 
             if ((step - 1) % self._config.save_model_interval == 0) or force:
                 save_model_path = os.path.join(self.models_path, f'phase-retrieval-gan-model-{step}.pt')
@@ -812,6 +842,8 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
     config = TrainerPhaseRetrievalAeFeatures.load_config(config_path, **kwargs)
 
     trainer = TrainerPhaseRetrievalAeFeatures(config=config, experiment_name=experiment_name)
+
+    trainer._log.debug(f'Generator optimizers: {trainer.optimizers_generator}')
 
     train_en_losses, test_en_losses, test_ae_losses = trainer.train()
 

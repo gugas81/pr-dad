@@ -243,6 +243,12 @@ class ConfigTrainer(ConfigBase):
     n_features_dec: int = 64
     save_model_interval: int = 10
     spat_ref_net:  bool = False
+    lr_ae: Optional[float] = None
+    lr_ref_net: Optional[float] = None
+    lr_enc: Optional[float] = None
+    lr_dict: Optional[float] = None
+    lr_discr: Optional[float] = None
+    optim_exclude:  List[str] = field(default_factory=lambda: [])
 
 
 
