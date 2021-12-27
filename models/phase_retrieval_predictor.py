@@ -129,7 +129,7 @@ class PhaseRetrievalPredictor(nn.Module):
             self.conv_blocks = BlockList()
             for ind in range(deep_conv):
                 out_conv = self._config.predict_conv_multy_coeff * in_conv
-                conv_block = conv_block_class(in_conv, out_conv, active_type=active_type, padding_mode='reflect')
+                conv_block = conv_block_class(in_conv, out_conv, active_type=active_type, padding_mode='replicate')
                 in_conv = out_conv
                 self.conv_blocks.append(conv_block)
             conv_out = nn.Conv2d(out_conv, self.out_ch, kernel_size=1, stride=1, padding=0)
