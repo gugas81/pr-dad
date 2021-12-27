@@ -1,5 +1,6 @@
 import numpy as np
 import fire
+import math
 import os
 import torch
 from tqdm import tqdm
@@ -20,6 +21,7 @@ class EvaluationMetrics(NumpyBatch):
     mse: np.ndarray = field(default_factory=lambda:  np.zeros((1,)))
     mae: np.ndarray = field(default_factory=lambda:  np.zeros((1,)))
     ssim: np.ndarray = field(default_factory=lambda:  np.zeros((1,)))
+    psnr: np.ndarray = field(default_factory=lambda:  np.zeros((1,)))
 
 
 class CalculateMetrics:
@@ -160,11 +162,13 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         eval_metrics_recon = []
         eval_metrics_ae = []
         rot_180 = self._config.loss_rot180
+        max_gt_value = float('inf')
         for batch_idx, data_batch in enumerate(p_bar_data_loader):
             with torch.no_grad():
                 data_batch = self.prepare_data_batch(data_batch)
                 inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=self.EVAL_MODE)
                 gt_images = inv_norm(data_batch.image).detach().cpu().numpy()
+                max_gt_value = max(max_gt_value, float(np.max(gt_images)))
                 recon_ref_images = inv_norm(inferred_batch.img_recon_ref).detach().cpu().numpy()
                 recon_images = inv_norm(inferred_batch.img_recon).detach().cpu().numpy()
             if self._config.predict_out == 'features':
@@ -177,12 +181,12 @@ class Evaluator(BaseTrainerPhaseRetrieval):
                 if self._config.predict_out == 'features':
                     eval_metrics_ae.append(CalculateMetrics.metrics(gt_img, ae_img))
 
-        eval_recon_ref_net_df = self._get_eval_df(eval_metrics_recon_ref_net)
-        eval_recon_df = self._get_eval_df(eval_metrics_recon)
+        eval_recon_ref_net_df = self._get_eval_df(eval_metrics_recon_ref_net, max_val=max_gt_value)
+        eval_recon_df = self._get_eval_df(eval_metrics_recon, max_val=max_gt_value)
         eval_df = [eval_recon_ref_net_df, eval_recon_df]
         keys = ['recon_ref_net', 'recon']
         if self._config.predict_out == 'features':
-            eval_ae_df = self._get_eval_df(eval_metrics_ae)
+            eval_ae_df = self._get_eval_df(eval_metrics_ae, max_val=max_gt_value)
             eval_df.append(eval_ae_df)
             keys.append('ae')
 
@@ -200,7 +204,7 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         return out_eval
 
     @staticmethod
-    def _get_eval_df(evaluation_metrics: List[EvaluationMetrics]) -> pd.DataFrame:
+    def _get_eval_df(evaluation_metrics: List[EvaluationMetrics], max_val: float) -> pd.DataFrame:
         evaluation_metrics = EvaluationMetrics.merge(evaluation_metrics)
         keys = evaluation_metrics.get_keys()
         eval_df = pd.DataFrame(index=keys, columns=Evaluator.COLUMNS)
@@ -213,7 +217,14 @@ class Evaluator(BaseTrainerPhaseRetrieval):
             eval_df.loc[key][Evaluator.STD] = std_metrics.as_dict()[key]
             eval_df.loc[key][Evaluator.MIN] = min_metrics.as_dict()[key]
             eval_df.loc[key][Evaluator.MAX] = max_metrics.as_dict()[key]
+
+        eval_df.loc['psnr'][Evaluator.MEAN] = Evaluator.psnr(eval_df.loc['mse'][Evaluator.MEAN])
+
         return eval_df
+
+    @staticmethod
+    def psnr(mse: float, max_val: float) -> float:
+        return 20.0 * math.log10(max_val / mse)
 
     def eval_dbg_batch(self, save_url: str):
         inferred_batch_tr = self._generator_model.forward_magnitude_encoder(self.data_tr_batch,
