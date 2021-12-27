@@ -218,7 +218,7 @@ class Evaluator(BaseTrainerPhaseRetrieval):
             eval_df.loc[key][Evaluator.MIN] = min_metrics.as_dict()[key]
             eval_df.loc[key][Evaluator.MAX] = max_metrics.as_dict()[key]
 
-        eval_df.loc['psnr'][Evaluator.MEAN] = Evaluator.psnr(eval_df.loc['mse'][Evaluator.MEAN])
+        eval_df.loc['psnr'][Evaluator.MEAN] = Evaluator.psnr(eval_df.loc['mse'][Evaluator.MEAN], max_val=max_val)
 
         return eval_df
 
