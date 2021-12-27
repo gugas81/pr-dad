@@ -22,10 +22,11 @@ class DataBatch:
             for key, value in dataclasses.asdict(p).items():
                 if value is not None and new_obj[key] is not None:
                     if isinstance(value, dict):
-                        sub_obj = defaultdict(list)
-                        for key_, val_ in value.items():
-                            sub_obj[key_].append(val_)
-                        new_obj[key].append(sub_obj)
+                        # if key not in new_obj:
+                        #     new_obj[key] = {key_: [] for key_ in value.keys()}
+                        # for key_, val_ in value.items():
+                        #     new_obj[key][key_].append(val_)
+                        continue
                     else:
                         new_obj[key].append(value)
                 else:
