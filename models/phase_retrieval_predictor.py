@@ -118,15 +118,18 @@ class PhaseRetrievalPredictor(nn.Module):
             raise NameError(f'Non valid conv_type: {conv_type}')
 
         if conv_type == 'Unet':
-            self.conv_blocks = UNetConv(img_ch=self.inter_ch, output_ch=self.out_ch,
-                                        up_mode='bilinear', active_type=active_type, down_pool='avrg_pool')
+            self.conv_blocks = UNetConv(img_ch=self.inter_ch,
+                                        output_ch=self.out_ch,
+                                        up_mode='bilinear',
+                                        active_type=active_type,
+                                        down_pool='avrg_pool')
         else:
             in_conv = self.inter_ch
 
             self.conv_blocks = BlockList()
             for ind in range(deep_conv):
                 out_conv = self._config.predict_conv_multy_coeff * in_conv
-                conv_block = conv_block_class(in_conv, out_conv, active_type=active_type)
+                conv_block = conv_block_class(in_conv, out_conv, active_type=active_type, padding_mode='reflect')
                 in_conv = out_conv
                 self.conv_blocks.append(conv_block)
             conv_out = nn.Conv2d(out_conv, self.out_ch, kernel_size=1, stride=1, padding=0)
@@ -141,8 +144,8 @@ class PhaseRetrievalPredictor(nn.Module):
             intermediate_features = out_features
             out_features = self.inter_norm(out_features.real)
 
-        if self._config.features_sigmoid_active:
-            out_features = torch.sigmoid(out_features)
+            if self._config.features_sigmoid_active:
+                out_features = torch.sigmoid(out_features)
 
         return out_features, intermediate_features
 
@@ -183,6 +186,9 @@ class PhaseRetrievalPredictor(nn.Module):
 
         intermediate_features = (1/self._config.spectral_factor) * intermediate_features
         intermediate_features = self.inter_norm(intermediate_features)
+        if self._config.features_sigmoid_active:
+            intermediate_features = torch.sigmoid(intermediate_features)
+
         out_features = self.conv_blocks(intermediate_features)
 
         return out_features, intermediate_features

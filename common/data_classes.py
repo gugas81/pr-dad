@@ -40,7 +40,7 @@ class DataBatch:
                 sub_obj = {key_: merge_func(new_obj[val_]) for key_, val_ in value.items()}
                 new_object_by_type[key] = sub_obj
             else:
-                new_object_by_type[key] = merge_func(new_obj[key])
+                new_object_by_type[key] = merge_func(value)
 
         return params[0].__class__(**new_object_by_type)
 

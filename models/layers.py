@@ -24,8 +24,14 @@ class FcBlock(nn.Module):
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, ch_in: int, ch_out: int, ch_inter: Optional[int] = None, active_type: str = 'leakly_relu',
+    def __init__(self,
+                 ch_in: int,
+                 ch_out: int,
+                 ch_inter: Optional[int] = None,
+                 active_type: str = 'leakly_relu',
                  padding_mode: str = 'zeros'):
+        # padding_mode(string, optional): ``'zeros'``, ``'reflect'``,
+        # ``'replicate'`` or ``'circular'``.Default: ``'zeros'``
         super(ConvBlock, self).__init__()
         if ch_inter is None:
             ch_inter = ch_out
@@ -64,18 +70,18 @@ class SpatialAttentionBlock(nn.Module):
 
 class ResBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, padding: int = 1, bias: bool = False,
-                 bias_out: bool = True, active_type: str = 'leakly_relu'):
+                 bias_out: bool = True, active_type: str = 'leakly_relu', padding_mode='replicate'):
         super(ResBlock, self).__init__()
 
         self._conv_block1 = nn.Sequential(nn.BatchNorm2d(in_channels, affine=True),
                                           get_activation(active_type),
                                           nn.Conv2d(in_channels, in_channels, kernel_size,
-                                                    padding=padding, bias=bias, padding_mode='replicate'))
+                                                    padding=padding, bias=bias, padding_mode=padding_mode))
 
         self._conv_block2 = nn.Sequential(nn.BatchNorm2d(in_channels, affine=True),
                                           get_activation(active_type),
                                           nn.Conv2d(in_channels, in_channels, kernel_size,
-                                                    padding=padding, bias=bias, padding_mode='replicate'))
+                                                    padding=padding, bias=bias, padding_mode=padding_mode))
 
         self._conv_block_out = nn.Sequential(nn.BatchNorm2d(3*in_channels, affine=True),
                                              get_activation(active_type),

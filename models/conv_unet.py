@@ -8,9 +8,17 @@ from models.untils import ConcatList
 
 
 class UNetConv(nn.Module):
-    def __init__(self, img_ch: int = 1, output_ch: int = 1, n_encoder_ch=16, deep: int = 3,
-                 in_ch_features: Optional[int] = None, up_mode: str = 'nearest', skip_input: bool = False,
-                 active_type: str = 'leakly_relu', down_pool: str = 'avrg_pool', features_sigmoid_active: bool = False,
+    def __init__(self,
+                 img_ch: int = 1,
+                 output_ch: int = 1, 
+                 n_encoder_ch: int = 16,
+                 deep: int = 3,
+                 in_ch_features: Optional[int] = None,
+                 up_mode: str = 'nearest',
+                 skip_input: bool = False,
+                 active_type: str = 'leakly_relu',
+                 down_pool: str = 'avrg_pool',
+                 features_sigmoid_active: bool = False,
                  special_attention: bool = False):
         super(UNetConv, self).__init__()
         self.features_sigmoid_active = features_sigmoid_active
@@ -33,8 +41,12 @@ class UNetConv(nn.Module):
                 self._att_features_block = None
         else:
             skip_connect_decoder[0] = 0
-        self._decoder = DecoderConv(output_ch=None, img_ch=self.n_features_ch, deep=deep,
-                                    skip_connect_ch=skip_connect_decoder, up_mode=up_mode, active_type=active_type)
+        self._decoder = DecoderConv(output_ch=None,
+                                    img_ch=self.n_features_ch,
+                                    deep=deep,
+                                    skip_connect_ch=skip_connect_decoder,
+                                    up_mode=up_mode,
+                                    active_type=active_type)
 
         self.conv_out = nn.Conv2d(self._decoder.ch_out[-1], output_ch, kernel_size=1, stride=1, padding=0)
 
