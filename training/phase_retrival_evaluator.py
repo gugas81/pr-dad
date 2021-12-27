@@ -162,7 +162,7 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         eval_metrics_recon = []
         eval_metrics_ae = []
         rot_180 = self._config.loss_rot180
-        max_gt_value = float('inf')
+        max_gt_value = float('-inf')
         for batch_idx, data_batch in enumerate(p_bar_data_loader):
             with torch.no_grad():
                 data_batch = self.prepare_data_batch(data_batch)
