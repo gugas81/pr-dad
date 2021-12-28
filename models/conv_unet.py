@@ -67,12 +67,14 @@ class UNetConv(nn.Module):
             encoder_features[-1] = torch.sigmoid(encoder_features[-1])
 
         if self.special_attention:
-            encoder_features = [enc_f * att_block(enc_f) for enc_f, att_block in zip(encoder_features, self.att_blocks)]
+            encoder_features = [enc_f * att_block(enc_f) for enc_f, att_block in zip(encoder_features[1:], self.att_blocks)]
             features = features * self._att_features_block(features)
+        else:
+            encoder_features = encoder_features[1:]
 
         if features is not None and self._in_ch_features:
             encoder_features[-1] = torch.cat((encoder_features[-1], features), dim=1)
-        encoder_features = encoder_features[1:][::-1]
+        encoder_features = encoder_features[::-1]
         x_out = self.decode(encoder_features)
         x_out = self.conv_out(x_out)
 

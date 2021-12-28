@@ -62,10 +62,10 @@ class SpatialAttentionBlock(nn.Module):
 
     def forward(self, features_input: Tensor) -> Tensor:
         s_att = self.conv_s(features_input)
-        s_att = self.soft_max_special(s_att)
-        s_max, _ = torch.max(s_att.abs(), dim=2, keepdim=True)
-        s_att /= s_max
-        return s_att.view_as(features_input)
+        s_att_max_special = self.soft_max_special(s_att)
+        s_max, _ = torch.max(s_att_max_special.abs(), dim=2, keepdim=True)
+        s_att_out = s_att_max_special / s_max
+        return s_att_out.view_as(features_input)
 
 
 class ResBlock(nn.Module):
