@@ -22,11 +22,10 @@ class DataBatch:
             for key, value in dataclasses.asdict(p).items():
                 if value is not None and new_obj[key] is not None:
                     if isinstance(value, dict):
-                        # if key not in new_obj:
-                        #     new_obj[key] = {key_: [] for key_ in value.keys()}
-                        # for key_, val_ in value.items():
-                        #     new_obj[key][key_].append(val_)
-                        continue
+                        if key not in new_obj or len(new_obj[key]) == 0:
+                            new_obj[key] = defaultdict(list)
+                        for key_, val_ in value.items():
+                            new_obj[key][key_].append(val_)
                     else:
                         new_obj[key].append(value)
                 else:
@@ -37,8 +36,8 @@ class DataBatch:
             if value is None:
                 new_object_by_type[key] = None
                 continue
-            if isinstance(value, dict):
-                sub_obj = {key_: merge_func(new_obj[val_]) for key_, val_ in value.items()}
+            if isinstance(value, dict) or isinstance(value, defaultdict):
+                sub_obj = {key_: merge_func(val_) for key_, val_ in value.items()}
                 new_object_by_type[key] = sub_obj
             else:
                 new_object_by_type[key] = merge_func(value)

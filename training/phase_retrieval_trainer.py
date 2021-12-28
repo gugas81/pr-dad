@@ -204,8 +204,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self._log.info(f'Magnitude Encoder Epoch={epoch}, '
                             f'Train Losses: {tr_losses}, '
                             f'Test Losses: {ts_losses} ')
-
-            self._save_gan_models(epoch, force=(epoch == self.n_epochs))
+            if not self._config.debug_mode:
+                self._save_gan_models(epoch, force=(epoch == self.n_epochs))
             losses_dbg_batch_tr, losses_dbg_batch_ts = self._log_en_magnitude_dbg_batch(use_adv_loss, self._global_step)
             self._add_losses_tensorboard('dbg-batch-en-magnitude/train', losses_dbg_batch_tr, self._global_step)
             self._add_losses_tensorboard('dbg-batch-en-magnitude/test', losses_dbg_batch_ts, self._global_step)
@@ -493,10 +493,14 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
     def _step_optimizers(self):
         for opt_name, optim_ in self.optimizers_generator.items():
-            if self._config.use_amp:
-                self._scaler.step(optim_)
-            else:
-                optim_.step()
+            try:
+                if self._config.use_amp:
+                    self._scaler.step(optim_)
+                else:
+                    optim_.step()
+            except Exception as e:
+                self._log.error(f'Run optimizer: {opt_name}, \n error {e}')
+                raise RuntimeError(e)
 
     def _ae_losses(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> LossesPRFeatures:
         fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
