@@ -11,7 +11,7 @@ import common.utils as utils
 from models.untils import BlockList, get_norm_layer
 from models.seq_blocks import MlpNet
 from models.mlp_features_embeding import MlpFeaturesEmedings
-from models.layers import FcBlock, ConvBlock, ResBlock
+from models.layers import FcBlock, ConvBlock, ResBlock, SpatialAttentionBlock
 from models.conv_unet import UNetConv
 from models.torch_dct import Dct2DInverse, Dct2DForward
 
@@ -114,6 +114,8 @@ class PhaseRetrievalPredictor(nn.Module):
             conv_block_class = ResBlock
         elif conv_type == 'Unet':
             conv_block_class = UNetConv
+        elif conv_type == 'SpatialAtt':
+            assert self.inter_ch == self.out_ch
         else:
             raise NameError(f'Non valid conv_type: {conv_type}')
 
@@ -123,6 +125,8 @@ class PhaseRetrievalPredictor(nn.Module):
                                         up_mode='bilinear',
                                         active_type=active_type,
                                         down_pool='avrg_pool')
+        elif conv_type == 'SpatialAtt':
+            self.conv_blocks = SpatialAttentionBlock(self.inter_ch, apply_att=True)
         else:
             in_conv = self.inter_ch
 

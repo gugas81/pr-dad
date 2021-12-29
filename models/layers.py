@@ -50,10 +50,10 @@ class ConvBlock(nn.Module):
 
 
 class SpatialAttentionBlock(nn.Module):
-    def __init__(self, in_ch: int,  kernel_size: int = 3):
+    def __init__(self, in_ch: int,  kernel_size: int = 3, apply_att: bool = False):
         super(SpatialAttentionBlock, self).__init__()
-
-        self.conv_s = nn.Conv2d(in_ch, in_ch, kernel_size, padding=kernel_size//2, bias=False)
+        self.apply_att = apply_att
+        self.conv_map_to_att = nn.Conv2d(in_ch, in_ch, kernel_size, padding=kernel_size // 2, bias=False)
 
     @staticmethod
     def soft_max_special(x: Tensor) -> Tensor:
@@ -61,11 +61,14 @@ class SpatialAttentionBlock(nn.Module):
         return nn.Softmax(dim=2)(x_flatten)
 
     def forward(self, features_input: Tensor) -> Tensor:
-        s_att = self.conv_s(features_input)
+        s_att = self.conv_map_to_att(features_input)
         s_att_max_special = self.soft_max_special(s_att)
         s_max, _ = torch.max(s_att_max_special.abs(), dim=2, keepdim=True)
-        s_att_out = s_att_max_special / s_max
-        return s_att_out.view_as(features_input)
+        s_att_map = s_att_max_special / s_max
+        s_att_out = s_att_map.view_as(features_input)
+        if self.apply_att:
+            s_att_out = s_att_out * features_input
+        return s_att_out
 
 
 class ResBlock(nn.Module):
