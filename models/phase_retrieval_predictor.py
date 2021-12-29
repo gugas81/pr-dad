@@ -115,7 +115,7 @@ class PhaseRetrievalPredictor(nn.Module):
         elif conv_type == 'Unet':
             conv_block_class = UNetConv
         elif conv_type == 'SpatialAtt':
-            assert self.inter_ch == self.out_ch
+            assert self.inter_ch == self.out_ch, f'for SpatialAtt inter_ch: {self.inter_ch} != out_ch:{self.out_ch}'
         else:
             raise NameError(f'Non valid conv_type: {conv_type}')
 
