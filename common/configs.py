@@ -249,6 +249,7 @@ class ConfigTrainer(ConfigBase):
     lr_dict: Optional[float] = None
     lr_discr: Optional[float] = None
     optim_exclude:  List[str] = field(default_factory=lambda: [])
+    spat_conv_predict: bool = False
 
 
 

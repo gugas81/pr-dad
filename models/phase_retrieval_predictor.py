@@ -105,9 +105,12 @@ class PhaseRetrievalPredictor(nn.Module):
                                          affine=True)
         self._build_conv_blocks(self._config.predict_conv_type,
                                 self._config.deep_predict_conv,
-                                active_type=self._config.activation_enc)
+                                active_type=self._config.activation_enc,
+                                add_special_att=self._config.spat_conv_predict)
 
-    def _build_conv_blocks(self, conv_type: str, deep_conv: int, active_type: str = 'leakly_relu'):
+    def _build_conv_blocks(self, conv_type: str, deep_conv: int,
+                           active_type: str = 'leakly_relu',
+                           add_special_att: bool = False):
         if conv_type == 'ConvBlock':
             conv_block_class = ConvBlock
         elif conv_type == 'ResBlock':
@@ -137,7 +140,11 @@ class PhaseRetrievalPredictor(nn.Module):
                 in_conv = out_conv
                 self.conv_blocks.append(conv_block)
             conv_out = nn.Conv2d(out_conv, self.out_ch, kernel_size=1, stride=1, padding=0)
+
             self.conv_blocks.append(conv_out)
+            if add_special_att:
+                att_block = SpatialAttentionBlock(self.out_ch, conv_type='conv', apply_att=True)
+                self.conv_blocks.append(att_block)
 
     def forward(self, magnitude: Tensor) -> (Tensor, Tensor):
         magnitude = self.input_norm(magnitude)
