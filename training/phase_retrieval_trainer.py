@@ -7,7 +7,7 @@ import pandas as pd
 import fire
 import os
 
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Union
 from tqdm import tqdm
 from models import Discriminator
 from torch.optim.lr_scheduler import MultiStepLR
@@ -852,7 +852,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
 def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
                             config_path: str = None,
-                            **kwargs) -> (str, pd.DataFrame):
+                            **kwargs) -> (str, Optional[Union[str, pd.DataFrame]]):
 
     config = TrainerPhaseRetrievalAeFeatures.load_config(config_path, **kwargs)
 
@@ -868,6 +868,8 @@ def run_ae_features_trainer(experiment_name: str = 'recon-l2-ae',
 
     if model_last_s3_path:
         eval_test = Evaluator(model_type=model_last_s3_path).benchmark_dataset(type_ds='test')
+    else:
+        eval_test = None
 
     return model_last_s3_path, eval_test
 
