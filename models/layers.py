@@ -28,18 +28,21 @@ class ConvBlock(nn.Module):
                  ch_in: int,
                  ch_out: int,
                  ch_inter: Optional[int] = None,
+                 kernel_size: int = 3,
                  active_type: str = 'leakly_relu',
-                 padding_mode: str = 'zeros'):
+                 padding_mode: str = 'zeros',
+                 ):
         # padding_mode(string, optional): ``'zeros'``, ``'reflect'``,
         # ``'replicate'`` or ``'circular'``.Default: ``'zeros'``
         super(ConvBlock, self).__init__()
+        padding = kernel_size // 2
         if ch_inter is None:
             ch_inter = ch_out
         self.conv_block = nn.Sequential(
-            nn.Conv2d(ch_in, ch_inter, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode),
+            nn.Conv2d(ch_in, ch_inter, kernel_size=kernel_size, stride=1, padding=padding, padding_mode=padding_mode),
             nn.BatchNorm2d(ch_inter),
             get_activation(active_type),
-            nn.Conv2d(ch_inter, ch_out, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode),
+            nn.Conv2d(ch_inter, ch_out, kernel_size=kernel_size, stride=1, padding=padding, padding_mode=padding_mode),
             nn.BatchNorm2d(ch_out),
             get_activation(active_type)
         )
@@ -50,10 +53,15 @@ class ConvBlock(nn.Module):
 
 
 class SpatialAttentionBlock(nn.Module):
-    def __init__(self, in_ch: int,  kernel_size: int = 3, apply_att: bool = False):
+    def __init__(self, in_ch: int,  kernel_size: int = 3, type_conv: str = 'conv', apply_att: bool = False):
         super(SpatialAttentionBlock, self).__init__()
         self.apply_att = apply_att
-        self.conv_map_to_att = nn.Conv2d(in_ch, in_ch, kernel_size, padding=kernel_size // 2, bias=False)
+        if type_conv == 'conv':
+            self.conv_map_to_att = nn.Conv2d(in_ch, in_ch, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
+        elif type_conv == 'conv_block':
+            self.conv_map_to_att = ConvBlock(in_ch, in_ch, kernel_size=kernel_size)
+        else:
+            raise TypeError(f'Not supported conv type: {type_conv}')
 
     @staticmethod
     def soft_max_special(x: Tensor) -> Tensor:
