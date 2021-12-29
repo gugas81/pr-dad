@@ -53,15 +53,15 @@ class ConvBlock(nn.Module):
 
 
 class SpatialAttentionBlock(nn.Module):
-    def __init__(self, in_ch: int,  kernel_size: int = 3, type_conv: str = 'conv', apply_att: bool = False):
+    def __init__(self, in_ch: int, kernel_size: int = 3, conv_type: str = 'conv', apply_att: bool = False):
         super(SpatialAttentionBlock, self).__init__()
         self.apply_att = apply_att
-        if type_conv == 'conv':
+        if conv_type == 'conv':
             self.conv_map_to_att = nn.Conv2d(in_ch, in_ch, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
-        elif type_conv == 'conv_block':
+        elif conv_type == 'conv_block':
             self.conv_map_to_att = ConvBlock(in_ch, in_ch, kernel_size=kernel_size)
         else:
-            raise TypeError(f'Not supported conv type: {type_conv}')
+            raise TypeError(f'Not supported conv type: {conv_type}')
 
     @staticmethod
     def soft_max_special(x: Tensor) -> Tensor:
