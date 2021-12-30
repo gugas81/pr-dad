@@ -11,7 +11,7 @@ S3_CML_PATH = 's3://data-clearml/phase-retrieval'
 S3_OUT_PATH = 's3://phase-retrieval/eval'
 
 
-def experiment_eval(name: str, out_path: Optional[str] = None):
+def experiment_eval(name: str, out_path: Optional[str] = None, test_only: bool = False):
     s3 = S3FileSystem()
     experiment_paths = s3.glob(os.path.join(S3_CML_PATH, name) + '*')
     assert len(experiment_paths) == 1, f'not valid experiment_path: {experiment_paths}'
@@ -22,7 +22,7 @@ def experiment_eval(name: str, out_path: Optional[str] = None):
 
     out_path = os.path.join(S3_OUT_PATH, name) if out_path is None else out_path
 
-    Evaluator(model_type=model_url).benchmark_evaluation(save_out_url=out_path)
+    Evaluator(model_type=model_url).benchmark_evaluation(save_out_url=out_path, test_only=test_only)
 
 
 if __name__ == '__main__':

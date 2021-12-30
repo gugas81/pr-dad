@@ -171,6 +171,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         if self._config.is_train_encoder:
             if self._config.predict_out == 'features':
+                self._generator_model.ae_net.eval()
                 test_ae_losses = self.test_eval_ae()
                 self._log.info(f' AE training: ts err: {test_ae_losses.mean()}')
             train_en_losses, test_en_losses = self.train_en_magnitude()
@@ -189,7 +190,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self._log.debug(f'INIT  -- Evaluation test data \n {eval_test_df}')
         for epoch in range(1, self.n_epochs + 1):
             self._log.info(f'Train Epoch{epoch}')
-            self._generator_model.set_train_mode()
+
             tr_losses = self.train_epoch_en_magnitude(epoch, use_adv_loss)
             ts_losses = self.test_eval_en_magnitude(use_adv_loss)
             ts_losses.lr = self.get_last_lr_enc()
@@ -206,6 +207,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                             f'Test Losses: {ts_losses} ')
             if not self._config.debug_mode:
                 self._save_gan_models(epoch, force=(epoch == self.n_epochs))
+            self._generator_model.set_eval_mode()
             losses_dbg_batch_tr, losses_dbg_batch_ts = self._log_en_magnitude_dbg_batch(use_adv_loss, self._global_step)
             self._add_losses_tensorboard('dbg-batch-en-magnitude/train', losses_dbg_batch_tr, self._global_step)
             self._add_losses_tensorboard('dbg-batch-en-magnitude/test', losses_dbg_batch_ts, self._global_step)
@@ -235,6 +237,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def train_epoch_ae(self, epoch: int = 0, train_dict: bool = False) -> LossesPRFeatures:
         train_losses = []
         p_bar_train_data_loader = tqdm(self._data_holder.train_paired_loader)
+        self._generator_model.set_train_mode(ae_train=True)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
             data_batch = self.prepare_data_batch(data_batch, is_train=True)
             if train_dict:
@@ -259,7 +262,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
             if batch_idx % self._config.log_image_interval == 0:
                 with torch.no_grad():
+                    self._generator_model.set_eval_mode()
                     self._log_ae_train_dbg_batch(self._global_step)
+                    self._generator_model.set_train_mode(ae_train=True)
 
             self._global_step += 1
 
@@ -269,6 +274,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def train_epoch_en_magnitude(self, epoch: int = 0, use_adv_loss: bool = False) -> LossesPRFeatures:
         train_losses = []
         p_bar_train_data_loader = tqdm(self._data_holder.train_paired_loader)
+        self._generator_model.set_train_mode(ae_train=False)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
             data_batch = self.prepare_data_batch(data_batch, is_train=True)
             inferred_batch, tr_losses = self._train_step_generator(data_batch, use_adv_loss=use_adv_loss)
@@ -279,13 +285,13 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             train_losses.append(tr_losses.detach())
 
             if batch_idx % self.log_interval == 0:
+
                 l2_grad_magnitude_encoder_norm, _ = l2_grad_norm(self._generator_model.phase_predictor)
                 grad_losses = LossesGradNorms(l2_grad_magnitude_encoder=l2_grad_magnitude_encoder_norm)
                 if self._config.use_gan:
                     grad_losses.l2_grad_img_discriminator, _ = l2_grad_norm(self.img_discriminator)
                     if self._config.predict_out == 'features':
                         grad_losses.l2_grad_features_discriminator, _ = l2_grad_norm(self.features_discriminator)
-
                 self._log.info(f'Train Epoch: {epoch} [{batch_idx * len(data_batch)}/{len(self._data_holder.train_paired_loader.dataset)}'
                                 f'({100. * batch_idx / len(self._data_holder.train_paired_loader):.0f}%)], {train_losses[batch_idx]}, '
                                 f'{grad_losses}')
@@ -293,10 +299,12 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                 self._add_losses_tensorboard('en-magnitude/train', grad_losses, self._global_step)
 
             if batch_idx % self._config.log_image_interval == 0:
+                self._generator_model.set_eval_mode()
                 losses_dbg_batch_tr, losses_dbg_batch_ts = self._log_en_magnitude_dbg_batch(use_adv_loss,
                                                                                             self._global_step)
                 self._add_losses_tensorboard('dbg-batch-en-magnitude/train', losses_dbg_batch_tr, self._global_step)
                 self._add_losses_tensorboard('dbg-batch-en-magnitude/test', losses_dbg_batch_ts, self._global_step)
+                self._generator_model.set_train_mode(ae_train=False)
 
             self._global_step += 1
 
@@ -320,15 +328,16 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                 ae_losses_batch = self._ae_losses(data_batch, inferred_batch)
                 ae_losses.append(ae_losses_batch)
             ae_losses = LossesPRFeatures.merge(ae_losses)
-        self._generator_model.set_train_mode()
+        self._generator_model.set_train_mode(ae_train=True)
         return ae_losses
 
     def test_eval_en_magnitude(self, use_adv_loss: bool = False) -> LossesPRFeatures:
         losses_ts = []
+        self._generator_model.set_eval_mode()
         with torch.no_grad():
             for batch_idx, data_batch in enumerate(self._data_holder.test_loader):
                 data_batch = self.prepare_data_batch(data_batch, is_train=False)
-                inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=False)
+                inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
                 losses_ts_ = self._encoder_losses(data_batch, inferred_batch, use_adv_loss=use_adv_loss)
                 losses_ts.append(losses_ts_.detach())
 
@@ -342,7 +351,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         init_ae_losses = self.test_eval_ae()
         init_ae_losses = init_ae_losses.mean()
         self._log.info(f' AE training: init ts losses: {init_ae_losses}')
-        self._log_ae_train_dbg_batch(0)
+        self._log_ae_train_dbg_batch(step=0)
         self._add_losses_tensorboard('ae/test', init_ae_losses, self._global_step)
         n_epochs = self.n_epochs_ae
         if self._config.use_ae_dictionary:
@@ -740,10 +749,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def _log_ae_train_dbg_batch(self, step: Optional[int] = None) -> None:
         if not step:
             step = self._global_step
-
         with torch.no_grad():
-            recon_data_tr_batch = self._generator_model.forward_ae(self.data_tr_batch, eval_mode=False)
-            recon_data_ts_batch = self._generator_model.forward_ae(self.data_ts_batch, eval_mode=False)
+            recon_data_tr_batch = self._generator_model.forward_ae(self.data_tr_batch)
+            recon_data_ts_batch = self._generator_model.forward_ae(self.data_ts_batch)
 
             enc_layers_list = self._generator_model.ae_net._encoder.get_layers()
             enc_layers_features_tr = enc_layers_list(self.data_tr_batch.image, use_residual=True)[1:]
@@ -791,8 +799,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         if not step:
             step = self._global_step
         with torch.no_grad():
-            inferred_batch_tr = self._generator_model.forward_magnitude_encoder(self.data_tr_batch, eval_mode=False)
-            inferred_batch_ts = self._generator_model.forward_magnitude_encoder(self.data_ts_batch, eval_mode=False)
+            inferred_batch_tr = self._generator_model.forward_magnitude_encoder(self.data_tr_batch)
+            inferred_batch_ts = self._generator_model.forward_magnitude_encoder(self.data_ts_batch)
 
             img_grid_grid_tr, img_diff_grid_grid_tr, fft_magnitude_grid_tr, features_enc_grid_grid_tr, features_dec_grid_grid_tr = \
                 self._debug_images_grids(self.data_tr_batch, inferred_batch_tr)

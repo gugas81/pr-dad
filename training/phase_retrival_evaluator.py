@@ -130,9 +130,9 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         self._log.debug(f'loaded_sate from {model_type}')
 
         if loaded_sate:
-            self._generator_model.load_modules(loaded_sate, force=True)
+            self._generator_model.load_modules(loaded_sate, force=False)
 
-    def benchmark_evaluation(self, save_out_url: str):
+    def benchmark_evaluation(self, save_out_url: str, test_only: bool = False):
         if self._s3.exists(save_out_url):
             self._log.warning(f'Exists save_out_url: {save_out_url}')
 
@@ -143,9 +143,10 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         df_ts_url_csv = self.benchmark_dataset(save_out_url, type_ds='test')
         self._log.debug(f'Eval table was saved in {df_ts_url_csv}')
 
-        self._log.debug('benchmark train dataset')
-        df_ts_url_csv = self.benchmark_dataset(save_out_url, type_ds='train')
-        self._log.debug(f'Eval table was saved in {df_ts_url_csv}')
+        if not test_only:
+            self._log.debug('benchmark train dataset')
+            df_ts_url_csv = self.benchmark_dataset(save_out_url, type_ds='train')
+            self._log.debug(f'Eval table was saved in {df_ts_url_csv}')
 
     def benchmark_dataset(self, save_out_url: Optional[str] = None, type_ds: str = 'test') -> Union[str, pd.DataFrame]:
         if type_ds == 'test':
@@ -163,10 +164,11 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         eval_metrics_ae = []
         rot_180 = self._config.loss_rot180
         max_gt_value = float('-inf')
+        self._generator_model.set_eval_mode()
         for batch_idx, data_batch in enumerate(p_bar_data_loader):
             with torch.no_grad():
                 data_batch = self.prepare_data_batch(data_batch)
-                inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch, eval_mode=self.EVAL_MODE)
+                inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
                 gt_images = inv_norm(data_batch.image).detach().cpu().numpy()
                 max_gt_value = max(max_gt_value, float(np.max(gt_images)))
                 recon_ref_images = inv_norm(inferred_batch.img_recon_ref).detach().cpu().numpy()
@@ -227,10 +229,8 @@ class Evaluator(BaseTrainerPhaseRetrieval):
         return 20.0 * math.log10(max_val / mse)
 
     def eval_dbg_batch(self, save_url: str):
-        inferred_batch_tr = self._generator_model.forward_magnitude_encoder(self.data_tr_batch,
-                                                                            eval_mode=self.EVAL_MODE)
-        inferred_batch_ts = self._generator_model.forward_magnitude_encoder(self.data_ts_batch,
-                                                                            eval_mode=self.EVAL_MODE)
+        inferred_batch_tr = self._generator_model.forward_magnitude_encoder(self.data_tr_batch)
+        inferred_batch_ts = self._generator_model.forward_magnitude_encoder(self.data_ts_batch)
         self._save_dbg_img(self.data_tr_batch, inferred_batch_tr, save_url, 'tr')
         self._save_dbg_img(self.data_ts_batch, inferred_batch_ts, save_url, 'ts')
 

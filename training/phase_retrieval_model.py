@@ -80,7 +80,14 @@ class PhaseRetrievalAeModel:
 
         if is_load_module():
             self._log.info(f'Load weights of {name}')
-            missing_keys, unexpected_keys = module.load_state_dict(state_dict[name], strict=False)
+            try:
+                missing_keys, unexpected_keys = module.load_state_dict(state_dict[name], strict=False)
+            except Exception as e:
+                self._log.error(f'Cannot load: {name} from loaded state: {e}')
+                missing_keys, unexpected_keys = [], []
+                if force:
+                    raise RuntimeError(f'{e}')
+
             if len(missing_keys):
                 self._log.warning(f'{name}: Missing key  in state_dict:{missing_keys}')
             if len(unexpected_keys):
@@ -131,9 +138,7 @@ class PhaseRetrievalAeModel:
             gen_params += list(self.ref_unet.parameters())
         return gen_params
 
-    def forward_magnitude_encoder(self, data_batch: DataBatch, eval_mode: bool = False) -> InferredBatch:
-        if eval_mode:
-            self.set_eval_mode()
+    def forward_magnitude_encoder(self, data_batch: DataBatch) -> InferredBatch:
         if (self._config.gauss_noise is not None) and self._config.use_aug:
             fft_magnitude = data_batch.fft_magnitude_noised
         else:
@@ -168,21 +173,15 @@ class PhaseRetrievalAeModel:
             inferred_batch.img_recon_ref = self.ref_unet(recon_batch.detach(), dec_features_batch_recon.detach())
             inferred_batch.fft_magnitude_recon_ref = self.forward_magnitude_fft(inferred_batch.img_recon_ref)
 
-        if eval_mode:
-            self.set_train_mode()
         return inferred_batch
 
-    def forward_ae(self, data_batch: DataBatch, eval_mode: bool = False) -> InferredBatch:
-        if eval_mode:
-            self.set_eval_mode()
+    def forward_ae(self, data_batch: DataBatch) -> InferredBatch:
         if (self._config.gauss_noise is not None) and self._config.use_aug:
             img_batch = data_batch.image_noised
         else:
             img_batch = data_batch.image
         recon_batch, enc_features_batch, dec_features_batch, coeff_enc = self.ae_net(img_batch)
         enc_feature_recon = self.ae_net.encode(recon_batch)
-        if eval_mode:
-            self.set_train_mode()
         return InferredBatch(img_recon=recon_batch,
                              feature_encoder=enc_features_batch,
                              feature_recon=enc_feature_recon,
@@ -212,11 +211,14 @@ class PhaseRetrievalAeModel:
         if self._config.use_ref_net:
             self.ref_unet.eval()
 
-    def set_train_mode(self):
-        self._log.debug('Set model  train mode')
+    def set_train_mode(self, ae_train: bool = False):
+        self._log.debug(f'Set model  train mode: ae_train: {ae_train}')
         self.phase_predictor.train()
-        if self.ae_net is not None:
-            self.ae_net.train()
+        if self.ae_ne:
+            if ae_train:
+                self.ae_net.train()
+            else:
+                self.ae_net.eval()
         if self._config.use_ref_net:
             self.ref_unet.train()
 
