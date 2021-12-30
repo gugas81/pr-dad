@@ -213,8 +213,9 @@ class PhaseRetrievalAeModel:
 
     def set_train_mode(self, ae_train: bool = False):
         self._log.debug(f'Set model  train mode: ae_train: {ae_train}')
-        self.phase_predictor.train()
-        if self.ae_ne:
+        if self.phase_predictor:
+            self.phase_predictor.train()
+        if self.ae_net:
             if ae_train:
                 self.ae_net.train()
             else:
