@@ -56,7 +56,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         if self._config.is_train_ae and (self._generator_model.ae_net is not None) and (ModulesNames.ae_model not in self._config.optim_exclude):
 
             self.optimizer_ae = optim.Adam(params=self._generator_model.ae_net.parameters(), lr=self._config.lr_ae)
-            self.optimizers_generator.update({ModulesNames.opt_ae: self.optimizer_ae})
+            # self.optimizers_generator.update({ModulesNames.opt_ae: self.optimizer_ae})
 
             if self._config.use_ae_dictionary:
                 self.optimizer_dict = optim.Adam(params=self._generator_model.ae_net.dictionary.parameters(),
