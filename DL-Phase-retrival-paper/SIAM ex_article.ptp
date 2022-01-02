@@ -1,0 +1,7 @@
+# PCTeX Project File, Version 1.1
+	name: SIAM ex_article
+	texformat: latex
+	typesetmode: DVI
+	spellwordlist: american
+SIAM ex_article.tex
+SIAM ex_article.log

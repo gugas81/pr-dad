@@ -1,0 +1,135 @@
+This is pdfeTeXk, Version 3.141592-1.20a-2.2 (Web2c 7.5.3) (format=latex 2020.3.5)  14 NOV 2021 17:33
+ Source specials enabled.
+ %&-line parsing enabled.
+**&latex SIAMarticle.tex
+(./SIAMarticle.tex
+LaTeX2e <2005/12/01>
+(./siamonline190516.cls
+Document Class: siamonline190516 2019/05/16 v1.6.2 LaTeX document e-class
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/amsmath/amsmath.sty
+Package: amsmath 2000/07/18 v2.13 AMS math features
+\@mathmargin=\skip41
+
+For additional information on amsmath, use the `?' option.
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/amsmath/amstext.sty
+Package: amstext 2000/06/29 v2.01
+
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/amsmath/amsgen.sty
+File: amsgen.sty 1999/11/30 v2.0
+\@emptytoks=\toks14
+\ex@=\dimen102
+))
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/amsmath/amsbsy.sty
+Package: amsbsy 1999/11/29 v1.2d
+\pmbraise@=\dimen103
+)
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/amsmath/amsopn.sty
+Package: amsopn 1999/12/14 v2.01 operator names
+)
+\inf@bad=\count79
+LaTeX Info: Redefining \frac on input line 211.
+\uproot@=\count80
+\leftroot@=\count81
+LaTeX Info: Redefining \overline on input line 307.
+\classnum@=\count82
+\DOTSCASE@=\count83
+LaTeX Info: Redefining \ldots on input line 379.
+LaTeX Info: Redefining \dots on input line 382.
+LaTeX Info: Redefining \cdots on input line 467.
+\Mathstrutbox@=\box26
+\strutbox@=\box27
+\big@size=\dimen104
+LaTeX Font Info:    Redeclaring font encoding OML on input line 567.
+LaTeX Font Info:    Redeclaring font encoding OMS on input line 568.
+\macc@depth=\count84
+\c@MaxMatrixCols=\count85
+\dotsspace@=\muskip10
+\c@parentequation=\count86
+\dspbrk@lvl=\count87
+\tag@help=\toks15
+\row@=\count88
+\column@=\count89
+\maxfields@=\count90
+\andhelp@=\toks16
+\eqnshift@=\dimen105
+\alignsep@=\dimen106
+\tagshift@=\dimen107
+\tagwidth@=\dimen108
+\totwidth@=\dimen109
+\lineht@=\dimen110
+\@envbody=\toks17
+\multlinegap=\skip42
+\multlinetaggap=\skip43
+\mathdisplay@stack=\toks18
+LaTeX Info: Redefining \[ on input line 2666.
+LaTeX Info: Redefining \] on input line 2667.
+)
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/ntheorem/ntheorem.sty
+Style `ntheorem', Version 1.25 <2005/07/07>
+Package: ntheorem 2005/07/07 1.25
+\theorem@style=\toks19
+\theorem@@style=\toks20
+\theorembodyfont=\toks21
+\theoremnumbering=\toks22
+\theorempreskipamount=\skip44
+\theorempostskipamount=\skip45
+\theoremindent=\dimen111
+\theorem@indent=\dimen112
+\theoremheaderfont=\toks23
+\theoremseparator=\toks24
+\theoremprework=\toks25
+\theorempostwork=\toks26
+\theoremsymbol=\toks27
+\qedsymbol=\toks28
+\theoremkeyword=\toks29
+\qedsymbol=\toks30
+\thm@topsepadd=\skip46
+Package ntheorem Info: Option `thmmarks' loaded on input line 1029.
+\c@endNonectr=\count91
+\c@currNonectr=\count92
+\mysavskip=\skip47
+Package ntheorem Info: option `amsmath' handling for `thmmarks' loaded on input
+ line 1029.
+\thm@amstmpdepth=\dimen113
+)
+\fromfoliotocopyright=\skip48
+\c@section=\count93
+\c@subsection=\count94
+\c@subsubsection=\count95
+\c@paragraph=\count96
+\c@subparagraph=\count97
+\c@rmnum=\count98
+\c@muni=\count99
+\@sectionspace=\skip49
+\@negsectionspace=\skip50
+\c@figure=\count100
+\c@table=\count101
+\abovecaptionskip=\skip51
+\belowcaptionskip=\skip52
+\bibindent=\dimen114
+ (c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/hyperref/xr-hyper.sty
+Package: xr-hyper 2000/03/22 v6.00beta4 eXternal References (DPC)
+)
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/generic/oberdiek/ifpdf.sty
+Package: ifpdf 2006/02/20 v1.4 Provides the ifpdf switch (HO)
+Package ifpdf Info: pdfTeX in pdf mode not detected.
+)
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/hyperref/hyperref.sty
+Package: hyperref 2007/02/07 v6.75r Hypertext links for LaTeX
+
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/graphics/keyval.sty
+Package: keyval 1999/03/16 v1.13 key=value parser (DPC)
+\KV@toks@=\toks31
+)
+\@linkdim=\dimen115
+\Hy@linkcounter=\count102
+\Hy@pagecounter=\count103
+
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/hyperref/pd1enc.def
+File: pd1enc.def 2007/02/07 v6.75r Hyperref: PDFDocEncoding definition (HO)
+)
+(c:/PCTeX/PCTeXv6/texmf-dist/tex/latex/oberdiek/kvoptions.sty
+Package: kvoptions 2006/08/22 v2.4 Connects package keyval with LaTeX options (
+HO)
+)
+Package
