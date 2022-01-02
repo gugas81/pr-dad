@@ -250,6 +250,7 @@ class ConfigTrainer(ConfigBase):
     lr_discr: Optional[float] = None
     optim_exclude:  List[str] = field(default_factory=lambda: [])
     spat_conv_predict: bool = False
+    ae_decoder_fine_tune: bool = False
 
 
 

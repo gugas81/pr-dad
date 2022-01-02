@@ -13,3 +13,4 @@ class ModulesNames:
     opt_ref_net = 'opt_ref_net'
     opt_discriminators = 'opt_discriminators'
     opt_ae = 'opt_ae'
+    opt_ae_decoder = 'opt_ae_decoder'

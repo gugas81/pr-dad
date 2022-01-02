@@ -48,15 +48,15 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
         self._init_discriminators()
 
-        self._generator_model.set_train_mode()
+        self._generator_model.set_train_mode(ae_train=self._config.ae_decoder_fine_tune)
         self._generator_model.set_device(self.device)
 
         self.optimizers_generator = {}
 
-        if self._config.is_train_ae and (self._generator_model.ae_net is not None) and (ModulesNames.ae_model not in self._config.optim_exclude):
+        if self._config.is_train_ae and (self._generator_model.ae_net is not None) and \
+                (ModulesNames.ae_model not in self._config.optim_exclude):
 
             self.optimizer_ae = optim.Adam(params=self._generator_model.ae_net.parameters(), lr=self._config.lr_ae)
-            # self.optimizers_generator.update({ModulesNames.opt_ae: self.optimizer_ae})
 
             if self._config.use_ae_dictionary:
                 self.optimizer_dict = optim.Adam(params=self._generator_model.ae_net.dictionary.parameters(),
@@ -77,6 +77,11 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self.optimizers_generator.update({ModulesNames.opt_ref_net: self.optimizer_ref_net})
         else:
             self.optimizer_ref_net = None
+
+        if self._config.ae_decoder_fine_tune:
+            optimizer_ae_decoder = optim.Adam(params=self._generator_model.ae_net.get_parameter('_decoder'),
+                                              lr=self._config.lr_ae)
+            self.optimizers_generator.update({ModulesNames.opt_ae_decoder: optimizer_ae_decoder})
 
         if self._config.use_gan:
             if self._config.predict_out == 'features':
@@ -220,8 +225,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         return train_en_losses, test_en_losses
 
     def get_last_lr_enc(self) -> Dict[str, Tensor]:
-        return  {name_optim: torch.tensor(lr_scheduler.get_last_lr()[0])
-                 for name_optim, lr_scheduler in self._lr_schedulers.items()}
+        return {name_optim: torch.tensor(lr_scheduler.get_last_lr()[0])
+                for name_optim, lr_scheduler in self._lr_schedulers.items()}
 
         # torch.tensor(self._lr_schedulers[0].get_last_lr()[0])
 
@@ -237,7 +242,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def train_epoch_ae(self, epoch: int = 0, train_dict: bool = False) -> LossesPRFeatures:
         train_losses = []
         p_bar_train_data_loader = tqdm(self._data_holder.train_paired_loader)
-        self._generator_model.set_train_mode(ae_train=True)
+        self._generator_model.set_train_mode(ae_train=self._config.ae_decoder_fine_tune)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
             data_batch = self.prepare_data_batch(data_batch, is_train=True)
             if train_dict:
@@ -264,7 +269,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                 with torch.no_grad():
                     self._generator_model.set_eval_mode()
                     self._log_ae_train_dbg_batch(self._global_step)
-                    self._generator_model.set_train_mode(ae_train=True)
+                    self._generator_model.set_train_mode(ae_train=self._config.ae_decoder_fine_tune)
 
             self._global_step += 1
 
@@ -274,7 +279,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
     def train_epoch_en_magnitude(self, epoch: int = 0, use_adv_loss: bool = False) -> LossesPRFeatures:
         train_losses = []
         p_bar_train_data_loader = tqdm(self._data_holder.train_paired_loader)
-        self._generator_model.set_train_mode(ae_train=False)
+        self._generator_model.set_train_mode(ae_train=self._config.ae_decoder_fine_tune)
         for batch_idx, data_batch in enumerate(p_bar_train_data_loader):
             data_batch = self.prepare_data_batch(data_batch, is_train=True)
             inferred_batch, tr_losses = self._train_step_generator(data_batch, use_adv_loss=use_adv_loss)
@@ -293,8 +298,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                     if self._config.predict_out == 'features':
                         grad_losses.l2_grad_features_discriminator, _ = l2_grad_norm(self.features_discriminator)
                 self._log.info(f'Train Epoch: {epoch} [{batch_idx * len(data_batch)}/{len(self._data_holder.train_paired_loader.dataset)}'
-                                f'({100. * batch_idx / len(self._data_holder.train_paired_loader):.0f}%)], {train_losses[batch_idx]}, '
-                                f'{grad_losses}')
+                               f'({100. * batch_idx / len(self._data_holder.train_paired_loader):.0f}%)], '
+                               f'{train_losses[batch_idx]}, {grad_losses}')
                 self._add_losses_tensorboard('en-magnitude/train', tr_losses, self._global_step)
                 self._add_losses_tensorboard('en-magnitude/train', grad_losses, self._global_step)
 
@@ -304,7 +309,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                                                             self._global_step)
                 self._add_losses_tensorboard('dbg-batch-en-magnitude/train', losses_dbg_batch_tr, self._global_step)
                 self._add_losses_tensorboard('dbg-batch-en-magnitude/test', losses_dbg_batch_ts, self._global_step)
-                self._generator_model.set_train_mode(ae_train=False)
+                self._generator_model.set_train_mode(ae_train=self._config.ae_decoder_fine_tune)
 
             self._global_step += 1
 
@@ -328,7 +333,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                 ae_losses_batch = self._ae_losses(data_batch, inferred_batch)
                 ae_losses.append(ae_losses_batch)
             ae_losses = LossesPRFeatures.merge(ae_losses)
-        self._generator_model.set_train_mode(ae_train=True)
+        self._generator_model.set_train_mode(ae_train=self._config.ae_decoder_fine_tune)
         return ae_losses
 
     def test_eval_en_magnitude(self, use_adv_loss: bool = False) -> LossesPRFeatures:
@@ -406,9 +411,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                       self.features_discriminator,
                                                       ModulesNames.features_discriminator)
 
-            for opt_name, optim_ in self.optimizers_generator.items():
+            for opt_name, optimizer in self.optimizers_generator.items():
                 self._generator_model.load_module(loaded_sate,
-                                                  optim_,
+                                                  optimizer,
                                                   opt_name)
 
             if self._config.is_train_ae:
@@ -563,11 +568,16 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                 l1_sparsity_dict_coeff = torch.mean(inferred_batch.dict_coeff_recon.abs())
             else:
                 l1_sparsity_dict_coeff = None
+
+            l1_img_ae_loss = self.l1_img_loss(data_batch.image, inferred_batch.decoded_img)
+            l2_img_ae_loss = self.l2_img_loss(data_batch.image, inferred_batch.decoded_img)
         else:
             l1_features_loss = None
             l2_features_loss = None
             l1_sparsity_features = None
             l1_sparsity_dict_coeff = None
+            l1_img_ae_loss = None
+            l2_img_ae_loss = None
 
         l1_magnitude_loss = self.l1_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
         l2_magnitude_loss = self.l2_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
@@ -675,6 +685,10 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             total_loss += self._config.lambda_features_recon_loss * l2_features_loss + \
                           self._config.lambda_features_recon_loss_l1 * l1_features_loss + \
                           self._config.lambda_sparsity_features * l1_sparsity_features
+            if self._config.ae_decoder_fine_tune:
+                total_loss += self._config.lambda_img_recon_loss * l2_img_ae_loss + \
+                              self._config.lambda_img_recon_loss_l1 * l1_img_ae_loss
+
             if self._config.use_ae_dictionary:
                 total_loss += self._config.lambda_sparsity_dict_coeff * l1_sparsity_dict_coeff
 
@@ -687,6 +701,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         losses = LossesPRFeatures(total=total_loss,
                                   l1_img=l1_img_recon_loss,
                                   l2_img=l2_img_recon_loss,
+                                  l1_ae_img=l1_img_ae_loss,
+                                  l2_ae_img=l2_img_ae_loss,
                                   l1_ref_img=l1_ref_img_recon_loss,
                                   l2_ref_img=l2_ref_img_recon_loss,
                                   lpips_img=lpips_img_recon_loss,
