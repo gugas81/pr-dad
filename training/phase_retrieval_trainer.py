@@ -78,8 +78,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         else:
             self.optimizer_ref_net = None
 
-        if self._config.ae_decoder_fine_tune:
-            optimizer_ae_decoder = optim.Adam(params=self._generator_model.ae_net.get_parameter('_decoder'),
+        if self._config.predict_out == 'features' and self._config.ae_decoder_fine_tune:
+            optimizer_ae_decoder = optim.Adam(params=self._generator_model.ae_net.get_submodule('_decoder').parameters(),
                                               lr=self._config.lr_ae)
             self.optimizers_generator.update({ModulesNames.opt_ae_decoder: optimizer_ae_decoder})
 
