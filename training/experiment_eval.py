@@ -1,6 +1,6 @@
 import fire
 import os
-
+from pathlib import Path
 from typing import List, Optional, Callable, Union
 
 from common import S3FileSystem
@@ -17,8 +17,13 @@ def experiment_eval(name: str, out_path: Optional[str] = None, test_only: bool =
     assert len(experiment_paths) == 1, f'not valid experiment_path: {experiment_paths}'
     experiment_url = s3.s3_url(experiment_paths[0])
     assert s3.exists(experiment_url)
-    model_url = os.path.join(experiment_url, 'models', 'phase-retrieval-gan-model.pt')
-    assert s3.isfile(model_url)
+    models_path = os.path.join(experiment_url, 'models', 'phase-retrieval-gan-model-*.pt')
+    models_paths = s3.glob(models_path)
+    models_paths.sort(key=lambda file_path: int((Path(os.path.basename(file_path)).stem).split('-')[-1]))
+    model_url = s3.s3_url(models_paths[-1])
+    assert s3.isfile(model_url), f'Not valid model file path: {model_url}'
+
+    print(f'Will be evaluated model from: {model_url}')
 
     out_path = os.path.join(S3_OUT_PATH, name) if out_path is None else out_path
 
