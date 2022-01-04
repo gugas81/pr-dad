@@ -248,9 +248,12 @@ class ConfigTrainer(ConfigBase):
     lr_enc: Optional[float] = None
     lr_dict: Optional[float] = None
     lr_discr: Optional[float] = None
+    lr_ae_decoder: Optional[float] = None
     optim_exclude:  List[str] = field(default_factory=lambda: [])
     spat_conv_predict: bool = False
     ae_decoder_fine_tune: bool = False
+    lambda_img_ae_loss_l2: float = 1.0
+    lambda_img_ae_loss_l1: float = 1.0
 
 
 

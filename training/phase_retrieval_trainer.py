@@ -79,8 +79,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self.optimizer_ref_net = None
 
         if self._config.predict_out == 'features' and self._config.ae_decoder_fine_tune:
-            optimizer_ae_decoder = optim.Adam(params=self._generator_model.ae_net.get_submodule('_decoder').parameters(),
-                                              lr=self._config.lr_ae)
+            decoder_params = self._generator_model.ae_net.get_submodule('_decoder').parameters()
+            optimizer_ae_decoder = optim.Adam(params=decoder_params,  lr=self._config.lr_ae_decoder)
             self.optimizers_generator.update({ModulesNames.opt_ae_decoder: optimizer_ae_decoder})
 
         if self._config.use_gan:
@@ -686,8 +686,8 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                           self._config.lambda_features_recon_loss_l1 * l1_features_loss + \
                           self._config.lambda_sparsity_features * l1_sparsity_features
             if self._config.ae_decoder_fine_tune:
-                total_loss += self._config.lambda_img_recon_loss * l2_img_ae_loss + \
-                              self._config.lambda_img_recon_loss_l1 * l1_img_ae_loss
+                total_loss += self._config.lambda_img_ae_loss_l2 * l2_img_ae_loss + \
+                              self._config.lambda_img_ae_loss_l1 * l1_img_ae_loss
 
             if self._config.use_ae_dictionary:
                 total_loss += self._config.lambda_sparsity_dict_coeff * l1_sparsity_dict_coeff
