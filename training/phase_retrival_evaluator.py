@@ -171,7 +171,10 @@ class Evaluator(BaseTrainerPhaseRetrieval):
                 inferred_batch = self._generator_model.forward_magnitude_encoder(data_batch)
                 gt_images = inv_norm(data_batch.image).detach().cpu().numpy()
                 max_gt_value = max(max_gt_value, float(np.max(gt_images)))
-                recon_ref_images = inv_norm(inferred_batch.img_recon_ref).detach().cpu().numpy()
+                if self._config.use_ref_net:
+                    recon_ref_images = inv_norm(inferred_batch.img_recon_ref).detach().cpu().numpy()
+                else:
+                    recon_ref_images = np.zeros_like(gt_images)
                 recon_images = inv_norm(inferred_batch.img_recon).detach().cpu().numpy()
             if self._config.predict_out == 'features':
                 ae_images = inv_norm(inferred_batch.decoded_img).detach().cpu().numpy()

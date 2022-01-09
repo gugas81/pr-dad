@@ -411,10 +411,11 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                       self.features_discriminator,
                                                       ModulesNames.features_discriminator)
 
-            for opt_name, optimizer in self.optimizers_generator.items():
-                self._generator_model.load_module(loaded_sate,
-                                                  optimizer,
-                                                  opt_name)
+            if self._config.is_train_encoder:
+                for opt_name, optimizer in self.optimizers_generator.items():
+                    self._generator_model.load_module(loaded_sate,
+                                                      optimizer,
+                                                      opt_name)
 
             if self._config.is_train_ae:
                 self._generator_model.load_module(loaded_sate,
