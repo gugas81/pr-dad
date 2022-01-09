@@ -115,14 +115,21 @@ class PhaseRetrievalAeModel:
 
     def load_modules(self, state_dict: OrderedDict[str, Tensor], force: bool = False) -> List[str]:
         loaded_models = []
-        if self.load_module(state_dict, self.ae_net, ModulesNames.ae_model, force) and (self.ae_net is not None):
-            loaded_models.append(ModulesNames.ae_model)
 
-        if self.load_module(state_dict, self.ref_unet, ModulesNames.ref_net, force):
-            loaded_models.append(ModulesNames.ref_net)
+        if self.ae_net:
+            load_status = self.load_module(state_dict, self.ae_net, ModulesNames.ae_model, force)
+            if load_status:
+                loaded_models.append(ModulesNames.ae_model)
 
-        if self.load_module(state_dict, self.phase_predictor, ModulesNames.magnitude_encoder, force):
-            loaded_models.append(ModulesNames.magnitude_encoder)
+        if self.ref_unet:
+            load_status = self.load_module(state_dict, self.ref_unet, ModulesNames.ref_net, force)
+            if load_status:
+                loaded_models.append(ModulesNames.ref_net)
+
+        if self.phase_predictor:
+            load_status = self.load_module(state_dict, self.phase_predictor, ModulesNames.magnitude_encoder, force)
+            if load_status:
+                loaded_models.append(ModulesNames.magnitude_encoder)
 
         return loaded_models
 
