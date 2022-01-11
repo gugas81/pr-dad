@@ -378,7 +378,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self._add_losses_tensorboard('ae/test', ts_losses_epoch, self._global_step)
             self._log.info(f'AE training: Epoch {epoch}, train_dict: {train_dict}, '
                            f'l2_recon_err_tr: {tr_losses_epoch}, '
-                            f'l2_recon_err_ts: {ts_losses_epoch}')
+                           f'l2_recon_err_ts: {ts_losses_epoch}')
             with torch.no_grad():
                 self._log_ae_train_dbg_batch(self._global_step)
 
