@@ -378,7 +378,7 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
             self._add_losses_tensorboard('ae/test', ts_losses_epoch, self._global_step)
             self._log.info(f'AE training: Epoch {epoch}, train_dict: {train_dict}, '
                            f'l2_recon_err_tr: {tr_losses_epoch}, '
-                            f'l2_recon_err_ts: {ts_losses_epoch}')
+                           f'l2_recon_err_ts: {ts_losses_epoch}')
             with torch.no_grad():
                 self._log_ae_train_dbg_batch(self._global_step)
 
@@ -411,10 +411,11 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                                                       self.features_discriminator,
                                                       ModulesNames.features_discriminator)
 
-            for opt_name, optimizer in self.optimizers_generator.items():
-                self._generator_model.load_module(loaded_sate,
-                                                  optimizer,
-                                                  opt_name)
+            if self._config.is_train_encoder:
+                for opt_name, optimizer in self.optimizers_generator.items():
+                    self._generator_model.load_module(loaded_sate,
+                                                      optimizer,
+                                                      opt_name)
 
             if self._config.is_train_ae:
                 self._generator_model.load_module(loaded_sate,

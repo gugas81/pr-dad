@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, OrderedDict, List, Any, Optional
+from typing import Dict, OrderedDict, List, Any, Optional, Union
 import torch
 from torch import nn, Tensor
 from torchvision import transforms
@@ -73,7 +73,12 @@ class PhaseRetrievalAeModel:
         else:
             self.ref_unet = None
 
-    def load_module(self, state_dict: Dict[str, Tensor], module: nn.Module, name: str, force: bool = False) -> bool:
+    def load_module(self, state_dict: Dict[str, Tensor],
+                    module: Union[nn.Module, torch.optim.Optimizer],
+                    name: str,
+                    force: bool = False) -> bool:
+        assert isinstance(module, nn.Module) or isinstance(module, torch.optim.Optimizer)
+
         def is_load_module():
             return (name in state_dict) and \
                    ((self._config.load_modules[0] == 'all') or (name in self._config.load_modules))
@@ -81,7 +86,14 @@ class PhaseRetrievalAeModel:
         if is_load_module():
             self._log.info(f'Load weights of {name}')
             try:
-                missing_keys, unexpected_keys = module.load_state_dict(state_dict[name], strict=False)
+                if isinstance(module, nn.Module):
+                    missing_keys, unexpected_keys = module.load_state_dict(state_dict[name], strict=False)
+                elif isinstance(module, torch.optim.Optimizer):
+                    module.load_state_dict(state_dict[name])
+                    missing_keys, unexpected_keys = [], []
+                else:
+                    raise TypeError(f'Non valid type of module {type(module)},m'
+                                    f'must be nn.Module or torch.optim.Optimizer')
             except Exception as e:
                 self._log.error(f'Cannot load: {name} from loaded state: {e}')
                 missing_keys, unexpected_keys = [], []
@@ -103,14 +115,21 @@ class PhaseRetrievalAeModel:
 
     def load_modules(self, state_dict: OrderedDict[str, Tensor], force: bool = False) -> List[str]:
         loaded_models = []
-        if self.load_module(state_dict, self.ae_net, ModulesNames.ae_model, force) and (self.ae_net is not None):
-            loaded_models.append(ModulesNames.ae_model)
 
-        if self.load_module(state_dict, self.ref_unet, ModulesNames.ref_net, force):
-            loaded_models.append(ModulesNames.ref_net)
+        if self.ae_net:
+            load_status = self.load_module(state_dict, self.ae_net, ModulesNames.ae_model, force)
+            if load_status:
+                loaded_models.append(ModulesNames.ae_model)
 
-        if self.load_module(state_dict, self.phase_predictor, ModulesNames.magnitude_encoder, force):
-            loaded_models.append(ModulesNames.magnitude_encoder)
+        if self.ref_unet:
+            load_status = self.load_module(state_dict, self.ref_unet, ModulesNames.ref_net, force)
+            if load_status:
+                loaded_models.append(ModulesNames.ref_net)
+
+        if self.phase_predictor:
+            load_status = self.load_module(state_dict, self.phase_predictor, ModulesNames.magnitude_encoder, force)
+            if load_status:
+                loaded_models.append(ModulesNames.magnitude_encoder)
 
         return loaded_models
 
@@ -215,11 +234,12 @@ class PhaseRetrievalAeModel:
         self._log.debug(f'Set model  train mode: ae_train: {ae_train}')
         if self.phase_predictor:
             self.phase_predictor.train()
-        if self.ae_net:
-            if ae_train:
-                self.ae_net.train()
-            else:
-                self.ae_net.eval()
+        self.ae_net.eval()
+        # if self.ae_net:
+        #     if ae_train:
+        #         self.ae_net.train()
+        #     else:
+        #         self.ae_net.eval()
         if self._config.use_ref_net:
             self.ref_unet.train()
 
