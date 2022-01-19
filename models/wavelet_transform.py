@@ -127,6 +127,7 @@ class InverseWaveletSubbandsTransform(nn.Module):
         super(InverseWaveletSubbandsTransform, self).__init__()
         assert in_ch == 1
         self._j = scale
+        self.wave = wave
         self._in_ch = in_ch
         self._ordered = ordered
         self._idwt = DWTInverse(mode=mode, wave=wave)
