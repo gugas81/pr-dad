@@ -34,5 +34,5 @@ class BaseAe(nn.Module):
     def extra_repr(self) -> str:
         return f'img_size={self._img_size}, ' \
                f'deep={self._deep}, ' \
-               f'img_channels={self.in_ch},  ' \
+               f'img_channels={self._in_ch},  ' \
 
