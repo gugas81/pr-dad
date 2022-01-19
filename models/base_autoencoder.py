@@ -31,6 +31,9 @@ class BaseAe(nn.Module):
     def forward(self, x: Tensor) -> (Tensor, Tensor, Tensor, Tensor):
         raise NotImplementedError
 
+    def map_to_dec_features(self, enc_features: Tensor) -> (Tensor, Tensor):
+        raise NotImplementedError
+
     def extra_repr(self) -> str:
         return f'img_size={self._img_size}, ' \
                f'deep={self._deep}, ' \

@@ -102,11 +102,11 @@ class ForwardWaveletSubbandsTransform(nn.Module):
 
     def extra_repr(self) -> str:
         return f'scale={self._j}, ' \
-               f'img_size:={self._imgs_size}' \
+               f'img_size:={self._imgs_size}, ' \
                f'img_channels={self._in_ch},  ' \
                f'wave={self.wave}, ' \
-               f'ordered={self._ordered}' \
-               f'pad_mode: {self.mode}'
+               f'ordered={self._ordered}, ' \
+               f'pad_mode={self.mode}'
 
     def forward(self, x: Tensor) -> Tensor:
         subbands = x
@@ -136,11 +136,11 @@ class InverseWaveletSubbandsTransform(nn.Module):
 
     def extra_repr(self) -> str:
         return f'scale={self._j}, ' \
-               f'img_size:={self._imgs_size}' \
+               f'img_size={self._imgs_size}, ' \
                f'img_channels={self._in_ch},  ' \
                f'wave={self.wave}, ' \
-               f'ordered={self._ordered}' \
-               f'pad_mode: {self.mode}'
+               f'ordered={self._ordered}, ' \
+               f'pad_mode={self.mode}'
 
     def forward(self, x: Tensor) -> Tensor:
         recon_x = x
@@ -213,6 +213,11 @@ class WaveletTransformAe(BaseAe):
             features[:, 0] = self._deep * features[:, 0]
         x_out = self._decoder(features)
         return x_out
+
+    def map_to_dec_features(self, enc_features: Tensor) -> (Tensor, Tensor):
+        dec_features = enc_features
+        coeff = None
+        return dec_features, coeff
 
     def forward(self, x: Tensor) -> (Tensor, Tensor, Tensor, Tensor):
         enc_features = self.encode(x)
