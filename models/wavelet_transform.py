@@ -5,6 +5,7 @@ import os
 import pickle
 from torch import Tensor
 
+from pytorch_wavelets import DWTForward, DWTInverse
 
 from common import PATHS
 
@@ -12,42 +13,49 @@ WAVELET_HAAR_WEIGHTS_PATH = os.path.join(PATHS.PROJECT_ROOT, 'models', 'wavelet_
 
 
 class WaveletHaarTransform(nn.Module):
-    def __init__(self, img_channels: int = 1, scale: int = 1, decomposition: bool = True,  transpose=True,
-                 params_path: str = WAVELET_HAAR_WEIGHTS_PATH):
+    def __init__(self,
+                 in_ch: int = 1,
+                 scale: int = 1,
+                 mode='reflect',
+                 decomposition: bool = True,
+                 transpose=True,
+                 filters_path: str = WAVELET_HAAR_WEIGHTS_PATH):
         super(WaveletHaarTransform, self).__init__()
-        assert img_channels == 1 or img_channels == 3
+        assert in_ch == 1 or in_ch == 3
         self.scale = scale
         self.decomposition = decomposition
         self.transpose = transpose
-        self.img_channels = img_channels
+        self.in_ch = in_ch
 
         self.kernel_size = int(math.pow(2, self.scale))
-        self.subband_channels = img_channels * self.kernel_size * self.kernel_size
+        self.subband_channels = in_ch * self.kernel_size * self.kernel_size
 
         if self.decomposition:
-            self.wavelet_conv_transform = nn.Conv2d(in_channels=img_channels,
+            self.wavelet_conv_transform = nn.Conv2d(in_channels=in_ch,
                                                     out_channels=self.subband_channels,
                                                     kernel_size=self.kernel_size,
                                                     stride=self.kernel_size,
                                                     padding=0,
-                                                    groups=img_channels,
+                                                    groups=in_ch,
+                                                    padding_mode=mode,
                                                     bias=False)
         else:
             self.wavelet_conv_transform = nn.ConvTranspose2d(in_channels=self.subband_channels,
-                                                             out_channels=img_channels,
+                                                             out_channels=in_ch,
                                                              kernel_size=self.kernel_size,
                                                              stride=self.kernel_size,
                                                              padding=0,
-                                                             groups=img_channels,
+                                                             groups=in_ch,
+                                                             padding_mode=mode,
                                                              bias=False)
 
-        self._init_filters(params_path)
+        self._init_filters(filters_path)
 
     def extra_repr(self) -> str:
         return f'decomposition={self.decomposition}, ' \
                f'transpose={self.transpose}' \
                f'scale={self.scale}, ' \
-               f'img_channels={self.img_channels},  ' \
+               f'img_channels={self.in_ch},  ' \
                f'subband_channels={self.subband_channels}, ' \
                f'kernel_size={self.kernel_size}'
 
@@ -68,28 +76,123 @@ class WaveletHaarTransform(nn.Module):
             output = self.wavelet_conv_transform(x)
             if self.transpose:
                 ous_size = output.size()
-                output = output.view(ous_size[0], self.img_channels, -1, ous_size[2], ous_size[3]).transpose(1, 2).contiguous().view(
+                output = output.view(ous_size[0], self.in_ch, -1, ous_size[2], ous_size[3]).transpose(1, 2).contiguous().view(
                     ous_size)
         else:
             if self.transpose:
                 xx = x
                 in_size = xx.size()
-                xx = xx.view(in_size[0], -1, self.img_channels, in_size[2], in_size[3]).transpose(1, 2).contiguous().view(in_size)
+                xx = xx.view(in_size[0], -1, self.in_ch, in_size[2], in_size[3]).transpose(1, 2).contiguous().view(in_size)
             output = self.wavelet_conv_transform(xx)
         return output
 
 
-class WaveletHaarTransformAutoencoder(nn.Module):
-    def __init__(self, in_ch: int = 1, deep: int = 3):
-        super(WaveletHaarTransformAutoencoder, self).__init__()
-        self._encoder = WaveletHaarTransform(img_channels=in_ch, scale=deep, decomposition=True)
-        self._decoder = WaveletHaarTransform(img_channels=in_ch, scale=deep, decomposition=False)
+class ForwardWaveletSubbandsTransform(nn.Module):
+    def __init__(self, imgs_size: int, in_ch: int = 1, scale=3, mode='reflect', wave='db3',  ordered: bool = False):
+        super(ForwardWaveletSubbandsTransform, self).__init__()
+        assert in_ch == 1
+        self._j = scale
+        self.wave = wave
+        self.mode = mode
+        self._in_ch = in_ch
+        self._ordered = ordered
+        self._dwt_j1 = DWTForward(J=1, mode=mode, wave=wave)
+        self._imgs_size = imgs_size
+
+    def extra_repr(self) -> str:
+        return f'scale={self._j}, ' \
+               f'img_size:={self._imgs_size}' \
+               f'img_channels={self._in_ch},  ' \
+               f'wave={self.wave}, ' \
+               f'ordered={self._ordered}' \
+               f'pad_mode: {self.mode}'
+
+    def forward(self, x: Tensor) -> Tensor:
+        subbands = x
+        for _ in range(self._j):
+            y_l, y_h = self._dwt_j1(subbands)
+            y_h = y_h[0]
+            batch, c, subb, h, w = y_h.shape
+            if self._ordered:
+                y_h = torch.permute(y_h, (0, 2, 1, 3, 4))
+            y_h = y_h.reshape(batch, c * subb, h, w)
+            subbands = torch.cat([y_l, y_h], dim=1)
+
+        return subbands
+
+
+class InverseWaveletSubbandsTransform(nn.Module):
+    def __init__(self, imgs_size: int, in_ch: int = 1, scale=3, mode='reflect', wave='db3', ordered: bool = False):
+        super(InverseWaveletSubbandsTransform, self).__init__()
+        assert in_ch == 1
+        self._j = scale
+        self._in_ch = in_ch
+        self._ordered = ordered
+        self._idwt = DWTInverse(mode=mode, wave=wave)
+        self._imgs_size = imgs_size
+
+    def extra_repr(self) -> str:
+        return f'scale={self._j}, ' \
+               f'img_size:={self._imgs_size}' \
+               f'img_channels={self._in_ch},  ' \
+               f'wave={self.wave}, ' \
+               f'ordered={self._ordered}' \
+               f'pad_mode: {self.mode}'
+
+    def forward(self, x: Tensor) -> Tensor:
+        recon_x = x
+        for _ in range(self._j):
+            b, c, h, w = recon_x.shape
+            n_s = c // 4
+            y_l = recon_x[:, :n_s]
+            if self._ordered:
+                    y_h = recon_x[:, n_s:].view(b, 3, n_s, h, w)
+                    y_h = torch.permute(y_h, (0, 2, 1, 3, 4))
+            else:
+                y_h = recon_x[:, n_s:].view(b, n_s, 3, h, w)
+            recon_x = self._idwt((y_l, [y_h]))
+        recon_x = recon_x[:, :, :self._imgs_size, :self._imgs_size]
+        return recon_x
+
+
+class WaveletTransformAe(nn.Module):
+    def __init__(self, img_size: int, in_ch: int = 1, deep: int = 3, mode: str = 'reflect', wave: str = 'db3',
+                 norm_ds: bool = False):
+        super(WaveletTransformAe, self).__init__()
+        self._norm_ds = norm_ds
+        self._deep = deep
+        if wave == 'haar':
+            self._encoder = WaveletHaarTransform(in_ch=in_ch,
+                                                 scale=deep,
+                                                 decomposition=True,
+                                                 mode=mode)
+
+            self._decoder = WaveletHaarTransform(in_ch=in_ch,
+                                                 scale=deep,
+                                                 decomposition=False,
+                                                 mode=mode)
+        else:
+            self._encoder = ForwardWaveletSubbandsTransform(imgs_size=img_size,
+                                                            in_ch=in_ch,
+                                                            scale=deep,
+                                                            mode=mode,
+                                                            wave=wave)
+
+            self._decoder = InverseWaveletSubbandsTransform(imgs_size=img_size,
+                                                            in_ch=in_ch,
+                                                            scale=deep,
+                                                            mode=mode,
+                                                            wave=wave)
 
     def encode(self, x: Tensor) -> Tensor:
         features = self._encoder(x)
+        if self._norm_ds:
+            features[:, 0] = (1 / self._deep) * features[:, 0]
         return features
 
-    def forward(self, features: Tensor) -> Tensor:
+    def decode(self, features: Tensor) -> Tensor:
+        if self._norm_ds:
+            features[:, 0] = self._deep * features[:, 0]
         x_out = self._decoder(features)
         return x_out
 
