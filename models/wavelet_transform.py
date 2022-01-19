@@ -9,6 +9,7 @@ from pytorch_wavelets import DWTForward, DWTInverse
 
 from common import PATHS
 
+from models.base_autoencoder import BaseAe
 WAVELET_HAAR_WEIGHTS_PATH = os.path.join(PATHS.PROJECT_ROOT, 'models', 'wavelet_haar_weights_c2.pkl')
 
 
@@ -155,10 +156,10 @@ class InverseWaveletSubbandsTransform(nn.Module):
         return recon_x
 
 
-class WaveletTransformAe(nn.Module):
+class WaveletTransformAe(BaseAe):
     def __init__(self, img_size: int, in_ch: int = 1, deep: int = 3, mode: str = 'reflect', wave: str = 'db3',
                  norm_ds: bool = False):
-        super(WaveletTransformAe, self).__init__()
+        super(WaveletTransformAe, self).__init__(img_size=img_size, deep=deep, in_ch=in_ch)
         self._norm_ds = norm_ds
         self._deep = deep
         if wave == 'haar':
@@ -183,6 +184,21 @@ class WaveletTransformAe(nn.Module):
                                                             scale=deep,
                                                             mode=mode,
                                                             wave=wave)
+        dummy_input = torch.zeros((1, 1, img_size, img_size))
+        dummy_features = self.encode(dummy_input)
+        _, self._n_enc_features_ch, self._n_features_size, n_features_size_y = dummy_features.shape
+
+    @property
+    def n_enc_features_ch(self):
+        return self._n_enc_features_ch
+
+    @property
+    def n_dec_features_ch(self) -> int:
+        return self._n_enc_features_ch
+
+    @property
+    def n_features_size(self):
+        return self._n_features_size
 
     def encode(self, x: Tensor) -> Tensor:
         features = self._encoder(x)
