@@ -89,7 +89,7 @@ class PhaseRetrievalAeModel:
         assert isinstance(module, nn.Module) or isinstance(module, torch.optim.Optimizer)
 
         def is_load_module():
-            return (name in state_dict) and \
+            return (name in state_dict) and len(self._config.load_modules) > 0 and \
                    ((self._config.load_modules[0] == 'all') or (name in self._config.load_modules))
 
         if is_load_module():
