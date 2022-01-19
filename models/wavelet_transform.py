@@ -1,15 +1,14 @@
-import torch
-import torch.nn as nn
 import math
 import os
 import pickle
+import torch
+import torch.nn as nn
+from pytorch_wavelets import DWTForward, DWTInverse
 from torch import Tensor
 
-from pytorch_wavelets import DWTForward, DWTInverse
-
 from common import PATHS
-
 from models.base_autoencoder import BaseAe
+
 WAVELET_HAAR_WEIGHTS_PATH = os.path.join(PATHS.PROJECT_ROOT, 'models', 'wavelet_haar_weights_c2.pkl')
 
 
@@ -77,19 +76,21 @@ class WaveletHaarTransform(nn.Module):
             output = self.wavelet_conv_transform(x)
             if self.transpose:
                 ous_size = output.size()
-                output = output.view(ous_size[0], self.in_ch, -1, ous_size[2], ous_size[3]).transpose(1, 2).contiguous().view(
+                output = output.view(ous_size[0], self.in_ch, -1, ous_size[2], ous_size[3]).transpose(1,
+                                                                                                      2).contiguous().view(
                     ous_size)
         else:
             if self.transpose:
                 xx = x
                 in_size = xx.size()
-                xx = xx.view(in_size[0], -1, self.in_ch, in_size[2], in_size[3]).transpose(1, 2).contiguous().view(in_size)
+                xx = xx.view(in_size[0], -1, self.in_ch, in_size[2], in_size[3]).transpose(1, 2).contiguous().view(
+                    in_size)
             output = self.wavelet_conv_transform(xx)
         return output
 
 
 class ForwardWaveletSubbandsTransform(nn.Module):
-    def __init__(self, imgs_size: int, in_ch: int = 1, scale=3, mode='reflect', wave='db3',  ordered: bool = False):
+    def __init__(self, imgs_size: int, in_ch: int = 1, scale=3, mode='reflect', wave='db3', ordered: bool = False):
         super(ForwardWaveletSubbandsTransform, self).__init__()
         assert in_ch == 1
         self._j = scale
@@ -149,8 +150,8 @@ class InverseWaveletSubbandsTransform(nn.Module):
             n_s = c // 4
             y_l = recon_x[:, :n_s]
             if self._ordered:
-                    y_h = recon_x[:, n_s:].view(b, 3, n_s, h, w)
-                    y_h = torch.permute(y_h, (0, 2, 1, 3, 4))
+                y_h = recon_x[:, n_s:].view(b, 3, n_s, h, w)
+                y_h = torch.permute(y_h, (0, 2, 1, 3, 4))
             else:
                 y_h = recon_x[:, n_s:].view(b, n_s, 3, h, w)
             recon_x = self._idwt((y_l, [y_h]))
