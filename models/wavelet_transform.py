@@ -128,6 +128,7 @@ class InverseWaveletSubbandsTransform(nn.Module):
         assert in_ch == 1
         self._j = scale
         self.wave = wave
+        self.mode = mode
         self._in_ch = in_ch
         self._ordered = ordered
         self._idwt = DWTInverse(mode=mode, wave=wave)
