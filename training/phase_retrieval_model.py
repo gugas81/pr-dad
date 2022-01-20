@@ -175,6 +175,7 @@ class PhaseRetrievalAeModel:
             decoded_batch = self.ae_net.decode(feature_decoder)
         else:
             feature_encoder = None
+            feature_decoder = None
             decoded_batch = None
             dec_features_batch_recon = None
 
