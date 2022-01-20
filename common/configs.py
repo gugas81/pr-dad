@@ -152,7 +152,7 @@ class ConfigTrainer(ConfigBase):
     fft_norm: str = "ortho"
     predict_type: str = 'spectral'
     predict_fc_multy_coeff: float = 2.0
-    predict_conv_type: str = 'ConvBlock'
+    predict_conv_type: str = 'ConvBlock' # ResBlock, Unet
     seed: int = 1
     use_aug: bool = True
     debug_mode: bool = False
