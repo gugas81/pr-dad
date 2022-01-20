@@ -76,10 +76,12 @@ class PhaseRetrievalAeModel:
                                   use_dictionary=self._config.use_ae_dictionary,
                                   dict_len=self._config.dict_len)
         elif self._config.ae_type == 'wavelet-net':
+            pad_mode = 'zeros' if self._config.wavelet_type == 'haar' else 'reflect'
             ae_net_model = WaveletTransformAe(img_size=self._config.image_size,
                                               deep=self._config.deep_ae,
-                                              wave='db3',
-                                              norm_ds=False)
+                                              wave=self._config.wavelet_type,
+                                              norm_ds=False,
+                                              mode=pad_mode)
         else:
             raise NameError('none valid  ae_type={self._config.ae_type}')
         return ae_net_model
