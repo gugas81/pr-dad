@@ -178,6 +178,8 @@ class PhaseRetrievalAeModel:
             feature_decoder = None
             decoded_batch = None
             dec_features_batch_recon = None
+            coeff_enc = None
+            coeff_recon = None
 
         inferred_batch = InferredBatch(img_recon=recon_batch,
                                        feature_recon=enc_features_batch_recon,
