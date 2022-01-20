@@ -1,40 +1,29 @@
 import logging
-from typing import Dict, OrderedDict, List, Any, Optional, Union
 import torch
 from torch import nn, Tensor
 from torchvision import transforms
+from typing import Dict, OrderedDict, List, Any, Optional, Union
+
 import common.utils as utils
 from common import InferredBatch, ConfigTrainer, DataBatch, S3FileSystem
-
-from training.utils import ModulesNames
-from models import PhaseRetrievalPredictor,   AeConv, UNetConv
+from models import PhaseRetrievalPredictor, AeConv, UNetConv, BaseAe, WaveletTransformAe
 from models.torch_dct import Dct2DForward
+from training.utils import ModulesNames
 
 
 class PhaseRetrievalAeModel:
-
     _log = logging.getLogger('PhaseRetrievalAeModel')
 
     def __init__(self, config: ConfigTrainer, log: logging.Logger, s3: S3FileSystem):
         self._config = config
         self._log = log
         self._s3 = s3
-        self.n_encoder_ch = config.n_features // 2**(self._config.deep_ae-1)
+        self.n_encoder_ch = config.n_features // 2 ** (self._config.deep_ae - 1)
         if self._config.predict_out == 'features':
             # n_enc_features: int = None, n_dec_features: int = None,
-            self.ae_net: Optional[AeConv] = AeConv(n_encoder_ch=self.n_encoder_ch,
-                                                   n_enc_features=config.n_features,
-                                                   n_dec_features=config.n_features_dec,
-                                                   img_size=self._config.image_size,
-                                                   deep=self._config.deep_ae,
-                                                   active_type=self._config.activation_ae,
-                                                   up_mode=self._config.up_sampling,
-                                                   down_pool=self._config.down_pooling_ae,
-                                                   features_sigmoid_active=self._config.features_sigmoid_active,
-                                                   use_dictionary=self._config.use_ae_dictionary,
-                                                   dict_len=self._config.dict_len)
+            self.ae_net: Optional[BaseAe] = self._get_ae_model()
         else:
-            self.ae_net: Optional[AeConv] = None
+            self.ae_net: Optional[BaseAe] = None
 
         if self._config.use_dct_input:
             self.dct_input = Dct2DForward(utils.get_padded_size(self._config.image_size, self._config.add_pad))
@@ -73,6 +62,30 @@ class PhaseRetrievalAeModel:
         else:
             self.ref_unet = None
 
+    def _get_ae_model(self) -> BaseAe:
+        if self._config.ae_type == 'conv-net':
+            ae_net_model = AeConv(n_encoder_ch=self.n_encoder_ch,
+                                  n_enc_features=self._config.n_features,
+                                  n_dec_features=self._config.n_features_dec,
+                                  img_size=self._config.image_size,
+                                  deep=self._config.deep_ae,
+                                  active_type=self._config.activation_ae,
+                                  up_mode=self._config.up_sampling,
+                                  down_pool=self._config.down_pooling_ae,
+                                  features_sigmoid_active=self._config.features_sigmoid_active,
+                                  use_dictionary=self._config.use_ae_dictionary,
+                                  dict_len=self._config.dict_len)
+        elif self._config.ae_type == 'wavelet-net':
+            pad_mode = 'zeros' if self._config.wavelet_type == 'haar' else 'reflect'
+            ae_net_model = WaveletTransformAe(img_size=self._config.image_size,
+                                              deep=self._config.deep_ae,
+                                              wave=self._config.wavelet_type,
+                                              norm_ds=False,
+                                              mode=pad_mode)
+        else:
+            raise NameError('none valid  ae_type={self._config.ae_type}')
+        return ae_net_model
+
     def load_module(self, state_dict: Dict[str, Tensor],
                     module: Union[nn.Module, torch.optim.Optimizer],
                     name: str,
@@ -80,7 +93,7 @@ class PhaseRetrievalAeModel:
         assert isinstance(module, nn.Module) or isinstance(module, torch.optim.Optimizer)
 
         def is_load_module():
-            return (name in state_dict) and \
+            return (name in state_dict) and len(self._config.load_modules) > 0 and \
                    ((self._config.load_modules[0] == 'all') or (name in self._config.load_modules))
 
         if is_load_module():
@@ -116,7 +129,7 @@ class PhaseRetrievalAeModel:
     def load_modules(self, state_dict: OrderedDict[str, Tensor], force: bool = False) -> List[str]:
         loaded_models = []
 
-        if self.ae_net:
+        if self.ae_net and (self._config.ae_type == 'conv-net'):
             load_status = self.load_module(state_dict, self.ae_net, ModulesNames.ae_model, force)
             if load_status:
                 loaded_models.append(ModulesNames.ae_model)
@@ -139,7 +152,7 @@ class PhaseRetrievalAeModel:
         if self._config.use_ref_net:
             save_state[ModulesNames.ref_net] = self.ref_unet.state_dict()
 
-        if self.ae_net is not None:
+        if (self.ae_net is not None) and (self._config.ae_type == 'conv-net'):
             save_state[ModulesNames.ae_model] = self.ae_net.state_dict()
 
         return save_state
@@ -246,6 +259,3 @@ class PhaseRetrievalAeModel:
         #         self.ae_net.eval()
         if self._config.use_ref_net:
             self.ref_unet.train()
-
-
-

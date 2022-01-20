@@ -6,6 +6,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from models.seq_blocks import EncoderConv, DecoderConv, MlpNet
+from models.base_autoencoder import BaseAe
 
 
 class AttDictionary(nn.Module):
@@ -48,19 +49,19 @@ class MapToCoeff(nn.Module):
         return coeff.view(-1, self.out_ch, self.out_coeff)
 
 
-class AeConv(nn.Module):
+class AeConv(BaseAe):
     def __init__(self, img_ch: int = 1, output_ch: int = 1, n_encoder_ch: int = 16, img_size: int = 32, deep: int = 3,
                  n_enc_features: int = None, n_dec_features: int = None,
                  down_pool: str = 'avrg_pool', active_type: str = 'leakly_relu', up_mode: str = 'bilinear',
                  features_sigmoid_active: bool = True, use_dictionary: bool = False, dict_len: int = 16):
-        super(AeConv, self).__init__()
+        super(AeConv, self).__init__(img_size=img_size, in_ch=img_ch, deep=deep)
         self.use_dictinary = use_dictionary
         self.features_sigmoid_active = features_sigmoid_active
         self.n_encoder_ch = n_encoder_ch
         scale_factor = 2 ** (deep - 1)
-        self.n_enc_features_ch = self.n_encoder_ch * scale_factor if n_enc_features is None else n_enc_features
-        self.n_dec_features_ch = self.n_enc_features_ch if n_dec_features is None else n_dec_features
-        self.n_features_size = int(np.ceil(img_size / scale_factor))
+        self._n_enc_features_ch = self.n_encoder_ch * scale_factor if n_enc_features is None else n_enc_features
+        self._n_dec_features_ch = self.n_enc_features_ch if n_dec_features is None else n_dec_features
+        self._n_features_size = int(np.ceil(img_size / scale_factor))
         # padding_mode = 'replicate'
         if self.use_dictinary:
             self.dictionary: Optional[MulDictionary] = MulDictionary(dict_len, self.n_features_size)
@@ -76,6 +77,18 @@ class AeConv(nn.Module):
         self._decoder = DecoderConv(output_ch=None, img_ch=self.n_dec_features_ch, deep=deep,
                                     up_mode=up_mode, active_type=active_type)
         self.out_layer = nn.Conv2d(self._decoder.ch_out[-1], output_ch, kernel_size=1, stride=1, padding=0)
+
+    @property
+    def n_enc_features_ch(self) -> int:
+        return self._n_enc_features_ch
+
+    @property
+    def n_dec_features_ch(self) -> int:
+        return self._n_dec_features_ch
+
+    @property
+    def n_features_size(self) -> int:
+        return self._n_features_size
 
     def encode(self, x: Tensor) -> Tensor:
         features = self._encoder(x)

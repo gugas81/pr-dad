@@ -254,6 +254,8 @@ class ConfigTrainer(ConfigBase):
     ae_decoder_fine_tune: bool = False
     lambda_img_ae_loss_l2: float = 1.0
     lambda_img_ae_loss_l1: float = 1.0
+    ae_type: str = 'conv-net'  # 'conv-net', 'wavelet-net'
+    wavelet_type: str = 'haar' # 'db3'
 
 
 
