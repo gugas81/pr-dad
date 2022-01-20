@@ -108,7 +108,9 @@ class PhaseRetrievalPredictor(nn.Module):
                                 active_type=self._config.activation_enc,
                                 add_special_att=self._config.spat_conv_predict)
 
-    def _build_conv_blocks(self, conv_type: str, deep_conv: int,
+    def _build_conv_blocks(self,
+                           conv_type: str,
+                           deep_conv: int,
                            active_type: str = 'leakly_relu',
                            add_special_att: bool = False):
         if conv_type == 'ConvBlock':
@@ -135,9 +137,9 @@ class PhaseRetrievalPredictor(nn.Module):
             in_conv = self.inter_ch
 
             self.conv_blocks = BlockList()
-            for ind in range(deep_conv):
+            for _ in range(deep_conv):
                 out_conv = self._config.predict_conv_multy_coeff * in_conv
-                conv_block = conv_block_class(in_conv, out_conv, active_type=active_type) # , padding_mode='zeros'
+                conv_block = conv_block_class(in_conv, out_conv, active_type=active_type, padding_mode='replicate') # , padding_mode='zeros'
                 in_conv = out_conv
                 self.conv_blocks.append(conv_block)
             conv_out = nn.Conv2d(out_conv, self.out_ch, kernel_size=1, stride=1, padding=0)

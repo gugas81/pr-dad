@@ -64,10 +64,16 @@ class EncoderConv(nn.Module):
                 # if use_res_blocks:
                 #     conv_block = ResBlock(in_channels=inp_ch_block, out_channels=self.out_ch)
                 # else:
-                conv_block = ConvBlock(ch_in=inp_ch_block, ch_out=curr_out_ch, active_type=active_type, padding_mode=padding_mode)
+                conv_block = ConvBlock(ch_in=inp_ch_block,
+                                       ch_out=curr_out_ch,
+                                       active_type=active_type,
+                                       padding_mode=padding_mode)
             else:
-                conv_block = DownConvBlock(ch_in=inp_ch_block, ch_out=curr_out_ch,
-                                           use_res_block=use_res_blocks, active_type=active_type, down_pool=down_pool)
+                conv_block = DownConvBlock(ch_in=inp_ch_block,
+                                           ch_out=curr_out_ch,
+                                           use_res_block=use_res_blocks,
+                                           active_type=active_type,
+                                           down_pool=down_pool)
             inp_ch_block = curr_out_ch
 
             if ind_block < self.deep - 1:
@@ -83,9 +89,14 @@ class EncoderConv(nn.Module):
 
 
 class DecoderConv(nn.Module):
-    def __init__(self, img_ch: int = 32, output_ch: Optional[int] = None, deep: int = 3,
-                 use_res_blocks: bool = False, skip_connect_ch:  List[int] = None, up_mode: str = 'nearest',
-                 active_type: str = 'leakly_relu'):
+    def __init__(self, img_ch: int = 32,
+                 output_ch: Optional[int] = None,
+                 deep: int = 3,
+                 use_res_blocks: bool = False,
+                 skip_connect_ch:  List[int] = None,
+                 up_mode: str = 'nearest',
+                 active_type: str = 'leakly_relu',
+                 padding_mode: str = 'zeros'):
         super(DecoderConv, self).__init__()
         self.deep = deep
         self.conv_layers = BlockList()
@@ -104,14 +115,14 @@ class DecoderConv(nn.Module):
                     if use_res_blocks:
                         conv_layer = ResBlock(ch_im, ch_out)
                     else:
-                        conv_layer = ConvBlock(ch_im, ch_out)
+                        conv_layer = ConvBlock(ch_im, ch_out, padding_mode=padding_mode)
             else:
                 ch_out = ch_out // 2
-                up_conv_block = UpConvBlock(ch_in=ch_im, ch_out=ch_out, up_mode=up_mode, active_type=active_type)
+                up_conv_block = UpConvBlock(ch_in=ch_im, ch_out=ch_out, up_mode=up_mode, active_type=active_type, padding_mode=padding_mode)
                 if use_res_blocks:
                     conv_block = ResBlock(ch_out, ch_out, active_type=active_type)
                 else:
-                    conv_block = ConvBlock(ch_out, ch_out,  active_type=active_type)
+                    conv_block = ConvBlock(ch_out, ch_out,  active_type=active_type, padding_mode=padding_mode)
                 conv_layer = nn.Sequential(up_conv_block, conv_block)
 
             ch_im = ch_out

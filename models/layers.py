@@ -123,14 +123,15 @@ class DownConvBlock(nn.Module):
 
 
 class UpConvBlock(nn.Module):
-    def __init__(self, ch_in: int, ch_out: int, up_mode: str = 'nearest', active_type: str = 'leakly_relu'):
+    def __init__(self, ch_in: int, ch_out: int,
+                 up_mode: str = 'nearest', active_type: str = 'leakly_relu', padding_mode: str = 'replicate'):
         # ``'nearest'``,
         # ``'linear'``, ``'bilinear'``, ``'bicubic'`` and ``'trilinear'``.
         # Default: ``'nearest'``
         super(UpConvBlock, self).__init__()
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2, mode=up_mode, align_corners=True),
-            nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=1,padding_mode='replicate'),
+            nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode),
             nn.BatchNorm2d(ch_out),
             get_activation(active_type)
         )

@@ -72,10 +72,18 @@ class AeConv(BaseAe):
         else:
             assert self.n_enc_features_ch == self.n_dec_features_ch
             self.dictionary: Optional[MulDictionary] = None
-        self._encoder = EncoderConv(in_ch=img_ch, encoder_ch=self.n_encoder_ch, deep=deep,
-                                    active_type=active_type, down_pool=down_pool, padding_mode='zeros')
-        self._decoder = DecoderConv(output_ch=None, img_ch=self.n_dec_features_ch, deep=deep,
-                                    up_mode=up_mode, active_type=active_type)
+        self._encoder = EncoderConv(in_ch=img_ch,
+                                    encoder_ch=self.n_encoder_ch,
+                                    deep=deep,
+                                    active_type=active_type,
+                                    down_pool=down_pool,
+                                    padding_mode='zeros')
+        self._decoder = DecoderConv(output_ch=None,
+                                    img_ch=self.n_dec_features_ch,
+                                    deep=deep,
+                                    up_mode=up_mode,
+                                    active_type=active_type,
+                                    padding_mode='replicate')
         self.out_layer = nn.Conv2d(self._decoder.ch_out[-1], output_ch, kernel_size=1, stride=1, padding=0)
 
     @property
