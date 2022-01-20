@@ -175,8 +175,11 @@ class PhaseRetrievalAeModel:
             decoded_batch = self.ae_net.decode(feature_decoder)
         else:
             feature_encoder = None
+            feature_decoder = None
             decoded_batch = None
             dec_features_batch_recon = None
+            coeff_enc = None
+            coeff_recon = None
 
         inferred_batch = InferredBatch(img_recon=recon_batch,
                                        feature_recon=enc_features_batch_recon,
@@ -189,7 +192,8 @@ class PhaseRetrievalAeModel:
                                        dict_coeff_recon=coeff_recon)
 
         if self._config.use_ref_net:
-            inferred_batch.img_recon_ref = self.ref_unet(recon_batch.detach(), dec_features_batch_recon.detach())
+            inferred_batch.img_recon_ref = self.ref_unet(recon_batch.detach(),
+                                                         dec_features_batch_recon.detach() if dec_features_batch_recon else None)
             inferred_batch.fft_magnitude_recon_ref = self.forward_magnitude_fft(inferred_batch.img_recon_ref)
 
         return inferred_batch
@@ -234,8 +238,8 @@ class PhaseRetrievalAeModel:
         self._log.debug(f'Set model  train mode: ae_train: {ae_train}')
         if self.phase_predictor:
             self.phase_predictor.train()
-        self.ae_net.eval()
-        # if self.ae_net:
+        if self.ae_net is not None:
+            self.ae_net.eval()
         #     if ae_train:
         #         self.ae_net.train()
         #     else:

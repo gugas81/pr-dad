@@ -127,7 +127,8 @@ class PhaseRetrievalPredictor(nn.Module):
                                         output_ch=self.out_ch,
                                         up_mode='bilinear',
                                         active_type=active_type,
-                                        down_pool='avrg_pool')
+                                        down_pool='avrg_pool',
+                                        deep=deep_conv)
         elif conv_type == 'SpatialAtt':
             self.conv_blocks = SpatialAttentionBlock(self.inter_ch, conv_type='conv_block', apply_att=True)
         else:
