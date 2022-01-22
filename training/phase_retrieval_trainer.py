@@ -12,13 +12,14 @@ from tqdm import tqdm
 from models import Discriminator
 from torch.optim.lr_scheduler import MultiStepLR
 
-from common import LossesPRFeatures, InferredBatch, ConfigTrainer, l2_grad_norm,  LossesGradNorms,  DiscriminatorBatch
-from common import im_concatenate, l2_perceptual_loss, DataBatch, LossImg
+from common import LossesPRFeatures, InferredBatch, ConfigTrainer,  LossesGradNorms,  DiscriminatorBatch
+from common import im_concatenate, DataBatch
 
 from training.base_phase_retrieval_trainer import BaseTrainerPhaseRetrieval
 from training.phase_retrieval_model import PhaseRetrievalAeModel
 from training.utils import ModulesNames
 from training.phase_retrival_evaluator import Evaluator
+import models.losses as losses
 
 
 class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
@@ -30,11 +31,20 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self.l2_loss = nn.MSELoss()
         self.l1_loss = nn.L1Loss()
 
-        self.l2_img_loss = LossImg(loss_type='l2', rot180=config.loss_rot180, device=self.device)
-        self.l1_img_loss = LossImg(loss_type='l1', rot180=config.loss_rot180, device=self.device)
+        self.l2_img_loss = losses.LossImg(loss_type='l2', rot180=config.loss_rot180, device=self.device)
+        self.l1_img_loss = losses.LossImg(loss_type='l1', rot180=config.loss_rot180, device=self.device)
+
+        if self._config.ae_type == 'wavelet-net':
+            self.l2_f_loss = losses.DwtCoeffLoss(loss_type='l2', rot180=config.loss_rot180, device=self.device)
+            self.l1_f_loss = losses.DwtCoeffLoss(loss_type='l1', rot180=config.loss_rot180, device=self.device)
+        else:
+            self.l2_f_loss = losses.LossImg(loss_type='l2', rot180=config.loss_rot180, device=self.device)
+            self.l1_f_loss = losses.LossImg(loss_type='l1', rot180=config.loss_rot180, device=self.device)
+
+        self.sparsity_f_loss = losses.SparsityL1Loss(dc_comp=(self._config.ae_type == 'wavelet-net'))
 
         if self._config.use_lpips:
-            self._lpips_loss = LossImg(loss_type='lpips', rot180=config.loss_rot180, device=self.device)
+            self._lpips_loss = losses.LossImg(loss_type='lpips', rot180=config.loss_rot180, device=self.device)
         else:
             self._lpips_loss = None
 
@@ -521,9 +531,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         fft_magnitude_recon = self._generator_model.forward_magnitude_fft(inferred_batch.img_recon)
         l1_img_loss = self.l1_loss(data_batch.image, inferred_batch.img_recon)
         l2_img_loss = self.l2_loss(data_batch.image, inferred_batch.img_recon)
-        l1_sparsity_features = torch.mean(inferred_batch.feature_recon_decoder.abs())
+        l1_sparsity_features = self.sparsity_f_loss(inferred_batch.feature_recon_decoder)
         if self._config.use_ae_dictionary:
-            l1_sparsity_dict_coeff = torch.mean(inferred_batch.dict_coeff_encoder.abs())
+            l1_sparsity_dict_coeff = self.sparsity_f_loss(inferred_batch.dict_coeff_encoder)
         else:
             l1_sparsity_dict_coeff = None
         l1_magnitude_loss = self.l1_loss(data_batch.fft_magnitude.detach(), fft_magnitude_recon)
@@ -562,9 +572,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         l2_img_recon_loss = self.l2_img_loss(data_batch.image, inferred_batch.img_recon)
 
         if self._config.predict_out == 'features':
-            l1_features_loss = self.l1_img_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
-            l2_features_loss = self.l2_img_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
-            l1_sparsity_features = torch.mean(inferred_batch.feature_recon.abs())
+            l1_features_loss = self.l1_f_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
+            l2_features_loss = self.l2_f_loss(inferred_batch.feature_decoder, inferred_batch.feature_recon_decoder)
+            l1_sparsity_features = self.sparsity_f_loss(inferred_batch.feature_recon)
             if self._config.use_ae_dictionary:
                 l1_sparsity_dict_coeff = torch.mean(inferred_batch.dict_coeff_recon.abs())
             else:
