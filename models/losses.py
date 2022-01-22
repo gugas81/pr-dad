@@ -73,9 +73,11 @@ class DwtCoeffLoss(LossImg):
         self._lambda_shrink = lambda_shrink
 
     def forward(self, in_coeff: Tensor, tgt_coeff: Tensor) -> Tensor:
-        in_coeff[:, 0] *= self._w_dc
-        tgt_coeff[:, 0] *= self._w_dc
-        return super().forward(in_coeff, tgt_coeff)
+        weighted_in = in_coeff
+        weighted_tgt = tgt_coeff
+        weighted_in[:, 0] = weighted_in[:, 0] * self._w_dc
+        weighted_tgt[:, 0] = weighted_tgt[:, 0] * self._w_dc
+        return super().forward(weighted_in, weighted_tgt)
 
 
 class SparsityL1Loss(nn.Module):
