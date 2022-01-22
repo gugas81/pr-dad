@@ -35,8 +35,14 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
         self.l1_img_loss = los_fun.LossImg(loss_type='l1', rot180=config.loss_rot180, device=self.device)
 
         if self._config.ae_type == 'wavelet-net':
-            self.l2_f_loss = los_fun.DwtCoeffLoss(loss_type='l2', rot180=config.loss_rot180, device=self.device)
-            self.l1_f_loss = los_fun.DwtCoeffLoss(loss_type='l1', rot180=config.loss_rot180, device=self.device)
+            self.l2_f_loss = los_fun.DwtCoeffLoss(n_subbands=self._config.n_features,
+                                                  loss_type='l2',
+                                                  rot180=config.loss_rot180,
+                                                  device=self.device)
+            self.l1_f_loss = los_fun.DwtCoeffLoss(n_subbands=self._config.n_features,
+                                                  loss_type='l1',
+                                                  rot180=config.loss_rot180,
+                                                  device=self.device)
         else:
             self.l2_f_loss = los_fun.LossImg(loss_type='l2', rot180=config.loss_rot180, device=self.device)
             self.l1_f_loss = los_fun.LossImg(loss_type='l1', rot180=config.loss_rot180, device=self.device)

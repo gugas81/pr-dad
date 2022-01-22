@@ -62,22 +62,23 @@ class LossImg(nn.Module):
 
 
 class DwtCoeffLoss(LossImg):
-    def __init__(self, loss_type: str = 'l2',
+    def __init__(self,
+                 n_subbands: int,
+                 loss_type: str = 'l2',
                  rot180: bool = False,
                  device: str = None,
                  eval_mode: bool = True,
-                 w_dc: float = 0.1, lambda_shrink: Optional[float] = None,
+                 w_dc: float = 0.1,
+                 lambda_shrink: Optional[float] = None,
                  ):
         super(DwtCoeffLoss, self).__init__(loss_type=loss_type, rot180=rot180, device=device, eval_mode=eval_mode)
         self._w_dc = w_dc
         self._lambda_shrink = lambda_shrink
+        self._w_subbands = torch.cat([self._w_dc * torch.ones((1, 1, 1, 1), device=self._device),
+                                      torch.ones((1, n_subbands - 1, 1, 1), device=self._device)], dim=1)
 
     def forward(self, in_coeff: Tensor, tgt_coeff: Tensor) -> Tensor:
-        weighted_in = in_coeff
-        weighted_tgt = tgt_coeff
-        weighted_in[:, 0] = weighted_in[:, 0] * self._w_dc
-        weighted_tgt[:, 0] = weighted_tgt[:, 0] * self._w_dc
-        return super().forward(weighted_in, weighted_tgt)
+        return super().forward(self._w_subbands * in_coeff, self._w_subbands * tgt_coeff)
 
 
 class SparsityL1Loss(nn.Module):
@@ -87,7 +88,7 @@ class SparsityL1Loss(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         if self._dc_comp:
-            sparsity = torch.mean(x[:, 1:].abs())
+            sparsity = torch.mean(torch.index_select(x, 1, torch.arange(1, x.shape[1], device=x.device)).abs())
         else:
             sparsity = torch.mean(x.abs())
         return sparsity
