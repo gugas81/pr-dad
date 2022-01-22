@@ -80,6 +80,7 @@ class DwtCoeffLoss(LossImg):
 
 class SparsityL1Loss(nn.Module):
     def __init__(self, dc_comp: bool = False):
+        super(SparsityL1Loss, self).__init__()
         self._dc_comp = dc_comp
 
     def forward(self, x: Tensor) -> Tensor:
