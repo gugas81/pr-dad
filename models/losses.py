@@ -85,7 +85,7 @@ class SparsityL1Loss(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         if self._dc_comp:
-            sparsity = torch.mean(x[: 1:].abs())
+            sparsity = torch.mean(x[:, 1:].abs())
         else:
             sparsity = torch.mean(x.abs())
         return sparsity
