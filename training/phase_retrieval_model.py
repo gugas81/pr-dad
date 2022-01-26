@@ -206,7 +206,7 @@ class PhaseRetrievalAeModel:
 
         if self._config.use_ref_net:
             inferred_batch.img_recon_ref = self.ref_unet(recon_batch.detach(),
-                                                         dec_features_batch_recon.detach() if dec_features_batch_recon else None)
+                                                         dec_features_batch_recon.detach() if isinstance(dec_features_batch_recon, Tensor) else None)
             inferred_batch.fft_magnitude_recon_ref = self.forward_magnitude_fft(inferred_batch.img_recon_ref)
 
         return inferred_batch
