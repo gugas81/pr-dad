@@ -155,7 +155,7 @@ class PhaseRetrievalPredictor(nn.Module):
 
     def forward(self, magnitude: Tensor) -> (Tensor, Tensor):
         magnitude = self.input_norm(magnitude)
-        if self._config.predict_type == 'spectral':
+        if self._config.predict_type == 'spectral' or self._config.predict_type == 'special':
             out_features, intermediate_features = self._special_pred(magnitude)
         elif self._config.predict_type == 'phase':
             out_features = self._angle_pred(magnitude)
