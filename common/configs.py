@@ -256,6 +256,7 @@ class ConfigTrainer(ConfigBase):
     lambda_img_ae_loss_l1: float = 1.0
     ae_type: str = 'conv-net'  # 'conv-net', 'wavelet-net'
     wavelet_type: Optional[str] = None  # 'haar' 'db3'
+    use_conv_block_predictor: bool = True
 
 
 

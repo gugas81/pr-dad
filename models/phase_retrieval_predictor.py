@@ -109,14 +109,15 @@ class PhaseRetrievalPredictor(nn.Module):
                                          img_size=self.out_img_size,
                                          is_2d=True,
                                          affine=True)
-        self._build_conv_blocks(self._config.predict_conv_type,
-                                self._config.deep_predict_conv,
-                                active_type=self._config.activation_enc,
-                                add_special_att=self._config.spat_conv_predict)
+        if self._config.use_conv_block_predictor:
+            self.conv_blocks = self._build_conv_blocks()
+        else:
+            assert self.inter_ch == self.out_ch
+            self.conv_blocks = None
 
-    def _build_conv_blocks(self, conv_type: str, deep_conv: int,
-                           active_type: str = 'leakly_relu',
-                           add_special_att: bool = False):
+    def _build_conv_blocks(self) -> nn.Module:
+        conv_type = self._config.predict_conv_type
+        active_type = self._config.activation_enc
         if conv_type == 'ConvBlock':
             conv_block_class = ConvBlock
         elif conv_type == 'ResBlock':
@@ -129,29 +130,30 @@ class PhaseRetrievalPredictor(nn.Module):
             raise NameError(f'Non valid conv_type: {conv_type}')
 
         if conv_type == 'Unet':
-            self.conv_blocks = UNetConv(img_ch=self.inter_ch,
-                                        output_ch=self.out_ch,
-                                        up_mode='bilinear',
-                                        active_type=active_type,
-                                        down_pool='avrg_pool',
-                                        deep=deep_conv)
+            conv_blocks_module = UNetConv(img_ch=self.inter_ch,
+                                          output_ch=self.out_ch,
+                                          up_mode='bilinear',
+                                          active_type=active_type,
+                                          down_pool='avrg_pool',
+                                          deep=self._config.deep_predict_conv)
         elif conv_type == 'SpatialAtt':
-            self.conv_blocks = SpatialAttentionBlock(self.inter_ch, conv_type='conv_block', apply_att=True)
+            conv_blocks_module = SpatialAttentionBlock(self.inter_ch, conv_type='conv_block', apply_att=True)
         else:
             in_conv = self.inter_ch
 
-            self.conv_blocks = BlockList()
-            for ind in range(deep_conv):
+            conv_blocks_module = BlockList()
+            for ind in range(self._config.deep_predict_conv):
                 out_conv = self._config.predict_conv_multy_coeff * in_conv
                 conv_block = conv_block_class(in_conv, out_conv, active_type=active_type) # , padding_mode='zeros'
                 in_conv = out_conv
-                self.conv_blocks.append(conv_block)
+                conv_blocks_module.append(conv_block)
             conv_out = nn.Conv2d(out_conv, self.out_ch, kernel_size=1, stride=1, padding=0)
 
-            self.conv_blocks.append(conv_out)
-            if add_special_att:
+            conv_blocks_module.append(conv_out)
+            if self._config.spat_conv_predict:
                 att_block = SpatialAttentionBlock(self.out_ch, conv_type='conv', apply_att=True)
-                self.conv_blocks.append(att_block)
+                conv_blocks_module.append(att_block)
+        return conv_blocks_module
 
     def forward(self, magnitude: Tensor) -> (Tensor, Tensor):
         magnitude = self.input_norm(magnitude)
@@ -215,7 +217,10 @@ class PhaseRetrievalPredictor(nn.Module):
         if self._config.features_sigmoid_active:
             intermediate_features = torch.sigmoid(intermediate_features)
 
-        out_features = self.conv_blocks(intermediate_features)
+        if self._config.use_conv_block_predictor:
+            out_features = self.conv_blocks(intermediate_features)
+        else:
+            out_features = intermediate_features
 
         return out_features, intermediate_features
 
