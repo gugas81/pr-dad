@@ -36,11 +36,17 @@ class PhaseRetrievalPredictor(nn.Module):
         else:
             self.inter_ch = self._config.predict_img_int_features_multi_coeff * out_ch
 
-        self.inter_mag_out_size = utils.get_magnitude_size_2d(out_img_size, self._config.add_pad_out,
-                                                              use_rfft=(self._config.use_rfft and not self._config.use_dct))
-        if self._config.use_dct:
-            assert self.inter_mag_out_size[0] == self.inter_mag_out_size[1]
-            self._idct_features = Dct2DInverse(self.inter_mag_out_size[0])
+        if self._config.predict_type == 'spectral':
+            use_rfft = (self._config.use_rfft and not self._config.use_dct)
+            self.inter_features_out_size = utils.get_magnitude_size_2d(out_img_size,
+                                                                       self._config.add_pad_out,
+                                                                       use_rfft=use_rfft)
+        else:
+            self.inter_features_out_size = [self.out_img_size, self.out_img_size]
+
+        if self._config.use_dct and self._config.predict_type == 'spectral':
+            assert self.inter_features_out_size[0] == self.inter_features_out_size[1]
+            self._idct_features = Dct2DInverse(self.inter_features_out_size[0])
         else:
             self._idct_features = None
 
@@ -52,7 +58,7 @@ class PhaseRetrievalPredictor(nn.Module):
 
         self.in_features = self.input_mag_size_2d[0]*self.input_mag_size_2d[1]
 
-        self.inter_features = self.inter_ch * self.inter_mag_out_size[0] * self.inter_mag_out_size[1]
+        self.inter_features = self.inter_ch * self.inter_features_out_size[0] * self.inter_features_out_size[1]
 
         if self._config.deep_predict_fc is None:
             deep_fc = int(math.floor(math.log(self.inter_features / self.in_features,
@@ -61,17 +67,17 @@ class PhaseRetrievalPredictor(nn.Module):
         else:
             deep_fc = self._config.deep_predict_fc
 
-        self.out_features = self.out_ch * self.inter_mag_out_size[0] * self.inter_mag_out_size[1]
+        self.out_features = self.out_ch * self.inter_features_out_size[0] * self.inter_features_out_size[1]
 
         if self._config.predict_type == 'spectral':
             if self._config.use_dct:
                 out_fc_features = self.inter_features
             else:
                 out_fc_features = 2 * self.inter_features
-        elif self._config.predict_type == 'phase':
+        elif self._config.predict_type == 'phase' or self._config.predict_type == 'special':
             out_fc_features = self.inter_features
         else:
-            raise NameError(f'Not supported type_recon: {self._config.predict_type}')
+            raise NameError(f'Not supported config.predict_type: {self._config.predict_type}')
 
         in_fc = self.in_features
         self.input_norm = get_norm_layer(name_type=self._config.magnitude_norm,
@@ -150,7 +156,7 @@ class PhaseRetrievalPredictor(nn.Module):
     def forward(self, magnitude: Tensor) -> (Tensor, Tensor):
         magnitude = self.input_norm(magnitude)
         if self._config.predict_type == 'spectral':
-            out_features, intermediate_features = self._spectral_pred(magnitude)
+            out_features, intermediate_features = self._special_pred(magnitude)
         elif self._config.predict_type == 'phase':
             out_features = self._angle_pred(magnitude)
             intermediate_features = out_features
@@ -170,27 +176,35 @@ class PhaseRetrievalPredictor(nn.Module):
         out_features = torch.fft.ifft2(spectral, norm=self._fft_norm)
         return out_features
 
-    def _spectral_pred(self, magnitude: Tensor) -> (Tensor, Tensor):
+    def _special_pred(self, magnitude: Tensor) -> (Tensor, Tensor):
         magnitude = torchvision.transforms.functional.crop(magnitude, 0, 0,
                                                            self.input_mag_size_2d[0],
                                                            self.input_mag_size_2d[1])
 
         mag_flatten = magnitude.view(-1, self.in_features)
         fc_features = self.fc_blocks(mag_flatten)
-        if self._config.use_dct:
-            spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size[0], self.inter_mag_out_size[1])
-            intermediate_features = self._idct_features(spectral)
-        else:
-            spectral = fc_features.view(-1, self.inter_ch, self.inter_mag_out_size[0], self.inter_mag_out_size[1], 2)
-            spectral = torch.view_as_complex(spectral)
-
-            if self._config.use_rfft:
-                intermediate_features = torch.fft.irfft2(spectral,
-                                                         (self.inter_mag_out_size[0], self.inter_mag_out_size[0]),
-                                                         norm=self._config.fft_norm)
+        if self._config.predict_type == 'spectral':
+            if self._config.use_dct:
+                spectral_features = fc_features.view(-1, self.inter_ch,
+                                                     self.inter_features_out_size[0], self.inter_features_out_size[1])
+                intermediate_features = self._idct_features(spectral_features)
             else:
-                intermediate_features = torch.fft.ifft2(spectral, norm=self._config.fft_norm)
-                # out_features = intermediate_features.real
+                spectral_features = fc_features.view(-1, self.inter_ch,
+                                                     self.inter_features_out_size[0], self.inter_features_out_size[1], 2)
+                spectral_features = torch.view_as_complex(spectral_features)
+
+                if self._config.use_rfft:
+                    intermediate_features = torch.fft.irfft2(spectral_features,
+                                                             (self.inter_features_out_size[0], self.inter_features_out_size[0]),
+                                                             norm=self._config.fft_norm)
+                else:
+                    intermediate_features = torch.fft.ifft2(spectral_features, norm=self._config.fft_norm)
+                    # out_features = intermediate_features.real
+        elif self._config.predict_type == 'special':
+            intermediate_features = fc_features.view(-1, self.inter_ch,
+                                                     self.inter_features_out_size[0], self.inter_features_out_size[1])
+        else:
+            raise NameError(f'Not supported config.predict_type: {self._config.predict_type}')
 
         if self._config.add_pad_out:
             intermediate_features = torchvision.transforms.functional.center_crop(intermediate_features,
