@@ -80,22 +80,29 @@ class PhaseRetrievalPredictor(nn.Module):
                                          is_2d=True,
                                          affine=True)
 
-        # self.fc_blocks = MlpNet(in_ch=in_fc, deep=0)
-        self.fc_blocks = BlockList()
-        for ind in range(deep_fc):
-            if ind == deep_fc - 1:
-                out_fc = out_fc_features
-            else:
-                out_fc = int(math.floor(in_fc * self._config.predict_fc_multy_coeff))
-
-            fc_block = FcBlock(in_fc, out_fc,
-                               use_dropout=self._config.use_dropout_enc_fc,
-                               norm_type=self._config.norm_fc,
-                               active_type=self._config.activation_fc_enc,
-                               active_params=out_fc if self._config.activation_fc_ch_params else 1)
-            in_fc = out_fc
-
-            self.fc_blocks.append(fc_block)
+        self.fc_blocks = MlpNet(in_ch=in_fc,
+                                deep=deep_fc,
+                                out_ch=out_fc_features,
+                                use_dropout=self._config.use_dropout_enc_fc,
+                                multy_coeff=self._config.predict_fc_multy_coef,
+                                norm_type=self._config.norm_fc,
+                                active_type=self._config.activation_fc_enc,
+                                active_ch=self._config.activation_fc_ch_params)
+        # self.fc_blocks = BlockList()
+        # for ind in range(deep_fc):
+        #     if ind == deep_fc - 1:
+        #         out_fc = out_fc_features
+        #     else:
+        #         out_fc = int(math.floor(in_fc * self._config.predict_fc_multy_coeff))
+        #
+        #     fc_block = FcBlock(in_fc, out_fc,
+        #                        use_dropout=self._config.use_dropout_enc_fc,
+        #                        norm_type=self._config.norm_fc,
+        #                        active_type=self._config.activation_fc_enc,
+        #                        active_params=out_fc if self._config.activation_fc_ch_params else 1)
+        #     in_fc = out_fc
+        #
+        #     self.fc_blocks.append(fc_block)
 
         self.weights_fc: List[nn.Parameter] = [fc_block.fc_seq[0].weight for fc_block in self.fc_blocks]
         self.inter_norm = get_norm_layer(name_type=self._config.inter_norm,
