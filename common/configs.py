@@ -257,6 +257,7 @@ class ConfigTrainer(ConfigBase):
     ae_type: str = 'conv-net'  # 'conv-net', 'wavelet-net'
     wavelet_type: Optional[str] = None  # 'haar' 'db3'
     use_conv_block_predictor: bool = True
+    ref_unet_in_features: bool = True
 
 
 
