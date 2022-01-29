@@ -258,6 +258,7 @@ class ConfigTrainer(ConfigBase):
     wavelet_type: Optional[str] = None  # 'haar' 'db3'
     use_conv_block_predictor: bool = True
     ref_unet_in_features: bool = True
+    deep_ref_unet: Optional[int] = None
 
 
 

@@ -51,8 +51,9 @@ class PhaseRetrievalAeModel:
                 ch_features = self.ae_net.n_dec_features_ch
             else:
                 ch_features = None
+            deep_ref_unet = self._config.deep_ref_unet  if self._config.deep_ref_unet  else self._config.deep_ae
             self.ref_unet = UNetConv(n_encoder_ch=self.n_encoder_ch,
-                                     deep=self._config.deep_ae,
+                                     deep=deep_ref_unet,
                                      in_ch_features=ch_features,
                                      skip_input=self._config.ref_net_skip_input,
                                      active_type=self._config.activation_refnet,
