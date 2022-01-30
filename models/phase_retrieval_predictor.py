@@ -90,7 +90,7 @@ class PhaseRetrievalPredictor(nn.Module):
                                 deep=deep_fc,
                                 out_ch=out_fc_features,
                                 use_dropout=self._config.use_dropout_enc_fc,
-                                multy_coeff=self._config.predict_fc_multy_coef,
+                                multy_coeff=self._config.predict_fc_multy_coeff,
                                 norm_type=self._config.norm_fc,
                                 active_type=self._config.activation_fc_enc,
                                 active_ch=self._config.activation_fc_ch_params)
