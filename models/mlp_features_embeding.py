@@ -2,7 +2,7 @@ import math
 import torch
 from torch import Tensor
 import torch.nn as nn
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from models.untils import ConcatList
 from models.seq_blocks import MlpNet
@@ -43,8 +43,8 @@ class MlpFeaturesEmedings(nn.Module):
                                  active_ch=active_ch)
             self.f_predict_nets.append(predict_net)
 
-    def forward(self, x: Tensor) -> List[Tensor]:
+    def forward(self, x: Tensor, cat_out: bool = False) -> Union[Tensor, List[Tensor]]:
         emb = self.emb_net(x)
-        features_predict = self.f_predict_nets(emb)
+        features_predict = self.f_predict_nets(emb, cat_out=cat_out)
         return features_predict
 

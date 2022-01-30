@@ -2,10 +2,9 @@ import numpy as np
 import random
 import torch
 from torch import Tensor
-from torch.nn import functional as F
-from typing import List
+from torch import nn
+from typing import List, Optional
 import torchvision
-from lpips import LPIPS
 
 
 def set_seed(seed: int):
@@ -17,56 +16,14 @@ def set_seed(seed: int):
     random.seed(seed)
 
 
-def l2_grad_norm(model: torch.nn.Module) -> (Tensor, Tensor):
-    norm_params = [p.grad.data.norm(2) if p.grad is not None else torch.tensor(0.0, device=p.device)
-                   for p in model.parameters()]
-    norm_params = torch.stack(norm_params)
-    total_norm = torch.sqrt(torch.sum(torch.square(norm_params)))
-    return total_norm, norm_params
+def hardshrink_subbands(subbands: Tensor, lambd: float = 0.5) -> Tensor:
+    subbands[:, 1:] = nn.Hardshrink(lambd=lambd)(subbands[:, 1:])
+    return subbands
 
 
-def l2_perceptual_loss(x: List[Tensor], y: List[Tensor], weights: List[float]) -> Tensor:
-    loss_out = torch.zeros([], device=x[0].device, dtype=x[0].dtype)
-    for x_layer, y_layer, w in zip(x, y, weights):
-        loss_out += w * F.mse_loss(x_layer, y_layer)
-
-    return loss_out
-
-
-class LossImg(torch.nn.Module):
-    def __init__(self, loss_type: str = 'l2', rot180: bool = False, device: str = None, eval_mode: bool = True):
-        super(LossImg, self).__init__()
-        self._rot180 = rot180
-        self._loss_type = loss_type
-        if self._rot180:
-            self._reduction = 'none'
-        else:
-            self._reduction = 'mean'
-
-        if self._loss_type == 'l2':
-            self._loss_fun = torch.nn.MSELoss(reduction=self._reduction)
-        elif self._loss_type == 'l1':
-            self._loss_fun = torch.nn.L1Loss(reduction=self._reduction)
-        elif self._loss_type == 'lpips':
-            self._loss_fun = LPIPS(net='vgg', eval_mode=eval_mode, verbose=False)
-            self._reduction = 'none'
-        else:
-            raise TypeError(f'Non valid loss type: {self._loss_type}')
-
-        if device is not None:
-            self._loss_fun.to(device=device)
-
-    def forward(self, in_img: Tensor, tgt_img: Tensor) -> Tensor:
-        if self._rot180:
-            in_img_rot180 = torch.rot90(in_img, 2, (-2, -1))
-            loss = self._loss_fun(in_img, tgt_img).mean((-3, -2, -1))
-            loss_rot = self._loss_fun(in_img_rot180, tgt_img).mean((-3, -2, -1))
-            loss = torch.min(loss, loss_rot)
-        else:
-            loss = self._loss_fun(in_img, tgt_img)
-        if self._reduction == 'none':
-            loss = loss.mean()
-        return loss
+def softdshrink_subbands(subbands: Tensor, lambd: float = 0.5) -> Tensor:
+    subbands[:, 1:] = nn.Softshrink(lambd=lambd)(subbands[:, 1:])
+    return subbands
 
 
 class NormalizeInverse(torchvision.transforms.Normalize):

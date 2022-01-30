@@ -166,16 +166,19 @@ class WaveletTransformAe(BaseAe):
         self._norm_ds = norm_ds
         self._deep = deep
         if wave == 'haar':
+            assert mode == 'zeros'
             self._encoder = WaveletHaarTransform(in_ch=in_ch,
-                                                 scale=deep,
+                                                 scale=deep-1,
                                                  decomposition=True,
                                                  mode=mode)
 
             self._decoder = WaveletHaarTransform(in_ch=in_ch,
-                                                 scale=deep,
+                                                 scale=deep-1,
                                                  decomposition=False,
                                                  mode=mode)
         else:
+            if mode == 'zeros':
+                mode = 'zero'
             self._encoder = ForwardWaveletSubbandsTransform(imgs_size=img_size,
                                                             in_ch=in_ch,
                                                             scale=deep,
