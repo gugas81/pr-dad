@@ -162,6 +162,11 @@ class PhaseRetrievalPredictor(nn.Module):
                 conv_blocks_module.append(att_block)
         return conv_blocks_module
 
+    def extra_repr(self) -> str:
+        return f'input_mag_size_2d={self.input_mag_size_2d[0]}x{self.input_mag_size_2d[1]}, ' \
+               f'inter_shape={self.inter_ch}x{self.inter_features_out_size[0]}x{self.inter_features_out_size[1]}, '\
+               f'out_shape={self.out_ch}x{self.out_img_size}x{self.out_img_size}'
+
     def forward(self, magnitude: Tensor) -> (Tensor, Tensor):
         magnitude = self.input_norm(magnitude)
         if self._config.predict_type == 'spectral' or self._config.predict_type == 'special':
