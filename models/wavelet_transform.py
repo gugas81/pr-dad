@@ -165,6 +165,7 @@ class WaveletTransformAe(BaseAe):
         super(WaveletTransformAe, self).__init__(img_size=img_size, deep=deep, in_ch=in_ch)
         self._norm_ds = norm_ds
         self._deep = deep
+        self._wave = wave
         if wave == 'haar':
             assert mode == 'zeros'
             self._encoder = WaveletHaarTransform(in_ch=in_ch,
@@ -192,7 +193,7 @@ class WaveletTransformAe(BaseAe):
                                                             wave=wave)
         dummy_input = torch.zeros((1, 1, img_size, img_size))
         dummy_features = self.encode(dummy_input)
-        _, self._n_enc_features_ch, self._n_features_size, n_features_size_y = dummy_features.shape
+        _, self._n_enc_features_ch, self._n_features_size, self.n_features_size_y = dummy_features.shape
 
     @property
     def n_enc_features_ch(self):
@@ -201,6 +202,11 @@ class WaveletTransformAe(BaseAe):
     @property
     def n_dec_features_ch(self) -> int:
         return self._n_enc_features_ch
+
+    def extra_repr(self) -> str:
+        return f'im_shape={self._in_ch }x{self._img_size}x{self._img_size}, ' \
+               f'deep={self._deep}, wave={self._wave} ' \
+               f'f_shape={self._n_enc_features_ch}x{self._n_features_size}x{self.n_features_size_y}'
 
     @property
     def n_features_size(self):
