@@ -76,8 +76,9 @@ class PhaseRetrievalDataset(Dataset):
             is_rgb = True
             ds_class = celeba_ds
             alignment_transform = transforms.Compose([
-                transforms.Resize(self._config.image_size),
-                transforms.CenterCrop(self._config.image_size)])
+                transforms.CenterCrop(self._config.image_crop_size),
+                transforms.Resize(self._config.image_size)
+                ])
             normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
                                                        (self.norm_std, self.norm_std, self.norm_std))
         elif ds_name == 'cifar10':

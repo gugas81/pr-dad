@@ -259,6 +259,7 @@ class ConfigTrainer(ConfigBase):
     use_conv_block_predictor: bool = True
     ref_unet_in_features: bool = True
     deep_ref_unet: Optional[int] = None
+    image_crop_size: int = 32
 
 
 
