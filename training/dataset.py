@@ -1,6 +1,8 @@
 import logging
 import os
 from functools import partial
+from pathlib import Path
+import shutil
 from typing import Union, Tuple, Dict, Any, Optional, Callable, Sequence, List
 import fire
 from tqdm import tqdm
@@ -26,18 +28,19 @@ class PhaseRetrievalDataset(Dataset):
                  is_train: bool,
                  log: logging.Logger,
                  s3: Optional[S3FileSystem] = None,
-                 is_gan: bool = False
-                 ):
+                 is_gan: bool = False):
         def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None) ->torchvision.datasets.CelebA:
-            return torchvision.datasets.CelebA(root=root,
-                                               split='train' if train else 'test',
-                                               download=download,
-                                               transform=transform)
-            # return CelebASmallGray(root=root,
-            #                        split='train' if train else 'test',
-            #                        download=download,
-            #                        transform=transform,
-            #                        image_size=self._config.image_size)
+            # return torchvision.datasets.CelebA(root=root,
+            #                                    split='train' if train else 'test',
+            #                                    download=download,
+            #                                    transform=transform)
+            return CelebAResized(root=root,
+                                 log=self._log,
+                                 split='train' if train else 'test',
+                                 download=download,
+                                 transform=transform,
+                                 image_size=self._config.image_size,
+                                 image_size_crop=self._config.image_crop_size)
 
         np.random.seed(seed=config.seed)
         self._config = config
@@ -76,10 +79,12 @@ class PhaseRetrievalDataset(Dataset):
             self.norm_std = 0.5
             is_rgb = True
             ds_class = celeba_ds
-            alignment_transform = transforms.Compose([
-                transforms.CenterCrop(image_crop_size),
-                transforms.Resize(self._config.image_size)
-                ])
+            alignment_transform = None
+
+            # alignment_transform = transforms.Compose([
+            #     transforms.CenterCrop(image_crop_size),
+            #     transforms.Resize(self._config.image_size)
+            #     ])
             normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
                                                        (self.norm_std, self.norm_std, self.norm_std))
         elif ds_name == 'cifar10':
@@ -91,7 +96,12 @@ class PhaseRetrievalDataset(Dataset):
         else:
             raise NameError(f'Not valid ds type {ds_name}')
 
-        data_transforms = [alignment_transform, transforms.ToTensor(), normalize_transform]
+        data_transforms = []
+        if alignment_transform is not None:
+            data_transforms.append(alignment_transform)
+
+        data_transforms = data_transforms + [transforms.ToTensor(), normalize_transform]
+
         if is_rgb:
             data_transforms.append(transforms.Grayscale(num_output_channels=1))
 
@@ -217,6 +227,68 @@ class PhaseRetrievalDataset(Dataset):
         return NormalizeInverse((self.norm_mean,), (self.norm_std,))
 
 
+class CelebAResized(torchvision.datasets.CelebA):
+    def __init__(
+            self,
+            root: str,
+            log: logging.Logger,
+            split: str = "train",
+            target_type: Union[List[str], str] = "attr",
+            transform: Optional[Callable] = None,
+            target_transform: Optional[Callable] = None,
+            download: bool = False,
+            image_size: int = 64,
+            image_size_crop: int = 108
+    ) -> None:
+        super(CelebAResized, self).__init__(root,
+                                              transform=transform,
+                                               target_transform=target_transform,
+                                              split=split,
+                                              target_type=target_type,
+                                              download=download)
+
+        out_dir_name = f"img_align_celeba_{image_size}_crop_{image_size_crop}"
+        self._log = log
+        self.image_path = os.path.join(self.root, self.base_folder, out_dir_name)
+        if not os.path.isdir(self.image_path):
+            self._log.debug(f'Prepare cached CelebA DS for: image_size:{image_size}, image_size_crop:{image_size_crop}')
+            create_down_sampled_celeba(image_size=image_size, image_size_crop=image_size_crop)
+
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        # img_out_path = os.path.join(self.image_path, f'{self.filename[index]}'.pt)
+        # X = torch.load(img_out_path)
+        img_f_name = str(Path(self.filename[index]).with_suffix('.png'))
+        X = PIL.Image.open(os.path.join(self.image_path, img_f_name))
+        # X = torch.tensor(self._img_data[index], device=torch.device('cpu'))
+
+        target: Any = []
+        for t in self.target_type:
+            if t == "attr":
+                target.append(self.attr[index, :])
+            elif t == "identity":
+                target.append(self.identity[index, 0])
+            elif t == "bbox":
+                target.append(self.bbox[index, :])
+            elif t == "landmarks":
+                target.append(self.landmarks_align[index, :])
+            else:
+                # TODO: refactor with utils.verify_str_arg
+                raise ValueError("Target type \"{}\" is not recognized.".format(t))
+
+        if self.transform is not None:
+            X = self.transform(X)
+
+        if target:
+            target = tuple(target) if len(target) > 1 else target[0]
+
+            if self.target_transform is not None:
+                target = self.target_transform(target)
+        else:
+            target = None
+
+        return X, target
+
+
 class CelebASmallGray(torchvision.datasets.CelebA):
     def __init__(
             self,
@@ -273,46 +345,47 @@ class CelebASmallGray(torchvision.datasets.CelebA):
         return X, target
 
 
-def create_down_sampled_celeba(image_size: int = 32):
+def create_down_sampled_celeba(image_size: int, image_size_crop: int, rewrite_exist: bool = False):
     def get_celeba_ds(root: str, split_: str, download: bool, transform: Optional[Callable] = None) -> torchvision.datasets.CelebA:
         return torchvision.datasets.CelebA(root=root,
                                            split=split_,
                                            download=download,
                                            transform=transform)
 
-    alignment_transform = transforms.Compose([
-        transforms.Resize(image_size),
-        transforms.CenterCrop(image_size)])
+    alignment_transform = transforms.Compose([transforms.CenterCrop(image_size_crop), transforms.Resize(image_size)])
 
-    norm_mean = 0.5
-    norm_std = 0.5
+    # norm_mean = 0.5
+    # norm_std = 0.5
+    #
+    # normalize_transform = transforms.Normalize((norm_mean, norm_mean, norm_mean),
+    #                                            (norm_std, norm_std, norm_std))
 
-    normalize_transform = transforms.Normalize((norm_mean, norm_mean, norm_mean),
-                                               (norm_std, norm_std, norm_std))
-
-    data_transforms = [alignment_transform, transforms.ToTensor(), normalize_transform, transforms.Grayscale(num_output_channels=1)]
+    # data_transforms = [alignment_transform, transforms.ToTensor(), normalize_transform, transforms.Grayscale(num_output_channels=1)]
 
     # data_transforms = [alignment_transform, transforms.Grayscale(num_output_channels=1), transforms.ToTensor()]
-    data_transforms = transforms.Compose(data_transforms)
+    # data_transforms = transforms.Compose(data_transforms)
 
     splits = ['train', 'test']
     for split in splits:
         ds_path = os.path.join(PATHS.DATASETS, 'celeba')
-        celeba_ds = get_celeba_ds(root=ds_path, split_=split, download=True,  transform=[])
-        out_img_path = os.path.join(celeba_ds.root, celeba_ds.base_folder, f"img_align_celeba_{image_size}")
+        celeba_ds = get_celeba_ds(root=ds_path, split_=split, download=True,  transform=alignment_transform)
+        out_dir_name = f"img_align_celeba_{image_size}_crop_{image_size_crop}"
+        out_img_path = os.path.join(celeba_ds.root, celeba_ds.base_folder, out_dir_name)
+        if rewrite_exist and os.path.exists(out_img_path):
+            shutil.rmtree(out_img_path)
         os.makedirs(out_img_path, exist_ok=True)
         len_ds = len(celeba_ds)
-        img_data = [celeba_ds[ds_ind][0] for ds_ind in tqdm(range(len_ds))]
-        img_data: Tensor = torch.stack(img_data)
-        out_file = os.path.join(out_img_path, f'img_data_{split}.pt')
-        print(f'Image data: {img_data.shape} will saved in: {out_file}')
-        torch.save(img_data, out_file)
-        # for ds_ind in tqdm(range(len_ds)):
-        #     img, _ = celeba_ds[ds_ind]
-        #     img_data.append(img)
-            # img_out_path = os.path.join(out_img_path, f'{celeba_ds.filename[ds_ind]}'.pt)
-            # torch.save(img, img_out_path)
-            # img.save(img_out_path)
+        # img_data = [celeba_ds[ds_ind][0] for ds_ind in tqdm(range(len_ds))]
+        # img_data: Tensor = torch.stack(img_data)
+        # out_file = os.path.join(out_img_path, f'img_data_{split}.pt')
+        # print(f'Image data: {img_data.shape} will saved in: {out_file}')
+        # torch.save(img_data, out_file)
+        for ds_ind in tqdm(range(len_ds)):
+            img, _ = celeba_ds[ds_ind]
+            img_f_name = str(Path(celeba_ds.filename[ds_ind]).with_suffix('.png'))
+            img_out_path = os.path.join(out_img_path, img_f_name)
+
+            img.save(img_out_path)
 
 
 def create_data_loaders(config: ConfigTrainer,
