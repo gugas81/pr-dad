@@ -60,6 +60,7 @@ class PhaseRetrievalDataset(Dataset):
         self.norm_mean = 0.1307
         self.norm_std = 0.3081
         normalize_transform = transforms.Normalize((self.norm_mean,), (self.norm_std,))
+        image_crop_size = self._config.image_crop_size if self._config.image_crop_size else self._config.image_size
         is_rgb = False
         if ds_name == 'mnist':
             ds_class = torchvision.datasets.MNIST
@@ -76,7 +77,7 @@ class PhaseRetrievalDataset(Dataset):
             is_rgb = True
             ds_class = celeba_ds
             alignment_transform = transforms.Compose([
-                transforms.CenterCrop(self._config.image_crop_size),
+                transforms.CenterCrop(image_crop_size),
                 transforms.Resize(self._config.image_size)
                 ])
             normalize_transform = transforms.Normalize((self.norm_mean, self.norm_mean, self.norm_mean),
