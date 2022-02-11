@@ -23,10 +23,9 @@ class MlpNet(nn.Module):
         if ch_list is None or len(ch_list) == 0:
             ch_list = [in_ch]
             for ind_block in range(1, deep, 1):
-                if ind_block == deep - 1 and out_ch:
-                    ch_list.append(out_ch if ind_block == deep - 1 and out_ch else ch_list[ind_block-1] * multy_coeff)
+                ch_list.append(out_ch if ind_block == deep - 1 and out_ch else ch_list[ind_block-1] * multy_coeff)
 
-        for ind_block in range(deep-2):
+        for ind_block in range(deep-1):
             in_ch, out_ch = ch_list[ind_block], ch_list[ind_block+1]
             fc_block = FcBlock(in_features=in_ch,
                                out_features=out_ch,
