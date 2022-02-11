@@ -260,6 +260,7 @@ class ConfigTrainer(ConfigBase):
     ref_unet_in_features: bool = True
     deep_ref_unet: Optional[int] = None
     image_crop_size: Optional[int] = None
+    mlp_ch_list: Optional[List[int]] = None
 
 
 

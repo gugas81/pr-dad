@@ -11,7 +11,7 @@ class MlpNet(nn.Module):
                  in_ch: int,
                  deep: int,
                  out_ch: Optional[int] = None,
-                 ch_list: List[int] = None,
+                 ch_list: Optional[List[int]] = None,
                  use_dropout: bool = False,
                  multy_coeff: float = 2.0,
                  norm_type: str = None,
@@ -24,10 +24,9 @@ class MlpNet(nn.Module):
             ch_list = [in_ch]
             for ind_block in range(1, deep, 1):
                 if ind_block == deep - 1 and out_ch:
-
                     ch_list.append(out_ch if ind_block == deep - 1 and out_ch else ch_list[ind_block-1] * multy_coeff)
 
-        for ind_block in range(deep-1):
+        for ind_block in range(deep-2):
             in_ch, out_ch = ch_list[ind_block], ch_list[ind_block+1]
             fc_block = FcBlock(in_features=in_ch,
                                out_features=out_ch,
