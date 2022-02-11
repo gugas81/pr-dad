@@ -6,7 +6,7 @@ from typing import Optional, List, Union
 from models.untils import BlockList
 
 
-class MlpNet(nn.Module):
+class MlpNet(BlockList):
     def __init__(self,
                  in_ch: int,
                  deep: int,
@@ -18,13 +18,13 @@ class MlpNet(nn.Module):
                  active_type: str = 'leakly_relu',
                  active_ch: bool = True):
         super(MlpNet, self).__init__()
-        self.fc_layers = BlockList()
 
         if ch_list is None or len(ch_list) == 0:
             ch_list = [in_ch]
             for ind_block in range(1, deep, 1):
                 ch_list.append(out_ch if ind_block == deep - 1 and out_ch else ch_list[ind_block-1] * multy_coeff)
 
+        deep = len(ch_list)
         for ind_block in range(deep-1):
             in_ch, out_ch = ch_list[ind_block], ch_list[ind_block+1]
             fc_block = FcBlock(in_features=in_ch,
@@ -33,10 +33,7 @@ class MlpNet(nn.Module):
                                norm_type=norm_type,
                                active_type=active_type,
                                active_params=out_ch if active_ch else 1)
-            self.fc_layers.append(fc_block)
-
-    def forward(self, x: Tensor) -> Tensor:
-        return self.fc_layers(x)
+            self.append(fc_block)
 
 
 class EncoderConv(nn.Module):
