@@ -3,14 +3,14 @@ import torch
 from torch import Tensor
 import torchvision
 import torch.nn as nn
-from typing import List
+from typing import List, Sequence
 
 from common import ConfigTrainer
 import common.utils as utils
 
 from models.untils import BlockList, get_norm_layer
 from models.seq_blocks import MlpNet
-from models.mlp_features_embeding import MlpFeaturesEmedings
+from models.mlp_features_predictors import MlpMultyHeadsPredictor
 from models.layers import FcBlock, ConvBlock, ResBlock, SpatialAttentionBlock
 from models.conv_unet import UNetConv
 from models.torch_dct import Dct2DInverse, Dct2DForward
@@ -86,33 +86,31 @@ class PhaseRetrievalPredictor(nn.Module):
                                          is_2d=True,
                                          affine=True)
 
-        self.fc_blocks = MlpNet(in_ch=in_fc,
-                                deep=deep_fc,
-                                out_ch=out_fc_features,
-                                use_dropout=self._config.use_dropout_enc_fc,
-                                multy_coeff=self._config.predict_fc_multy_coeff,
-                                norm_type=self._config.norm_fc,
-                                active_type=self._config.activation_fc_enc,
-                                active_ch=self._config.activation_fc_ch_params,
-                                ch_list=self._config.mlp_ch_list)
-
-        # self.fc_blocks = BlockList()
-        # for ind in range(deep_fc):
-        #     if ind == deep_fc - 1:
-        #         out_fc = out_fc_features
-        #     else:
-        #         out_fc = int(math.floor(in_fc * self._config.predict_fc_multy_coeff))
+        # self.mlp_predictor = MlpNet(in_ch=in_fc,
+        #                         deep=deep_fc,
+        #                         out_ch=out_fc_features,
+        #                         use_dropout=self._config.use_dropout_enc_fc,
+        #                         multy_coeff=self._config.predict_fc_multy_coeff,
+        #                         norm_type=self._config.norm_fc,
+        #                         active_type=self._config.activation_fc_enc,
+        #                         active_ch=self._config.activation_fc_ch_params,
+        #                         ch_list=self._config.mlp_ch_list)
         #
-        #     fc_block = FcBlock(in_fc, out_fc,
-        #                        use_dropout=self._config.use_dropout_enc_fc,
-        #                        norm_type=self._config.norm_fc,
-        #                        active_type=self._config.activation_fc_enc,
-        #                        active_params=out_fc if self._config.activation_fc_ch_params else 1)
-        #     in_fc = out_fc
-        #
-        #     self.fc_blocks.append(fc_block)
+        features_dim = self.inter_features_out_size[0] * self.inter_features_out_size[1]
+        self.mlp_predictor = MlpMultyHeadsPredictor(in_ch=in_fc,
+                                                    n_features=self.out_ch,
+                                                    features_dim_2d=self.inter_features_out_size,
+                                                    deep_emb=3,
+                                                    deep_predict=4,
+                                                    emd_dim=in_fc*(2**2),
+                                                    emb_multy_coeff=2.0,
+                                                    predict_multy_coeff=0.25,
+                                                    use_dropout=self._config.use_dropout_enc_fc,
+                                                    norm_type=self._config.norm_fc,
+                                                    active_type=self._config.activation_fc_enc,
+                                                    active_ch=self._config.activation_fc_ch_params)
 
-        self.weights_fc: List[nn.Parameter] = [fc_block.fc_seq[0].weight for fc_block in self.fc_blocks]
+        # self.weights_fc: List[nn.Parameter] = [fc_block.fc_seq[0].weight for fc_block in self.mlp_predictor]
         self.inter_norm = get_norm_layer(name_type=self._config.inter_norm,
                                          input_ch=self.inter_ch,
                                          img_size=self.out_img_size,
@@ -198,7 +196,7 @@ class PhaseRetrievalPredictor(nn.Module):
                                                            self.input_mag_size_2d[1])
 
         mag_flatten = magnitude.view(-1, self.in_features)
-        fc_features = self.fc_blocks(mag_flatten)
+        fc_features = self.mlp_predictor(mag_flatten)
         if self._config.predict_type == 'spectral':
             if self._config.use_dct:
                 spectral_features = fc_features.view(-1, self.inter_ch,
@@ -217,12 +215,13 @@ class PhaseRetrievalPredictor(nn.Module):
                     intermediate_features = torch.fft.ifft2(spectral_features, norm=self._config.fft_norm)
                     # out_features = intermediate_features.real
         elif self._config.predict_type == 'special':
-            intermediate_features = fc_features.view(-1, self.inter_ch,
-                                                     self.inter_features_out_size[0], self.inter_features_out_size[1])
+            intermediate_features = fc_features
+            # intermediate_features = fc_features.view(-1, self.inter_ch,
+            #                                          self.inter_features_out_size[0], self.inter_features_out_size[1])
         else:
             raise NameError(f'Not supported config.predict_type: {self._config.predict_type}')
 
-        if self._config.add_pad_out:
+        if self._config.add_pad_out > 0.0:
             intermediate_features = torchvision.transforms.functional.center_crop(intermediate_features,
                                                                                   self.out_img_size)
 

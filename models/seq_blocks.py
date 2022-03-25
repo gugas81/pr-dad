@@ -22,7 +22,7 @@ class MlpNet(BlockList):
         if ch_list is None or len(ch_list) == 0:
             ch_list = [in_ch]
             for ind_block in range(1, deep, 1):
-                ch_list.append(out_ch if ind_block == deep - 1 and out_ch else ch_list[ind_block-1] * multy_coeff)
+                ch_list.append(out_ch if ind_block == deep - 1 and out_ch else int(ch_list[ind_block-1] * multy_coeff))
 
         deep = len(ch_list)
         for ind_block in range(deep-1):

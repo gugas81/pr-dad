@@ -25,10 +25,12 @@ class BlockList(nn.ModuleList):
 
 
 class ConcatList(nn.ModuleList):
-    def forward(self, x: Tensor, cat_out: bool = False) -> Union[Tensor, List[Tensor]]:
+    def forward(self, x: Tensor, concat_out: Optional[str] = None) -> Union[Tensor, List[Tensor]]:
         out = [block(x) for block in self]
-        if cat_out:
+        if concat_out == 'cat':
             out = torch.cat(out, 1)
+        elif concat_out == 'stack':
+            out = torch.stack(out, 1)
         return out
 
 
