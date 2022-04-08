@@ -27,12 +27,15 @@ class PhaseRetrievalPredictor(nn.Module):
         self.out_ch = out_ch
 
         if self._config.predict_out == 'features':
-            if self._config.n_inter_features is None:
-                self.inter_ch = out_ch
-                if self._config.predict_type == 'spectral':
-                    self.inter_ch *= 2
+            if self._config.use_conv_block_predictor:
+                if self._config.n_inter_features is None:
+                    self.inter_ch = out_ch
+                    if self._config.predict_type == 'spectral':
+                        self.inter_ch *= 2
+                else:
+                    self.inter_ch = self._config.n_inter_features
             else:
-                self.inter_ch = self._config.n_inter_features
+                self.inter_ch = out_ch
         else:
             self.inter_ch = self._config.predict_img_int_features_multi_coeff * out_ch
 
@@ -146,16 +149,17 @@ class PhaseRetrievalPredictor(nn.Module):
         elif conv_type == 'SpatialAtt':
             conv_blocks_module = SpatialAttentionBlock(self.inter_ch, conv_type='conv_block', apply_att=True)
         else:
-            in_conv = self.inter_ch
-
+            in_ch = self.inter_ch
+            out_ch = in_ch
             conv_blocks_module = BlockList()
             for ind in range(self._config.deep_predict_conv):
-                out_conv = self._config.predict_conv_multy_coeff * in_conv
-                conv_block = conv_block_class(in_conv, out_conv, active_type=active_type) # , padding_mode='zeros'
-                in_conv = out_conv
+                out_ch = self._config.predict_conv_multy_coeff * in_ch
+                conv_block = conv_block_class(in_ch, out_ch,
+                                              active_type=active_type,
+                                              norm_type=self._config.conv_pred_norm) # , padding_mode='zeros'
+                in_ch = out_ch
                 conv_blocks_module.append(conv_block)
-            conv_out = nn.Conv2d(out_conv, self.out_ch, kernel_size=1, stride=1, padding=0)
-
+            conv_out = nn.Conv2d(out_ch, self.out_ch, kernel_size=1, stride=1, padding=0)
             conv_blocks_module.append(conv_out)
             if self._config.spat_conv_predict:
                 att_block = SpatialAttentionBlock(self.out_ch, conv_type='conv', apply_att=True)

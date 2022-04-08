@@ -31,6 +31,7 @@ class ConvBlock(nn.Module):
                  kernel_size: int = 3,
                  active_type: str = 'leakly_relu',
                  padding_mode: str = 'zeros',
+                 norm_type: str = 'batch_norm'
                  ):
         # padding_mode(string, optional): ``'zeros'``, ``'reflect'``,
         # ``'replicate'`` or ``'circular'``.Default: ``'zeros'``
@@ -40,10 +41,10 @@ class ConvBlock(nn.Module):
             ch_inter = ch_out
         self.conv_block = nn.Sequential(
             nn.Conv2d(ch_in, ch_inter, kernel_size=kernel_size, stride=1, padding=padding, padding_mode=padding_mode),
-            nn.BatchNorm2d(ch_inter),
+            get_norm_layer(name_type=norm_type, input_ch=ch_inter, is_2d=True, affine=True),
             get_activation(active_type),
             nn.Conv2d(ch_inter, ch_out, kernel_size=kernel_size, stride=1, padding=padding, padding_mode=padding_mode),
-            nn.BatchNorm2d(ch_out),
+            get_norm_layer(name_type=norm_type, input_ch=ch_out, is_2d=True, affine=True),
             get_activation(active_type)
         )
 
