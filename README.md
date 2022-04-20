@@ -1,19 +1,41 @@
 # PR-DAD
-PyTorch implementation of the fellwoing paper: [PR-DAD: Phase Retrieval Using Deep Auto-Decoders](https://www.shaidekel.com/_files/ugd/1de1d9_54de55d7e23c49e091bd4b6aaa2ecf05.pdf) join with [prof. Shai Dekel](https://www.shaidekel.com/), 
+PyTorch implementation of the fellwoing paper: [PR-DAD: Phase Retrieval Using Deep Auto-Decoders](https://www.shaidekel.com/_files/ugd/1de1d9_54de55d7e23c49e091bd4b6aaa2ecf05.pdf) join with [prof. Shai Dekel](https://www.shaidekel.com/), School of mathematical sciences, Tel-Aviv University
 <!-- ## Overview -->
 
 ## Algorithm Pipeline
 ## Package Intsallation
- - Python =>3.8
- - PyTorch 1.9
- - Cuda 11
- - Hardware requred: Ubuntu, NVIDIA Tesla V100 16Gib and 8x Intel Xeon E5-2686v4, recomeded AWS EC2 type: p3.2xlarge
- - requred packages `requirements.txt`
+ - Python3 =>3.8
+ - PyTorch =>1.9
+ - Cuda =>11
+ - Hardware requred: Ubuntu, NVIDIA Tesla V100 16Gib and 8x Intel Xeon E5-2686v4, recomeded AWS EC2 type: `p3.2xlarge`
+ - Requred packages `requirements.txt`
 ## Train Model
 We agregate For each dataset per type of features we trained model and json config with hyperparameters in [Table](https://github.com/gugas81/pr-dad/edit/master/README.md#trained-models)
-
-### Trained models
-
+ - Run trainer:
+ Trainer uses [ClearML](https://app.clear.ml/) logger.
+  ```
+ python training/phase_retrieval_trainer.py --experiment_name my-experiment --config_path url_path/config-trainer.json **kwargs
+ ```
+ `my-experiment` - ClearML experiment name
+ 
+ `config_path` - path(local/s3) to json with trainings hyperparameters
+ 
+ `**kwargs` (optinal) - change spefic parameters
+ Example:
+ ```
+ python training/phase_retrieval_trainer.py 
+   --experiment_name my-experiment 
+   --config_path s3://url_path/config-trainer.json 
+   --path_pretrained s3://model_url/model.pt
+   --batch_size 16
+   --ae_type wavelet-net 
+   --wavelet_type haar
+ ```
+ - Run evaluation: 
+```
+ python training/phase_retrival_evaluator.py --model_type path_to_model/model.pt --config  url_path/config-trainer.json 
+ ```
+### Trained models and Configurations
 | Dataset | Haar Features  | ConvNet Features  | 
 | --- | --- | --- |
 | MNIST | [Model](https://pr-dad.s3.amazonaws.com/mnist/2022_02_01_19_22_47-ae-features-prediction-mnist-rfft-pad-wavelet-ae-haar-deep3-no-ref-net-dwt-coeff-loss-special.pt), [Config-Trainer](https://pr-dad.s3.amazonaws.com/mnist/2022_02_01_19_22_47-ae-features-prediction-mnist-rfft-pad-wavelet-ae-haar-deep3-no-ref-net-dwt-coeff-loss-special.json) | [Model](https://pr-dad.s3.amazonaws.com/mnist/2022_04_09_20_01_43-ae-features-prediction-mnist-pad050-features64-int-f-128-spetial-pred-epoch100.pt), [Config-Trainer](https://pr-dad.s3.amazonaws.com/mnist/2022_04_09_20_01_43-ae-features-prediction-mnist-pad050-features64-int-f-128-spetial-pred-epoch100.json)|
