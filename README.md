@@ -1,11 +1,18 @@
-# PyTorch implementation of paper: PR-DAD: Phase Retrieval Using Deep Auto-Decoders
-## Overview
+# PR-DAD
+PyTorch implementation of the fellwoing paper: [PR-DAD: Phase Retrieval Using Deep Auto-Decoders](https://www.shaidekel.com/_files/ugd/1de1d9_54de55d7e23c49e091bd4b6aaa2ecf05.pdf) join with [prof. Shai Dekel](https://www.shaidekel.com/), 
+<!-- ## Overview -->
 
 ## Algorithm Pipeline
 ## Package Intsallation
+ - Python =>3.8
+ - PyTorch 1.9
+ - Cuda 11
+ - Hardware requred: Ubuntu, NVIDIA Tesla V100 16Gib and 8x Intel Xeon E5-2686v4, recomeded AWS EC2 type: p3.2xlarge
+ - requred packages `requirements.txt`
 ## Train Model
-### Trained models
+We agregate For each dataset per type of features we trained model and json config with hyperparameters in [Table](https://github.com/gugas81/pr-dad/edit/master/README.md#trained-models)
 
+### Trained models
 
 | Dataset | Haar Features  | ConvNet Features  | 
 | --- | --- | --- |
