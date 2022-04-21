@@ -1,5 +1,5 @@
 # PR-DAD
-PyTorch implementation of the fellwoing paper: [PR-DAD: Phase Retrieval Using Deep Auto-Decoders](https://www.shaidekel.com/_files/ugd/1de1d9_54de55d7e23c49e091bd4b6aaa2ecf05.pdf) join with [prof. Shai Dekel](https://www.shaidekel.com/), School of mathematical sciences, Tel-Aviv University
+PyTorch implementation of the fellwoing paper: [PR-DAD: Phase Retrieval Using Deep Auto-Decoders](https://arxiv.org/abs/2204.09051) join with [prof. Shai Dekel](https://www.shaidekel.com/), School of mathematical sciences, Tel-Aviv University
 <!-- ## Overview -->
 
 ## Algorithm Pipeline
