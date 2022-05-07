@@ -112,7 +112,7 @@ class BaseTrainerPhaseRetrieval:
         self.data_ts_batch.fft_magnitude = self.data_ts_batch.fft_magnitude[:dbg_batch_ts]
         self.data_ts_batch.label = self.data_ts_batch.label[:dbg_batch_ts]
 
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if ((self._config.gauss_noise is not None) and self._config.use_aug) or self._config.use_noised_mag:
             self.data_tr_batch.image_noised = self.data_tr_batch.image_noised[:dbg_batch_tr]
             self.data_tr_batch.fft_magnitude_noised = self.data_tr_batch.fft_magnitude_noised[:dbg_batch_tr]
             self.data_ts_batch.image_noised = self.data_ts_batch.image_noised[:dbg_batch_ts]
@@ -304,7 +304,7 @@ class BaseTrainerPhaseRetrieval:
     def _grid_images(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize: bool = True) -> Tensor:
         inv_norm_transform = self._data_holder.test_ds.get_inv_normalize_transform()
         img_grid = [inv_norm_transform(data_batch.image)]
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if ((self._config.gauss_noise is not None) and self._config.use_aug) or self._config.use_noised_mag:
             img_grid.append(inv_norm_transform(data_batch.image_noised))
         if inferred_batch.decoded_img is not None:
             img_grid.append(inv_norm_transform(inferred_batch.decoded_img))
@@ -321,7 +321,7 @@ class BaseTrainerPhaseRetrieval:
         inv_norm_transform = self._data_holder.test_ds.get_inv_normalize_transform()
         norm_orig_img = inv_norm_transform(data_batch.image)
         img_grid = [norm_orig_img]
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if ((self._config.gauss_noise is not None) and self._config.use_aug) or self._config.use_noised_mag:
             diff_decoded = torch.abs(norm_orig_img - inv_norm_transform(data_batch.image_noised))
             img_grid.append(diff_decoded)
         if inferred_batch.decoded_img is not None:
@@ -356,7 +356,7 @@ class BaseTrainerPhaseRetrieval:
         img_grid = []
         if data_batch.fft_magnitude is not None:
             img_grid.append(prepare_fft_img(data_batch.fft_magnitude))
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if ((self._config.gauss_noise is not None) and self._config.use_aug) or self._config.use_noised_mag:
             img_grid.append(prepare_fft_img(data_batch.fft_magnitude_noised))
         if inferred_batch.decoded_img is not None:
             fft_magnitude_ae_decoded = prepare_fft_img(self.forward_magnitude_fft(inferred_batch.decoded_img))
