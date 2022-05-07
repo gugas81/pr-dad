@@ -175,7 +175,7 @@ class PhaseRetrievalAeModel:
         return gen_params
 
     def forward_magnitude_encoder(self, data_batch: DataBatch) -> InferredBatch:
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if ((self._config.gauss_noise is not None) and self._config.use_aug) or self._config.use_noised_mag:
             fft_magnitude = data_batch.fft_magnitude_noised
         else:
             fft_magnitude = data_batch.fft_magnitude

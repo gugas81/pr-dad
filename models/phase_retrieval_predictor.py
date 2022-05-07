@@ -188,8 +188,7 @@ class PhaseRetrievalPredictor(nn.Module):
     def _angle_pred(self,  magnitude: Tensor) -> Tensor:
         magnitude = torch.fft.fftshift(magnitude, dim=(-2, -1))
         phase = self.conv_blocks(magnitude)
-        exp_phase = torch.exp(torch.view_as_complex(torch.stack([torch.zeros_like(magnitude), phase], -1)))
-        spectral = magnitude * exp_phase
+        spectral = utils.magnitude_phase_to_complex(magnitude, phase)
         spectral = torch.fft.ifftshift(spectral, dim=(-2, -1))
         out_features = torch.fft.ifft2(spectral, norm=self._fft_norm)
         return out_features

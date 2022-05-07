@@ -17,7 +17,7 @@ from torchvision import transforms
 from torchvision.transforms import InterpolationMode
 from common import ConfigTrainer
 import common.utils as utils
-from training.augmentations import RandomGammaCorrection
+from training.augmentations import RandomGammaCorrection, get_rnd_gauss_noise_like
 from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
 from models.torch_dct import Dct2DForward, Dct2DInverse
 
@@ -53,9 +53,12 @@ class PhaseRetrievalDataset(Dataset):
         self._s3 = S3FileSystem() if s3 is None else s3
 
         if self._config.use_dct_input:
-            self.dct_input = Dct2DForward(utils.get_padded_size(self._config.image_size, self._config.add_pad))
+            padded_size = utils.get_padded_size(self._config.image_size, self._config.add_pad)
+            self.dct_input = Dct2DForward(padded_size)
+            self.idct_input = Dct2DInverse(padded_size)
         else:
             self.dct_input = None
+            self.idct_input = None
 
         ds_name = config.dataset_name.lower()
         ds_path = os.path.join(PATHS.DATASETS, ds_name)
@@ -205,7 +208,7 @@ class PhaseRetrievalDataset(Dataset):
             item_batch.label_discrim = img_discrim_item[1]
         return item_batch
 
-    def _forward_magnitude_fft(self, image_data: Tensor) -> Tensor:
+    def _forward_fft(self, image_data: Tensor) -> Tensor:
         if self._config.add_pad > 0.0:
             pad_value = utils.get_pad_val(self._config.image_size, self._config.add_pad)
             image_data_pad = transforms.functional.pad(image_data, pad_value, padding_mode='edge')
@@ -217,6 +220,21 @@ class PhaseRetrievalDataset(Dataset):
             fft_data_batch = torch.fft.rfft2(image_data_pad, norm=self._fft_norm)
         else:
             fft_data_batch = torch.fft.fft2(image_data_pad, norm=self._fft_norm)
+        return fft_data_batch
+
+    def _inv_fft(self, img_fft: Tensor) -> Tensor:
+        if self._config.use_dct_input:
+            img_inv = self.idct_input(img_fft)
+        elif self._config.use_rfft:
+            img_pad = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad, use_rfft=True)
+            img_inv = torch.fft.irfft2(img_fft, img_pad, norm=self._config.fft_norm)
+        else:
+            img_pad = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad, use_rfft=False)
+            img_inv = torch.fft.ifft2(img_fft, img_pad, norm=self._config.fft_norm)
+        return img_inv
+
+    def _forward_magnitude_fft(self, image_data: Tensor) -> Tensor:
+        fft_data_batch = self._forward_fft(image_data)
         fft_magnitude = self._config.spectral_factor * torch.abs(fft_data_batch)
         return fft_magnitude
 
@@ -225,6 +243,35 @@ class PhaseRetrievalDataset(Dataset):
 
     def get_inv_normalize_transform(self) -> torch.nn.Module:
         return NormalizeInverse((self.norm_mean,), (self.norm_std,))
+
+    @staticmethod
+    def poisson_noise(img: Tensor,  alpha: float = 1.0) -> Tensor:
+        intens = img ** 2
+        alpha_2 = alpha ** 2
+        lmd = intens / alpha_2
+        intens_noise = alpha_2 * torch.distributions.poisson.Poisson(lmd).sample()
+        img_noised = torch.sqrt(intens_noise)
+        return img_noised
+
+    def add_noise_to_mag(self,
+                         data_batch: DataBatch,
+                         noise_type: str = 'poisson',
+                         alpha: float = 1.0,
+                         gauss_range: Union[float, Sequence[float]] = 1.0) -> DataBatch:
+
+        if noise_type == 'poisson':
+            data_batch.fft_magnitude_noised = PhaseRetrievalDataset.poisson_noise(data_batch.fft_magnitude, alpha)
+
+        elif noise_type == 'gauss':
+            guass_noise = get_rnd_gauss_noise_like(data_batch.image, noise_range=gauss_range, p=1.0)
+            data_batch.fft_magnitude_noised = data_batch.fft_magnitude + guass_noise
+        else:
+            raise NotImplementedError
+
+        phase = torch.angle(self._forward_fft(data_batch.image))
+        fft_img_noised = utils.magnitude_phase_to_complex(data_batch.fft_magnitude_noised, phase)
+        data_batch.image_noised = self._inv_fft(fft_img_noised)
+        return data_batch
 
 
 class CelebAResized(torchvision.datasets.CelebA):

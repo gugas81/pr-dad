@@ -23,6 +23,7 @@ from training.augmentations import get_rnd_gauss_noise_like
 from models.torch_dct import Dct2DForward
 from torch.utils.data.dataset import Dataset
 from torch.utils.data.dataloader import DataLoader
+from training.dataset import PhaseRetrievalDataset
 
 logging.basicConfig(level=logging.INFO)
 
@@ -163,6 +164,10 @@ class BaseTrainerPhaseRetrieval:
     def prepare_data_batch(self, data_batch: Dict[str, Any], is_train: bool = True) -> DataBatch:
         data_batch['is_paired'] = data_batch['is_paired'].cpu().numpy().all()
         data_batch: DataBatch = DataBatch.from_dict(data_batch).to(device=self.device)
+
+        if self._config.use_noised_mag:
+            dataset: PhaseRetrievalDataset = self._data_holder.train_ds if is_train else self._data_holder.test_ds
+            data_batch = dataset.add_noise_to_mag(data_batch)
 
         if torch.any(torch.isnan(data_batch.fft_magnitude)):
             data_batch.fft_magnitude = self.forward_magnitude_fft(data_batch.image)
