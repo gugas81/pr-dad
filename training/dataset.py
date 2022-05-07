@@ -223,14 +223,15 @@ class PhaseRetrievalDataset(Dataset):
         return fft_data_batch
 
     def _inv_fft(self, img_fft: Tensor) -> Tensor:
+        img_pad_size = utils.get_padded_size(self._config.image_size, self._config.add_pad)
         if self._config.use_dct_input:
             img_inv = self.idct_input(img_fft)
         elif self._config.use_rfft:
-            img_pad = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad, use_rfft=True)
-            img_inv = torch.fft.irfft2(img_fft, img_pad, norm=self._config.fft_norm)
+            img_inv = torch.fft.irfft2(img_fft, (img_pad_size, img_pad_size), norm=self._config.fft_norm)
         else:
-            img_pad = utils.get_magnitude_size_2d(self._config.image_size, self._config.add_pad, use_rfft=False)
-            img_inv = torch.fft.ifft2(img_fft, img_pad, norm=self._config.fft_norm)
+            img_inv = torch.fft.ifft2(img_fft, (img_pad_size, img_pad_size), norm=self._config.fft_norm)
+        if self._config.add_pad > 0.0:
+            img_inv = transforms.CenterCrop((self._config.image_size, self._config.image_size))(img_inv)
         return img_inv
 
     def _forward_magnitude_fft(self, image_data: Tensor) -> Tensor:
@@ -249,6 +250,7 @@ class PhaseRetrievalDataset(Dataset):
         intens = img ** 2
         alpha_2 = alpha ** 2
         lmd = intens / alpha_2
+        lmd = torch.maximum(lmd, torch.tensor(torch.finfo(lmd.dtype).eps))
         intens_noise = alpha_2 * torch.distributions.poisson.Poisson(lmd).sample()
         img_noised = torch.sqrt(intens_noise)
         return img_noised

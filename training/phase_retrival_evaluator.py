@@ -85,7 +85,8 @@ class Evaluator(BaseTrainerPhaseRetrieval):
                  config: Optional[str] = None,
                  data_holder: Optional[DataHolder] = None,
                  debug: bool = False,
-                 rot180: bool = False):
+                 rot180: bool = False,
+                 **kwargs):
 
         if isinstance(model_type, str):
             self._log.info(f'load state of the model from:  {model_type}')
@@ -99,7 +100,7 @@ class Evaluator(BaseTrainerPhaseRetrieval):
             config = deepcopy(model_type._config)
         else:
             config_obj = loaded_sate['config'] if 'config' in loaded_sate else config
-            config = self.load_config(config_obj)
+            config = self.load_config(config_obj, **kwargs)
 
         config.use_tensor_board = False
         config.use_gan = False

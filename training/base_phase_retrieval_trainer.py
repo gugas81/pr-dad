@@ -172,7 +172,7 @@ class BaseTrainerPhaseRetrieval:
         if torch.any(torch.isnan(data_batch.fft_magnitude)):
             data_batch.fft_magnitude = self.forward_magnitude_fft(data_batch.image)
 
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if self._config.gauss_noise is not None:
             if is_train:
                 img_noise = get_rnd_gauss_noise_like(data_batch.fft_magnitude,
                                                      self._config.gauss_noise,
