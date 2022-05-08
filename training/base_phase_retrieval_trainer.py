@@ -101,8 +101,12 @@ class BaseTrainerPhaseRetrieval:
         dbg_batch_tr = min(self.batch_size_train, self._dbg_img_batch)
         dbg_batch_ts = min(self.batch_size_test, self._dbg_img_batch)
 
-        self.data_tr_batch = self.prepare_data_batch(iter(self._data_holder.train_paired_loader).next(), is_train=True)
-        self.data_ts_batch = self.prepare_data_batch(iter(self._data_holder.test_loader).next(), is_train=False)
+        self.data_tr_batch = self.prepare_data_batch(iter(self._data_holder.train_paired_loader).next(),
+                                                     is_train=True,
+                                                     add_noised_img=True)
+        self.data_ts_batch = self.prepare_data_batch(iter(self._data_holder.test_loader).next(),
+                                                     is_train=False,
+                                                     add_noised_img=True)
 
         self.data_tr_batch.image = self.data_tr_batch.image[:dbg_batch_tr]
         self.data_tr_batch.fft_magnitude = self.data_tr_batch.fft_magnitude[:dbg_batch_tr]
@@ -161,13 +165,19 @@ class BaseTrainerPhaseRetrieval:
             loaded_sate = torch.load(model_path)
         return loaded_sate
 
-    def prepare_data_batch(self, data_batch: Dict[str, Any], is_train: bool = True) -> DataBatch:
+    def prepare_data_batch(self, data_batch: Dict[str, Any],
+                           is_train: bool = True,
+                           add_noised_img: bool = False) -> DataBatch:
         data_batch['is_paired'] = data_batch['is_paired'].cpu().numpy().all()
         data_batch: DataBatch = DataBatch.from_dict(data_batch).to(device=self.device)
 
         if self._config.use_noised_mag:
             dataset: PhaseRetrievalDataset = self._data_holder.train_ds if is_train else self._data_holder.test_ds
-            data_batch = dataset.add_noise_to_mag(data_batch)
+            data_batch = dataset.add_noise_to_mag(data_batch,
+                                                  noise_type=self._config.noise_type,
+                                                  alpha=self._config.poisson_alpha,
+                                                  gauss_range=self._config.gauss_noise,
+                                                  add_noised_img=add_noised_img)
 
         if torch.any(torch.isnan(data_batch.fft_magnitude)):
             data_batch.fft_magnitude = self.forward_magnitude_fft(data_batch.image)

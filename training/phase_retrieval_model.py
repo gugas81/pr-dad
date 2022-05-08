@@ -216,7 +216,7 @@ class PhaseRetrievalAeModel:
         return inferred_batch
 
     def forward_ae(self, data_batch: DataBatch) -> InferredBatch:
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if ((self._config.gauss_noise is not None) and self._config.use_aug) or self._config.use_train_ae_noise:
             img_batch = data_batch.image_noised
         else:
             img_batch = data_batch.image

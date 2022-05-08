@@ -259,7 +259,8 @@ class PhaseRetrievalDataset(Dataset):
                          data_batch: DataBatch,
                          noise_type: str = 'poisson',
                          alpha: float = 1.0,
-                         gauss_range: Union[float, Sequence[float]] = 1.0) -> DataBatch:
+                         gauss_range: Union[float, Sequence[float]] = 1.0,
+                         add_noised_img: bool = False) -> DataBatch:
 
         if noise_type == 'poisson':
             data_batch.fft_magnitude_noised = PhaseRetrievalDataset.poisson_noise(data_batch.fft_magnitude, alpha)
@@ -270,9 +271,10 @@ class PhaseRetrievalDataset(Dataset):
         else:
             raise NotImplementedError
 
-        phase = torch.angle(self._forward_fft(data_batch.image))
-        fft_img_noised = utils.magnitude_phase_to_complex(data_batch.fft_magnitude_noised, phase)
-        data_batch.image_noised = self._inv_fft(fft_img_noised)
+        if add_noised_img:
+            phase = torch.angle(self._forward_fft(data_batch.image))
+            fft_img_noised = utils.magnitude_phase_to_complex(data_batch.fft_magnitude_noised, phase)
+            data_batch.image_noised = self._inv_fft(fft_img_noised)
         return data_batch
 
 

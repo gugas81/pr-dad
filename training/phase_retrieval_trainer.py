@@ -344,7 +344,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
                 except Exception as e:
                     self._log.error(f'Error loading item {batch_idx} from the dataset: {e}')
 
-                data_batch = self.prepare_data_batch(data_batch, is_train=False)
+                data_batch = self.prepare_data_batch(data_batch,
+                                                     is_train=False,
+                                                     add_noised_img=self._config.use_train_ae_noise)
                 inferred_batch = self._generator_model.forward_ae(data_batch)
                 ae_losses_batch = self._ae_losses(data_batch, inferred_batch)
                 ae_losses.append(ae_losses_batch)
