@@ -261,6 +261,11 @@ class ConfigTrainer(ConfigBase):
     deep_ref_unet: Optional[int] = None
     image_crop_size: Optional[int] = None
     conv_pred_norm: Optional[str] = 'batch_norm'
+    # use_train_pred_noise: bool = False
+    use_train_ae_noise: bool = False
+    use_noised_mag: bool = False
+    noise_type: str = 'poisson'
+    poisson_alpha:  float = 1.0
 
 
 

@@ -71,3 +71,13 @@ def get_magnitude_size_2d(img_size: int, pad_val: int, use_rfft: bool) -> List[i
 def get_flatten_fft2_size(img_size:  int, use_rfft: bool) -> int:
     return img_size * get_fft2_last_size(img_size, use_rfft)
 
+
+def magnitude_phase_to_complex(magnitude: Tensor, phase: Tensor) -> Tensor:
+    exp_phase = torch.exp(torch.view_as_complex(torch.stack([torch.zeros_like(magnitude), phase], -1)))
+    return magnitude * exp_phase
+
+
+def complex_to_magnitude_phase(x: Tensor) -> (Tensor, Tensor):
+    magnitude = torch.abs(x)
+    phase = torch.angle(x)
+    return magnitude, phase
