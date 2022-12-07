@@ -1,6 +1,7 @@
 import numbers
 import random
 from typing import Tuple, Sequence, Union
+
 import torch
 from torch import Tensor
 
@@ -22,11 +23,11 @@ def adjust_gamma(img: Tensor, gamma: float, gain: float = 1) -> Tensor:
             lighter.
         gain (float): The constant multiplier.
     """
-#     if not _is_numpy_image(img):
-#         raise TypeError('img should be CV Image. Got {}'.format(type(img)))
+    #     if not _is_numpy_image(img):
+    #         raise TypeError('img should be CV Image. Got {}'.format(type(img)))
 
-#     if gamma < 0:
-#         raise ValueError('Gamma should be a non-negative real number')
+    #     if gamma < 0:
+    #         raise ValueError('Gamma should be a non-negative real number')
 
     img_corrected = img * 0.5 + 0.5
     img_corrected = 1.0 * gain * (img_corrected ** gamma)

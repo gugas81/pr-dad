@@ -80,15 +80,20 @@ class DwtCoeffLoss(LossImg):
     def forward(self, in_coeff: Tensor, tgt_coeff: Tensor) -> Tensor:
         return super().forward(self._w_subbands * in_coeff, self._w_subbands * tgt_coeff)
 
-
 class SparsityL1Loss(nn.Module):
-    def __init__(self, dc_comp: bool = False):
+    def __init__(self, dc_comp: bool = False, reduction: str = 'mean'):
         super(SparsityL1Loss, self).__init__()
         self._dc_comp = dc_comp
+        if reduction == 'mean':
+            self._reduction_fun = torch.mean
+        elif reduction == 'sum':
+            self._reduction_fun = torch.sum
+        else:
+            raise NameError(f'Not valid reduction function: {reduction}')
 
     def forward(self, x: Tensor) -> Tensor:
         if self._dc_comp:
-            sparsity = torch.mean(torch.index_select(x, 1, torch.arange(1, x.shape[1], device=x.device)).abs())
+            sparsity = self._reduction_fun(torch.index_select(x, 1, torch.arange(1, x.shape[1], device=x.device)).abs())
         else:
-            sparsity = torch.mean(x.abs())
+            sparsity = self._reduction_fun(x.abs())
         return sparsity

@@ -11,29 +11,20 @@ import shutil
 import torchvision
 from torchvision import transforms
 from torch.nn import functional as F
-from training.dataset import create_data_loaders
 from typing import Optional, Any, Dict, Union
 import logging
-from dataclasses import dataclass
+
+from data import create_data_loaders
 from common import ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
 from common import im_concatenate, square_grid_im_concat, PATHS, im_save, fft2_from_rfft
 from common import InferredBatch
 import common.utils as utils
-from training.augmentations import get_rnd_gauss_noise_like
+from data import DataHolder
+from data.augmentations import get_rnd_gauss_noise_like
 from models.torch_dct import Dct2DForward
-from torch.utils.data.dataset import Dataset
-from torch.utils.data.dataloader import DataLoader
+
 
 logging.basicConfig(level=logging.INFO)
-
-
-@dataclass
-class DataHolder:
-    train_paired_loader: Optional[DataLoader] = None
-    train_unpaired_loader: Optional[DataLoader] = None
-    test_loader: Optional[DataLoader] = None
-    train_ds: Optional[Dataset] = None
-    test_ds: Optional[Dataset] = None
 
 
 class BaseTrainerPhaseRetrieval:
