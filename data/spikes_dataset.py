@@ -6,6 +6,8 @@ from scipy.ndimage.filters import gaussian_filter
 from torch import Tensor
 from torch.utils.data import IterableDataset
 
+from common import DataSpikesBatch
+
 
 def fft_magnitude(img: Union[Tensor, np.ndarray], shift: bool = False, norm: str = "ortho") -> Tensor:
     if isinstance(img, np.ndarray):
@@ -29,7 +31,7 @@ def get_random_spike_signals_polar(n_spikes: int = 1,
                                    img_size: int = 32,
                                    min_dist: int = 4,
                                    sigma: float = 1.0,
-                                   add_gauss_noise: float = 0.0125) -> torch.Tensor:
+                                   add_gauss_noise: float = 0.0125) -> Tuple[Tensor, Tensor, Tensor]:
     phi_ranges = 2 * np.pi * np.arange(0, n_spikes, 1) / n_spikes
     half_size = img_size // 2
     r_ranges = (np.random.permutation(half_size - 2 * min_dist) + min_dist)[:n_spikes]
@@ -61,21 +63,24 @@ class SpikesDataGenerator(IterableDataset):
                  sigma: float = 1.0,
                  add_gauss_noise: float = 0.0125,
                  len_ds: int = 10000,
-                 shift_fft: bool = False):
+                 shift_fft: bool = False,
+                 device: str = 'cpu'):
         'Initialization'
         self.spikes_range = spikes_range
+        self.device = device
         self.img_size = img_size
         self.min_dist = min_dist
         self.sigma = sigma
         self.add_gauss_noise = add_gauss_noise
         self.len_ds = len_ds
         self.shift_fft = shift_fft
+        self.get_inv_normalize_transform = torch.nn.Identity()
 
     def __len__(self):
         'Denotes the total number of samples'
         return int(self.len_ds)
 
-    def _get_item(self):
+    def _get_item(self) -> DataSpikesBatch:
         'Generates one sample of data'
         # Select sample
         if isinstance(self.spikes_range, int):
@@ -93,24 +98,30 @@ class SpikesDataGenerator(IterableDataset):
         fft_spkes = fft_magnitude(img_spikes, shift=self.shift_fft)
         fft_spkes_noised = fft_magnitude(img_spikes_noised, shift=self.shift_fft)
 
-        return fft_spkes, fft_spkes_noised, img_spikes, img_spikes_noised, n_spikes, x, y
+        x_tensor = np.empty(self.spikes_range[1])
+        x_tensor[:] = np.nan
+        x_tensor[:x.shape[0]] = x
+
+        y_tensor = np.empty(self.spikes_range[1])
+        y_tensor[:] = np.nan
+        y_tensor[:x.shape[0]] = y
+
+        n_spikes_tensor = torch.tensor([n_spikes], dtype=torch.int)
+        data_item = DataSpikesBatch(image=img_spikes.to(dtype=torch.float),
+                                    image_noised=img_spikes_noised.to(dtype=torch.float),
+                                    fft_magnitude=fft_spkes.to(dtype=torch.float),
+                                    fft_magnitude_noised=fft_spkes_noised.to(dtype=torch.float),
+                                    n_spikes=n_spikes_tensor,
+                                    x=x_tensor,
+                                    y=y_tensor)
+
+        data_item.to(device=self.device)
+        return data_item
 
     def __iter__(self) -> Dict[str, Any]:
         for _ in range(self.len_ds):
-            fft_spkes, fft_spkes_noised, img_spikes, img_spikes_noised, n_spikes, x, y = self._get_item()
-            x_tensor = np.empty(self.spikes_range[1])
-            x_tensor[:] = np.nan
-            x_tensor[:x.shape[0]] = x
-
-            y_tensor = np.empty(self.spikes_range[1])
-            y_tensor[:] = np.nan
-            y_tensor[:x.shape[0]] = y
-
-            item_data = {'fft_spikes': fft_spkes,
-                         'fft_spikes_noised': fft_spkes_noised,
-                         'img_spikes': img_spikes,
-                         'img_spikes_noised': img_spikes_noised,
-                         'n_spikes': torch.tensor([n_spikes], dtype=torch.int),
-                         'x': torch.tensor(x_tensor, dtype=torch.int),
-                         'y': torch.tensor(y_tensor, dtype=torch.int)}
-            yield item_data
+            try:
+                item_data = self._get_item()
+                yield item_data.as_dict()
+            except Exception as e:
+                self._log.error(f'Error create spikes: {e}')

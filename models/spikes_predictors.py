@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -10,12 +10,12 @@ from models import MlpNet, UNetConv, AeConv
 _EPSILON = 1e-8
 
 
-def proj_magnitude(img_x, img_mag, shifted: bool = True):
-    fft_img = torch.fft.fft2(img_x, norm="forward")
+def proj_magnitude(img_x, img_mag, shifted: bool = True, norm="forward"):
+    fft_img = torch.fft.fft2(img_x, norm=norm)
     if shifted:
         img_mag = torch.fft.fftshift(img_mag)
     fft_img_changed = img_mag * fft_img / (torch.abs(fft_img) + _EPSILON)
-    img_changed = torch.fft.ifft2(fft_img_changed, norm="forward").real
+    img_changed = torch.fft.ifft2(fft_img_changed, norm=norm).real
     return img_changed
 
 
@@ -26,21 +26,40 @@ class SpikesImgReconConvModel(nn.Module):
                  count_spikes_emb_sie: int = 8,
                  tile_size: int = None,
                  is_proj_mag: bool = False,
-                 pred_type: str = 'conv_ae'):
+                 pred_type: str = 'conv_ae',
+                 count_predictor: bool = False):
         super(SpikesImgReconConvModel, self).__init__()
         self._pred_type = pred_type
         assert pred_type == 'conv_unet' or pred_type == 'conv_ae'
         if pred_type == 'conv_unet':
-            self._conv_model = UNetConv(up_mode='bilinear')
+            self._conv_model = UNetConv(up_mode='bilinear', img_size=img_size)
         elif pred_type == 'conv_ae':
             self._conv_model = AeConv(img_size=img_size)
 
-    def forward(self, magnitude: Tensor, meta_x: Optional[Tensor] = None) -> Tensor:
+        if count_predictor:
+            n_features = self._conv_model.n_enc_features_ch
+            n_features_size = self._conv_model.n_features_size
+            size_flatten_in = n_features_size*n_features
+            ch_list = [size_flatten_in,
+                       size_flatten_in // 2, size_flatten_in // 2,
+                       size_flatten_in // 4, size_flatten_in // 4,
+                       size_flatten_in // 8, size_flatten_in // 8, 1]
 
-        out = self._conv_model(magnitude.unsqueeze(1))
-        if self._pred_type == 'conv_ae':
-            out = out[0]
-        return out.squeeze(1)
+            self._count_spikes_predictor = MlpNet(in_ch=self._tile_size,
+                                                  ch_list=ch_list,
+                                                  out_ch=1,
+                                                  deep=len(ch_list),
+                                                  multy_coeff=0.5)
+        else:
+            self._count_spikes_predictor = None
+
+    def forward(self, magnitude: Tensor, meta_x: Optional[Tensor] = None) -> Tuple[Tensor, Tensor]:
+
+        x_out, enc_features, dec_features, coeff = self._conv_model(magnitude.unsqueeze(1))
+        recon_img = x_out.squeeze(1)
+        n_spikes_pred = self._count_spikes_predictor(enc_features)
+
+        return recon_img, n_spikes_pred
 
 
 class SpikesImgReconMlpModel(nn.Module):

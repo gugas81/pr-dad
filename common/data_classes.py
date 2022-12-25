@@ -126,9 +126,27 @@ class TensorBatch(DataBatch):
 
 
 @dataclass
+class DataSpikesBatch(TensorBatch):
+    image: Tensor = torch.tensor([float('nan')])
+    image_noised: Tensor = torch.tensor([float('nan')])
+    fft_magnitude: Tensor = torch.tensor([float('nan')])
+    fft_magnitude_noised: Tensor = torch.tensor([float('nan')])
+    n_spikes: int = torch.tensor([float('nan')])
+    x: Tensor = torch.tensor([float('nan')])
+    y: Tensor = torch.tensor([float('nan')])
+
+
+@dataclass
+class InferredSpikesBatch(TensorBatch):
+    img_recon: Optional[Tensor] = None
+    fft_recon: Optional[Tensor] = None
+    pred_n_spikes: Optional[Tensor] = None
+
+
+@dataclass
 class DataBatch(TensorBatch):
     image: Tensor = torch.tensor([float('nan')])
-    image_noised = torch.tensor([float('nan')])
+    image_noised: Tensor = torch.tensor([float('nan')])
     image_discrim: Tensor = torch.tensor([float('nan')])
     fft_magnitude: Tensor = torch.tensor([float('nan')])
     fft_magnitude_noised: Tensor = torch.tensor([float('nan')])
@@ -213,7 +231,7 @@ class LossesPRFeatures(Losses):
     perceptual_disrim_img: Optional[Tensor] = None
     perceptual_disrim_ref_img: Optional[Tensor] = None
     perceptual_disrim_features: Optional[Tensor] = None
-    lr:  Optional[Dict[str,Tensor]] = None
+    lr:  Optional[Dict[str, Tensor]] = None
     mean_img: Optional[Tensor] = None
     std_img: Optional[Tensor] = None
     max_img: Optional[Tensor] = None
@@ -241,6 +259,13 @@ class LossesGradNorms(Losses):
     l2_grad_magnitude_encoder: Optional[Tensor] = None
 
 
-
+@dataclass
+class LossesSpikesImages(Losses):
+    img_recon: Optional[Tensor] = None
+    img_sparsity: Optional[Tensor] = None
+    fft_recon: Optional[Tensor] = None
+    support_size: Optional[Tensor] = None
+    total: Optional[Tensor] = None
+    lr: Optional[Dict[str, Tensor]] = None
 
 

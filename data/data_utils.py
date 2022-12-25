@@ -9,8 +9,9 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
 
-from common import ConfigTrainer, S3FileSystem
+from common import ConfigTrainer, S3FileSystem, ConfigSpikesTrainer
 from data.image_dataset import PhaseRetrievalDataset
+from data.spikes_dataset import SpikesDataGenerator
 
 
 @dataclass
@@ -20,6 +21,26 @@ class DataHolder:
     test_loader: Optional[DataLoader] = None
     train_ds: Optional[Dataset] = None
     test_ds: Optional[Dataset] = None
+
+
+def create_spikes_data_loaders(config: ConfigSpikesTrainer,
+                                log: logging.Logger,
+                                s3: Optional[S3FileSystem] = None) -> DataHolder:
+    log.debug('Create spikes dataset and its loaders')
+    len_ds = config.n_iters_tr * config.batch_size
+    spike_generator = SpikesDataGenerator(spikes_range=config.spikes_range,
+                                          img_size=config.image_size,
+                                          add_gauss_noise=config.add_gauss_noise,
+                                          sigma=config.sigma,
+                                          len_ds=len_ds,
+                                          shift_fft=config.shift_fft)
+
+    spikes_loader_train = DataLoader(spike_generator, batch_size=config.batch_size, num_workers=config.num_workers)
+    spikes_loader_val = DataLoader(spike_generator, batch_size=config.batch_size, num_workers=config.num_workers)
+
+    return DataHolder(train_paired_loader=spikes_loader_train,
+                      test_loader=spikes_loader_val,
+                      train_ds=spike_generator)
 
 
 def create_data_loaders(config: ConfigTrainer,
