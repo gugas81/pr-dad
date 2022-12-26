@@ -55,9 +55,13 @@ class SpikesImgReconConvModel(nn.Module):
 
     def forward(self, magnitude: Tensor, meta_x: Optional[Tensor] = None) -> Tuple[Tensor, Tensor]:
 
-        x_out, enc_features, dec_features, coeff = self._conv_model(magnitude.unsqueeze(1))
-        recon_img = x_out.squeeze(1)
-        n_spikes_pred = self._count_spikes_predictor(enc_features)
+        x_out, enc_features, dec_features, coeff = self._conv_model(magnitude)
+        recon_img = x_out #.squeeze(1)
+
+        if self._count_spikes_predictor is not None:
+            n_spikes_pred = self._count_spikes_predictor(enc_features)
+        else:
+            n_spikes_pred = None
 
         return recon_img, n_spikes_pred
 
@@ -123,7 +127,7 @@ class SpikesImgReconMlpModel(nn.Module):
             emb = self._mlp_emdeder(meta_x)
             encode = torch.cat([encode, emb], dim=1)
 
-        img_recon = self._mlp_predictor_decoder(encode).view(batch_size, self._img_size, self._img_size)
+        img_recon = self._mlp_predictor_decoder(encode).view(batch_size, 1, self._img_size, self._img_size)
 
         if self._is_proj_mag:
             img_recon = proj_magnitude(img_recon, magnitude, shifted=self._fft_shifted)

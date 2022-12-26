@@ -56,7 +56,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
                                                    device=self.device)
 
         self._sparsity_loss = los_fun.SparsityL1Loss()
-        self._support_size_fun = lambda x: x.abs().sum((1, 2))[:, None]  # los_fun.SparsityL1Loss(reduction='sum')
+        self._support_size_fun = lambda x: x.abs().sum((-1, -2, -3)).unsqueeze(1)  # los_fun.SparsityL1Loss(reduction='sum')
         self._support_loss_fun = nn.L1Loss()
 
         self._model: nn.Module = self._creat_predictor_model()
@@ -113,9 +113,11 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
     def forward(self, batch_data: DataSpikesBatch) -> InferredSpikesBatch:
         n_spikes_emb = batch_data.n_spikes / MAX_COUNT_SPIKES
         input_data = batch_data.fft_magnitude_noised if self._config.use_noised_input else batch_data.fft_magnitude
-        img_spikes_pred = self._model(input_data, n_spikes_emb)
+        img_spikes_pred, pred_n_spikes = self._model(input_data, n_spikes_emb)
         fft_spikes_pred = fft_magnitude(img_spikes_pred, shift=self._config.shift_fft)
-        inferred_batch = InferredSpikesBatch(img_recon=img_spikes_pred, fft_recon=fft_spikes_pred)
+        inferred_batch = InferredSpikesBatch(img_recon=img_spikes_pred,
+                                             fft_recon=fft_spikes_pred,
+                                             pred_n_spikes=pred_n_spikes)
         return inferred_batch
 
     def calc_losses(self, data_batch: DataSpikesBatch, inferred_batch: InferredSpikesBatch) -> LossesSpikesImages:
@@ -128,7 +130,8 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
         fft_recon_loss = self._loss_recon_fft_fun(fft_spikes_norm, fft_spikes_pred_norm)
 
         img_recon_support_size = self._support_size_fun(inferred_batch.img_recon)
-        support_size_loss = self._support_loss_fun(data_batch.n_spikes, img_recon_support_size)
+        support_size_loss = self._support_loss_fun(data_batch.n_spikes.to(dtype=img_recon_support_size.dtype),
+                                                   img_recon_support_size)
 
         img_recon_loss = self._loss_recon_img_fun(img_spikes_norm, img_spikes_pred_norm)
         img_recon_sparsity_loss = self._sparsity_loss(inferred_batch.img_recon)
@@ -199,7 +202,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
             losses_tr: LossesSpikesImages = LossesSpikesImages.merge(losses_tr)
             curr_lr = self._lr_schedulers.get_last_lr()
             losses_tr.lr = curr_lr
-            self._log.info(f' Eval epoch: {epoch}, step_tr_losses: {losses_tr}')
+            self._log.info(f'Eval epoch: {epoch}, step_tr_losses: {losses_tr}')
             self._add_losses_tensorboard('spikes-pred/epoch_eval', losses_tr, self._global_step)
 
             if (epoch % self._config.save_model_interval == 0) or (epoch == self._config.n_epochs_pr - 1):

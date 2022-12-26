@@ -148,7 +148,7 @@ class ConfigBase:
 class ConfigSpikesTrainer(ConfigBase):
     # Base
     project_name = 'phase-spikes-retrieval'
-    task_name: str = 'conv-spikes-prediction'
+    task_name: str = 'sparse-spikes-prediction'
     dataset_name: str = 'spikes-generator'
     seed: int = 1
     use_tensor_board: bool = True
@@ -196,6 +196,8 @@ class ConfigSpikesTrainer(ConfigBase):
     gauss_noise: float = 0.005
     sigma: float = 0.75
     shift_fft: bool = False
+    use_aug: bool = False
+    use_rfft: bool = False
 
 
 @dataclass

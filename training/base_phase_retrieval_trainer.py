@@ -292,11 +292,11 @@ class BaseTrainerPhaseRetrieval:
         img_grid = [inv_norm_transform(data_batch.image)]
         if self._config.gauss_noise is not None and (self._config.use_aug or 'spikes' in self._config.project_name):
             img_grid.append(inv_norm_transform(data_batch.image_noised))
-        if inferred_batch.decoded_img is not None:
+        if ('decoded_img' in inferred_batch.__dataclass_fields__) and (inferred_batch.decoded_img is not None):
             img_grid.append(inv_norm_transform(inferred_batch.decoded_img))
         if inferred_batch.img_recon is not None:
             img_grid.append(inv_norm_transform(inferred_batch.img_recon))
-        if inferred_batch.img_recon_ref is not None:
+        if ('img_recon_ref' in inferred_batch.__dataclass_fields__) and inferred_batch.img_recon_ref is not None:
             img_grid.append(inv_norm_transform(inferred_batch.img_recon_ref))
 
         img_grid = torch.cat(img_grid, dim=-2)
@@ -310,13 +310,13 @@ class BaseTrainerPhaseRetrieval:
         if (self._config.gauss_noise is not None) and self._config.use_aug:
             diff_decoded = torch.abs(norm_orig_img - inv_norm_transform(data_batch.image_noised))
             img_grid.append(diff_decoded)
-        if inferred_batch.decoded_img is not None:
+        if ('decoded_img' in inferred_batch.__dataclass_fields__) and inferred_batch.decoded_img is not None:
             diff_decoded = torch.abs(norm_orig_img - inv_norm_transform(inferred_batch.decoded_img))
             img_grid.append(diff_decoded)
         if inferred_batch.img_recon is not None:
             diff_recon = torch.abs(norm_orig_img - inv_norm_transform(inferred_batch.img_recon))
             img_grid.append(diff_recon)
-        if inferred_batch.img_recon_ref is not None:
+        if ('img_recon_ref' in inferred_batch.__dataclass_fields__) and inferred_batch.img_recon_ref is not None:
             diff_recon_ref = torch.abs(norm_orig_img - inv_norm_transform(inferred_batch.img_recon_ref))
             img_grid.append(diff_recon_ref)
 
@@ -344,13 +344,17 @@ class BaseTrainerPhaseRetrieval:
             img_grid.append(prepare_fft_img(data_batch.fft_magnitude))
         if (self._config.gauss_noise is not None) and self._config.use_aug:
             img_grid.append(prepare_fft_img(data_batch.fft_magnitude_noised))
-        if inferred_batch.decoded_img is not None:
+        if ('decoded_img' in inferred_batch.__dataclass_fields__) and inferred_batch.decoded_img is not None:
             fft_magnitude_ae_decoded = prepare_fft_img(self.forward_magnitude_fft(inferred_batch.decoded_img))
             img_grid.append(fft_magnitude_ae_decoded)
         if inferred_batch.img_recon is not None:
-            fft_magnitude_recon = prepare_fft_img(self.forward_magnitude_fft(inferred_batch.img_recon))
+            if 'fft_recon' in inferred_batch.__dataclass_fields__ and inferred_batch.fft_recon is not None:
+                fft_magnitude_recon = inferred_batch.fft_recon
+            else:
+                fft_magnitude_recon = self.forward_magnitude_fft(inferred_batch.img_recon)
+            fft_magnitude_recon = prepare_fft_img(fft_magnitude_recon)
             img_grid.append(fft_magnitude_recon)
-        if inferred_batch.fft_magnitude_recon_ref is not None:
+        if ('fft_magnitude_recon_ref' in inferred_batch.__dataclass_fields__) and inferred_batch.fft_magnitude_recon_ref is not None:
             img_grid.append(prepare_fft_img(inferred_batch.fft_magnitude_recon_ref))
 
         img_grid = torch.cat(img_grid, dim=-2)

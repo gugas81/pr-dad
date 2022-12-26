@@ -115,10 +115,10 @@ class SpikesDataGenerator(IterableDataset):
         y_tensor[:x.shape[0]] = y
 
         n_spikes_tensor = torch.tensor([n_spikes], dtype=torch.int)
-        data_item = DataSpikesBatch(image=img_spikes.to(dtype=torch.float),
-                                    image_noised=img_spikes_noised.to(dtype=torch.float),
-                                    fft_magnitude=fft_spkes.to(dtype=torch.float),
-                                    fft_magnitude_noised=fft_spkes_noised.to(dtype=torch.float),
+        data_item = DataSpikesBatch(image=img_spikes.to(dtype=torch.float).unsqueeze(0),
+                                    image_noised=img_spikes_noised.to(dtype=torch.float).unsqueeze(0),
+                                    fft_magnitude=fft_spkes.to(dtype=torch.float).unsqueeze(0),
+                                    fft_magnitude_noised=fft_spkes_noised.to(dtype=torch.float).unsqueeze(0),
                                     n_spikes=n_spikes_tensor,
                                     x=x_tensor,
                                     y=y_tensor)
