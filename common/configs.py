@@ -4,9 +4,11 @@ import warnings
 import yaml
 import jsonpickle
 import numpy as np
+import os
 from typing import Optional, List, Iterable, Sequence, Union, Tuple
 from dataclasses import dataclass, field
 from .paths import PATHS
+from .aws_utils import S3FileSystem
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -48,7 +50,7 @@ class ConfigBase:
         return cls(**d)
 
     @classmethod
-    def from_yaml(cls, input_path: str):
+    def from_yaml(cls, input_path: str) -> 'ConfigBase':
         with open(input_path, 'r') as f:
             obj: ConfigBase = yaml.load(f)
 
@@ -90,7 +92,7 @@ class ConfigBase:
         return obj
 
     @classmethod
-    def from_data_file(cls, input_path):
+    def from_data_file(cls, input_path) -> 'Config':
         if input_path.endswith('.json'):
             return cls.from_json(input_path)
         elif input_path.endswith('.yaml'):
@@ -98,6 +100,29 @@ class ConfigBase:
         else:
             raise ValueError(f'Non-supported format of file: {input_path}. '
                              f'Supported formats are JSON or YAML.')
+
+    @classmethod
+    def load_from_path(cls, config_path: str) -> 'ConfigBase':
+        s3 = S3FileSystem()
+        if s3.is_s3_url(config_path):
+            assert s3.isfile(config_path)
+            config = s3.load_object(config_path, cls.from_data_file)
+        else:
+            assert os.path.exists(config_path)
+            config = cls.from_data_file(config_path)
+        return config
+
+    @classmethod
+    def load_config(cls, config_obj: Union[str, dict], **kwargs) -> 'Config':
+        if config_obj is None:
+            config = cls()
+        elif isinstance(config_obj, str):
+            config = cls.load_from_path(config_obj)
+        elif isinstance(config_obj, dict):
+            config = cls.from_dict(config_obj)
+        config.log_path = PATHS.LOG
+        config = config.update(**kwargs)
+        return config
 
     def update(self, **kwargs) -> 'Config':
         """
@@ -123,19 +148,21 @@ class ConfigBase:
 class ConfigSpikesTrainer(ConfigBase):
     # Base
     project_name = 'phase-spikes-retrieval'
+    task_name: str = 'conv-spikes-prediction'
+    dataset_name: str = 'spikes-generator'
     seed: int = 1
     use_tensor_board: bool = True
     debug_mode: bool = False
 
     # training
-    batch_size: int = 16
-    batch_size_eval = 4
+    batch_size_train: int = 16
+    batch_size_test: int = 32
     learning_rate = 0.0001
     lr_milestones: List[int] = field(default_factory=lambda: [15, 20, 25, 30, 32])
-    n_epochs: int = 30
+    n_epochs_pr: int = 30
     n_iter_tr: int = 10000
     cuda: bool = True
-    num_workers: int = 8
+    n_dataloader_workers: int = 8 # n_dataloader_workers
 
     # eval
     n_iter_eval: int = 100
@@ -144,6 +171,7 @@ class ConfigSpikesTrainer(ConfigBase):
     log_interval: int = 500
     log_image_interval: int = 5000
     log_eval_interval: int = 5000
+    dbg_img_batch: int = 8
 
     # model
     fft_norm: str = "ortho"
@@ -165,7 +193,7 @@ class ConfigSpikesTrainer(ConfigBase):
     image_size: int = 32
     tile_size: int = 32
     spikes_range: Union[int, Tuple[int, int]] = 5
-    add_gauss_noise: float = 0.005
+    gauss_noise: float = 0.005
     sigma: float = 0.75
     shift_fft: bool = False
 
@@ -179,7 +207,7 @@ class ConfigTrainer(ConfigBase):
     use_tensor_board: bool = True
     seed: int = 1
     use_ref_net: bool = False
-    log_path: Optional[str] = field(default_factory=PATHS.LOG)
+    log_path: Optional[str] = PATHS.LOG
     n_epochs_pr: int = 50
     lr_milestones_en: List[int] = field(default_factory=lambda: [20, 30, 40])
     lr_reduce_rate_en: float = 0.5

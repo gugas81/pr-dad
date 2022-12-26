@@ -290,7 +290,7 @@ class BaseTrainerPhaseRetrieval:
     def _grid_images(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize: bool = True) -> Tensor:
         inv_norm_transform = self._data_holder.test_ds.get_inv_normalize_transform()
         img_grid = [inv_norm_transform(data_batch.image)]
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if self._config.gauss_noise is not None and (self._config.use_aug or 'spikes' in self._config.project_name):
             img_grid.append(inv_norm_transform(data_batch.image_noised))
         if inferred_batch.decoded_img is not None:
             img_grid.append(inv_norm_transform(inferred_batch.decoded_img))

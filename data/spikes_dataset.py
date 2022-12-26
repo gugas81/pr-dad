@@ -1,5 +1,5 @@
 from typing import Union, Tuple, Dict, Any
-
+import logging
 import numpy as np
 import torch
 from scipy.ndimage.filters import gaussian_filter
@@ -64,9 +64,13 @@ class SpikesDataGenerator(IterableDataset):
                  add_gauss_noise: float = 0.0125,
                  len_ds: int = 10000,
                  shift_fft: bool = False,
-                 device: str = 'cpu'):
+                 device: str = 'cpu',
+                 log: logging.Logger = None):
         'Initialization'
-        self.spikes_range = spikes_range
+        if isinstance(spikes_range, int):
+            self.spikes_range = [spikes_range, spikes_range]
+        else:
+            self.spikes_range = spikes_range
         self.device = device
         self.img_size = img_size
         self.min_dist = min_dist
@@ -74,7 +78,11 @@ class SpikesDataGenerator(IterableDataset):
         self.add_gauss_noise = add_gauss_noise
         self.len_ds = len_ds
         self.shift_fft = shift_fft
-        self.get_inv_normalize_transform = torch.nn.Identity()
+        self.get_inv_normalize_transform = lambda: torch.nn.Identity()
+        if log is None:
+            self._log = logging.getLogger(self.__class__.__name__)
+        else:
+            self._log = log
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -83,8 +91,8 @@ class SpikesDataGenerator(IterableDataset):
     def _get_item(self) -> DataSpikesBatch:
         'Generates one sample of data'
         # Select sample
-        if isinstance(self.spikes_range, int):
-            n_spikes = self.spikes_range
+        if self.spikes_range[0] == self.spikes_range[1]:
+            n_spikes = self.spikes_range[0]
         else:
             n_spikes = np.random.randint(self.spikes_range[0], self.spikes_range[1])
 

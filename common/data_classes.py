@@ -6,6 +6,7 @@ import dataclasses
 from typing import Optional, List, Callable, Dict, Any
 from collections import defaultdict
 from dataclasses import dataclass, field
+from collections.abc import Iterable  # import directly from collections for Python < 3.3
 
 
 @dataclass
@@ -64,6 +65,14 @@ class DataBatch:
                 torch_data[key] = merge_f(val)
 
         return self.__class__(**torch_data)
+
+    def get_subset(self, index):
+        dict_data = {}
+        for key, val in self.__dict__.items():
+            if isinstance(val, Iterable):
+                val = val[:index]
+            dict_data[key] = val
+        return self.__class__(**dict_data)
 
     def as_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
