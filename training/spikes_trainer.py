@@ -151,7 +151,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
 
     def eval_model(self) -> LossesSpikesImages:
         losses_eval = []
-        for _, batch_eval in zip(range(self._config.n_iter_eval), self._data_holder.test_loader):
+        for _, batch_eval in tqdm(zip(range(self._config.n_iter_eval), self._data_holder.test_loader)):
             batch_data_eval: DataSpikesBatch = DataSpikesBatch.from_dict(batch_eval)
             batch_data_eval = batch_data_eval.to(self.device)
             inferred_batch_eval = self.forward(batch_data_eval)
@@ -174,7 +174,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
             losses_tr = []
             self._model.train()
             self._log.info(f'====Train epoch: {epoch}====')
-            for ind, batch_data in zip(range(self._config.n_iter_tr), self._data_holder.train_paired_loader):
+            for ind, batch_data in tqdm(zip(range(self._config.n_iter_tr), self._data_holder.train_paired_loader)):
                 batch_data: DataSpikesBatch = DataSpikesBatch.from_dict(batch_data)
 
                 losses_tr_step = self.train_step(batch_data)
