@@ -324,7 +324,11 @@ class BaseTrainerPhaseRetrieval:
         img_grid = torchvision.utils.make_grid(img_grid, normalize=False)
         return img_grid
 
-    def _grid_fft_magnitude(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
+    def _grid_fft_magnitude(self,
+                            data_batch: DataBatch,
+                            inferred_batch: InferredBatch,
+                            norm_fun=None,
+                            normalize: bool = False) -> Tensor:
         def prepare_fft_img(fft_magnitude: Tensor) -> Tensor:
             if not self._config.use_dct_input:
                 if self._config.use_rfft:
@@ -335,14 +339,16 @@ class BaseTrainerPhaseRetrieval:
             if fft_magnitude.shape[-1] != self._config.image_size:
                 fft_magnitude = F.interpolate(fft_magnitude, (self._config.image_size, self._config.image_size),
                                               mode='bilinear',
-                                              align_corners=False)
+                                              align_corners=normalize)
 
+            if norm_fun is not None:
+                fft_magnitude = norm_fun(fft_magnitude)
             return fft_magnitude
 
         img_grid = []
         if data_batch.fft_magnitude is not None:
             img_grid.append(prepare_fft_img(data_batch.fft_magnitude))
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if (self._config.gauss_noise is not None) and (self._config.use_aug or 'spikes' in self._config.project_name):
             img_grid.append(prepare_fft_img(data_batch.fft_magnitude_noised))
         if ('decoded_img' in inferred_batch.__dataclass_fields__) and inferred_batch.decoded_img is not None:
             fft_magnitude_ae_decoded = prepare_fft_img(self.forward_magnitude_fft(inferred_batch.decoded_img))
@@ -403,10 +409,18 @@ class BaseTrainerPhaseRetrieval:
             else:
                 self._log.error(f'Non valid s3 path to save images: {project_s3_path}')
 
-    def _debug_images_grids(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize_img: bool = True):
+    def _debug_images_grids(self,
+                            data_batch: DataBatch,
+                            inferred_batch: InferredBatch,
+                            normalize_img: bool = True,
+                            normalize_fft: bool = False,
+                            norm_fun=None,
+                            ):
         img_grid_grid = self._grid_images(data_batch, inferred_batch, normalize=normalize_img)
         img_diff_grid = self._grid_diff_images(data_batch, inferred_batch)
-        fft_magnitude_grid_grid = self._grid_fft_magnitude(data_batch, inferred_batch)
+        fft_magnitude_grid_grid = self._grid_fft_magnitude(data_batch, inferred_batch,
+                                                           normalize=normalize_fft,
+                                                           norm_fun=norm_fun)
         if self._config.predict_out == 'features':
             features_enc_grid, features_dec_grid = self._grid_features(inferred_batch)
         else:
@@ -438,7 +452,7 @@ class BaseTrainerPhaseRetrieval:
                     self._tensorboard.add_scalar(f"{metric_name}/{tag}", metric_val.mean(), step)
                 elif isinstance(metric_val, dict):
                     for key, val in metric_val.items():
-                        assert isinstance(val, Tensor)  or isinstance(val, np.ndarray)
+                        assert isinstance(val, Tensor) or isinstance(val, np.ndarray)
                         self._tensorboard.add_scalar(f"{metric_name}_{key}/{tag}", val.mean(), step)
                 else:
                     raise ValueError(f'not valid type of loss {metric_name}, of type {type(metric_val)}')

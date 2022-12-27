@@ -60,6 +60,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
         self._support_loss_fun = nn.L1Loss()
 
         self._model: nn.Module = self._creat_predictor_model()
+        self.load_models()
 
         self._model.to(device=self.device)
         self._model.train()
@@ -77,6 +78,12 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
 
     def get_model(self) -> nn.Module:
         return self._model
+
+    def load_models(self):
+        if self._config.path_pretrained is not None:
+            loaded_sate = self.load_state(self._config.path_pretrained)
+            self._model.load_state_dict(loaded_sate)
+            self._log.debug(f'Model parameters was loaded from file: {self._config.path_pretrained}')
 
     def _creat_predictor_model(self) -> nn.Module:
         if self._config.model_type == 'mlp':
@@ -96,7 +103,10 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
         return model
 
     def _init_data_loaders(self) -> DataHolder:
-        return create_spikes_data_loaders(config=self._config, s3=self._s3, log=self._log)
+        return create_spikes_data_loaders(config=self._config,
+                                          s3=self._s3,
+                                          log=self._log,
+                                          inv_norm=TrainerSpikesSignalRetrieval.img_norm_min_max)
 
     def prepare_data_batch(self, data_batch: Dict[str, Any], is_train: bool = True) -> DataSpikesBatch:
         data_batch: DataSpikesBatch = DataSpikesBatch.from_dict(data_batch).to(device=self.device)
@@ -151,7 +161,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
 
     def eval_model(self) -> LossesSpikesImages:
         losses_eval = []
-        for _, batch_eval in tqdm(zip(range(self._config.n_iter_eval), self._data_holder.test_loader)):
+        for batch_eval in tqdm(self._data_holder.test_loader):
             batch_data_eval: DataSpikesBatch = DataSpikesBatch.from_dict(batch_eval)
             batch_data_eval = batch_data_eval.to(self.device)
             inferred_batch_eval = self.forward(batch_data_eval)
@@ -159,6 +169,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
             losses_eval.append(losses_eval_.detach())
 
         losses_eval = LossesSpikesImages.merge(losses_eval)
+        self._data_holder.test_loader
         return losses_eval
 
     def images_eval(self) -> (InferredSpikesBatch, LossesSpikesImages, DataSpikesBatch, InferredSpikesBatch):
@@ -174,24 +185,26 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
             losses_tr = []
             self._model.train()
             self._log.info(f'====Train epoch: {epoch}====')
-            for ind, batch_data in tqdm(zip(range(self._config.n_iter_tr), self._data_holder.train_paired_loader)):
+            len_train_loader = len(self._data_holder.train_paired_loader)
+            for ind, batch_data in tqdm(enumerate(self._data_holder.train_paired_loader)):
                 batch_data: DataSpikesBatch = DataSpikesBatch.from_dict(batch_data)
 
                 losses_tr_step = self.train_step(batch_data)
                 losses_tr.append(losses_tr_step.detach())
 
                 if ind % self._config.log_interval == 0:
-                    self._log.info(f' epoch: {epoch}, step: {ind}, {100 * ind/self._config.n_iter_tr: .0f}%, '
+                    self._log.info(f' epoch: {epoch}, step: {ind}, {100 * ind/len_train_loader: .0f}%, '
                                    f'step_tr_losses: {losses_tr_step}')
                     self._add_losses_tensorboard('spikes-pred/train_step', losses_tr_step, self._global_step)
 
-                if ind % self._config.log_eval_interval == 0:
-                    self._model.eval()
-                    losses_eval = self.eval_model()
-                    self._log.info(f' epoch: {epoch}, step: {ind}, {100 * ind / self._config.n_iter_tr: .0f}%, '
-                                   f'eval_losses: {losses_eval}')
-                    self._add_losses_tensorboard('spikes-pred/eval', losses_eval, self._global_step)
-                    self._model.train()
+                # if ind % self._config.log_eval_interval == 0:
+                #     self._log.info(f'Run eval epoch: {epoch}, step: {ind}, {100 * ind / self._config.n_iter_tr: .0f}%')
+                #     self._model.eval()
+                #     losses_eval = self.eval_model()
+                #     self._log.info(f' epoch: {epoch}, step: {ind}, {100 * ind / self._config.n_iter_tr: .0f}%, '
+                #                    f'eval_losses: {losses_eval}')
+                #     self._add_losses_tensorboard('spikes-pred/eval', losses_eval, self._global_step)
+                #     self._model.train()
 
                 if ind % self._config.log_image_interval == 0:
                     self._model.eval()
@@ -201,23 +214,36 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
                 self._global_step += 1
             losses_tr: LossesSpikesImages = LossesSpikesImages.merge(losses_tr)
             curr_lr = self._lr_schedulers.get_last_lr()
-            losses_tr.lr = curr_lr
+            losses_tr.lr = torch.tensor(curr_lr[0])
+            losses_tr = losses_tr.detach()
             self._log.info(f'Eval epoch: {epoch}, step_tr_losses: {losses_tr}')
-            self._add_losses_tensorboard('spikes-pred/epoch_eval', losses_tr, self._global_step)
+            self._add_losses_tensorboard('spikes-pred/epoch_tr', losses_tr, self._global_step)
+
+            self._log.info(f'Run eval epoch: {epoch}')
+            self._model.eval()
+            losses_eval = self.eval_model()
+            self._log.info(f'Epoch: {epoch}, eval_losses: {losses_eval}')
+            self._add_losses_tensorboard('spikes-pred/eval', losses_eval, self._global_step)
+            self._model.train()
 
             if (epoch % self._config.save_model_interval == 0) or (epoch == self._config.n_epochs_pr - 1):
                 save_model_path = os.path.join(self.models_path, f'phase-retrieval-spikes-pred-model-{epoch}.pt')
                 self._log.debug(f'Save model in {save_model_path}')
-                torch.save(self._model.get_state_dict(), save_model_path)
+                torch.save(self._model.state_dict(), save_model_path)
 
             self._lr_schedulers.step()
 
     def _log_train_dbg_batch(self, step: int) -> None:
         batch_inferred_test, losses_eval_test, batch_data_rand, batch_inferred_rand = self.images_eval()
         img_grid_grid_ts, img_diff_grid_grid_ts, fft_magnitude_grid_ts, _, _ = \
-            self._debug_images_grids(self.data_ts_batch, batch_inferred_test)
+            self._debug_images_grids(self.data_ts_batch, batch_inferred_test,
+                                     norm_fun=TrainerSpikesSignalRetrieval.img_norm_min_max,
+                                     normalize_img=False, normalize_fft=False)
         img_grid_grid_rnd, img_diff_grid_grid_rnd, fft_magnitude_grid_rnd, _, _ = \
-            self._debug_images_grids(batch_data_rand, batch_inferred_rand)
+            self._debug_images_grids(batch_data_rand, batch_inferred_rand,
+                                     norm_fun=TrainerSpikesSignalRetrieval.img_norm_min_max,
+                                     normalize_img=False, normalize_fft=False)
+
         self.log_image_grid(img_grid_grid_ts,
                             tag_name='train_spikes-pred_ts/img-origin-noised-recon', step=step)
         self.log_image_grid(fft_magnitude_grid_ts,
@@ -243,6 +269,12 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
     def img_norm(img_: Tensor) -> Tensor:
         img_norm_ = img_ - img_.mean((-2, -1), keepdim=True)
         img_norm_ = img_norm_ / (img_norm_.std((-2, -1), keepdim=True) + TrainerSpikesSignalRetrieval._EPS)
+        return img_norm_
+
+    @staticmethod
+    def img_norm_min_max(img_: Tensor) -> Tensor:
+        img_norm_ = img_ - img_.min()
+        img_norm_ = img_norm_ / (img_norm_.max() + TrainerSpikesSignalRetrieval._EPS)
         return img_norm_
 
     @staticmethod

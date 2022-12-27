@@ -25,7 +25,8 @@ class DataHolder:
 
 def create_spikes_data_loaders(config: ConfigSpikesTrainer,
                                log: logging.Logger,
-                               s3: Optional[S3FileSystem] = None) -> DataHolder:
+                               s3: Optional[S3FileSystem] = None,
+                               inv_norm=None) -> DataHolder:
     log.debug('Create spikes dataset and its loaders')
     len_ds_tr = config.n_iter_tr * config.batch_size_train
     spike_generator_tr = SpikesDataGenerator(spikes_range=config.spikes_range,
@@ -34,7 +35,9 @@ def create_spikes_data_loaders(config: ConfigSpikesTrainer,
                                              sigma=config.sigma,
                                              len_ds=len_ds_tr,
                                              shift_fft=config.shift_fft,
-                                             log=log)
+                                             log=log,
+                                             inv_norm=inv_norm)
+
     len_ds_ts = config.n_iter_eval * config.batch_size_test
     spike_generator_ts = SpikesDataGenerator(spikes_range=config.spikes_range,
                                              img_size=config.image_size,
@@ -42,15 +45,20 @@ def create_spikes_data_loaders(config: ConfigSpikesTrainer,
                                              sigma=config.sigma,
                                              len_ds=len_ds_ts,
                                              shift_fft=config.shift_fft,
-                                             log=log)
+                                             log=log,
+                                             inv_norm=inv_norm)
 
     spikes_loader_train = DataLoader(spike_generator_tr,
                                      batch_size=config.batch_size_train,
+                                     worker_init_fn=np.random.seed(config.seed),
                                      num_workers=config.n_dataloader_workers)
+    log.info(f'loader_train_data = {len(spikes_loader_train)} with batch = {config.batch_size_train}')
 
     spikes_loader_val = DataLoader(spike_generator_ts,
                                    batch_size=config.batch_size_test,
+                                   worker_init_fn=np.random.seed(config.seed),
                                    num_workers=config.n_dataloader_workers)
+    log.info(f'loader_val_data = {len(spikes_loader_val)} with batch = {config.batch_size_test}')
 
     return DataHolder(train_paired_loader=spikes_loader_train,
                       test_ds=spike_generator_ts,

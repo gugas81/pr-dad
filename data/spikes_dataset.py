@@ -65,7 +65,8 @@ class SpikesDataGenerator(IterableDataset):
                  len_ds: int = 10000,
                  shift_fft: bool = False,
                  device: str = 'cpu',
-                 log: logging.Logger = None):
+                 log: logging.Logger = None,
+                 inv_norm=None):
         'Initialization'
         if isinstance(spikes_range, int):
             self.spikes_range = [spikes_range, spikes_range]
@@ -78,7 +79,7 @@ class SpikesDataGenerator(IterableDataset):
         self.add_gauss_noise = add_gauss_noise
         self.len_ds = len_ds
         self.shift_fft = shift_fft
-        self.get_inv_normalize_transform = lambda: torch.nn.Identity()
+        self.get_inv_normalize_transform = lambda: torch.nn.Identity() if inv_norm is None else inv_norm
         if log is None:
             self._log = logging.getLogger(self.__class__.__name__)
         else:

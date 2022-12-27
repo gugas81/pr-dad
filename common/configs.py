@@ -166,6 +166,7 @@ class ConfigSpikesTrainer(ConfigBase):
 
     # eval
     n_iter_eval: int = 100
+    save_model_interval: int = 10
 
     # logger
     log_interval: int = 500
@@ -180,6 +181,7 @@ class ConfigSpikesTrainer(ConfigBase):
     use_dct_input: bool = False
     use_noised_input: bool = True
     predict_out: str = 'images'
+    path_pretrained: Optional[str] = None
 
     # optimization
     loss_type_img_recon: str = 'l1'
