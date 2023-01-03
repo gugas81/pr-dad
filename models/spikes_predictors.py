@@ -30,11 +30,12 @@ class SpikesImgReconConvModel(nn.Module):
                  count_predictor: bool = False):
         super(SpikesImgReconConvModel, self).__init__()
         self._pred_type = pred_type
-        assert pred_type == 'conv_unet' or pred_type == 'conv_ae'
         if pred_type == 'conv_unet':
             self._conv_model = UNetConv(up_mode='bilinear', img_size=img_size)
         elif pred_type == 'conv_ae':
             self._conv_model = AeConv(img_size=img_size)
+        else:
+            raise TypeError(f'unknown conv type: {pred_type}')
 
         if count_predictor:
             n_features = self._conv_model.n_enc_features_ch
@@ -59,7 +60,8 @@ class SpikesImgReconConvModel(nn.Module):
         recon_img = x_out #.squeeze(1)
 
         if self._count_spikes_predictor is not None:
-            n_spikes_pred = self._count_spikes_predictor(enc_features)
+            enc_features_flatten = torch.flatten(enc_features, 1)
+            n_spikes_pred = self._count_spikes_predictor(enc_features_flatten)
         else:
             n_spikes_pred = None
 
