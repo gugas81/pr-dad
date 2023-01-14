@@ -159,13 +159,13 @@ class ConfigSpikesTrainer(ConfigBase):
     batch_size_test: int = 32
     learning_rate = 0.0001
     lr_milestones: List[int] = field(default_factory=lambda: [15, 20, 25, 30, 32])
-    n_epochs_pr: int = 30
-    n_iter_tr: int = 10000
+    n_epochs_pr: int = 35
+    n_iter_tr: int = 1000
     cuda: bool = True
-    n_dataloader_workers: int = 8 # n_dataloader_workers
+    n_dataloader_workers: int = 8  # n_dataloader_workers
 
     # eval
-    n_iter_eval: int = 100
+    n_iter_eval: int = 500
     save_model_interval: int = 10
 
     # logger
@@ -182,6 +182,10 @@ class ConfigSpikesTrainer(ConfigBase):
     use_noised_input: bool = True
     predict_out: str = 'images'
     path_pretrained: Optional[str] = None
+    count_predictor_head: bool = False
+    conv_net_deep: int = 3
+    n_encoder_ch: int = 16
+    multi_scale_out: bool = False
 
     # optimization
     loss_type_img_recon: str = 'l1'
@@ -189,11 +193,13 @@ class ConfigSpikesTrainer(ConfigBase):
     lambda_support_size: float = 1.0  # 0.01
     lambda_img_recon: float = 20.0  # 2.0
     lambda_fft_recon: float = 2.0  # 20.0
+    lambda_count_spikes: float = 2.0
     lambda_sparsity: float = 0.1
 
     # data
     image_size: int = 32
     tile_size: int = 32
+    pad: int = 0
     spikes_range: Union[int, Tuple[int, int]] = 5
     gauss_noise: float = 0.005
     sigma: float = 0.75

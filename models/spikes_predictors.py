@@ -27,26 +27,32 @@ class SpikesImgReconConvModel(nn.Module):
                  tile_size: int = None,
                  is_proj_mag: bool = False,
                  pred_type: str = 'conv_ae',
-                 count_predictor: bool = False):
+                 conv_net_deep: int = 3,
+                 n_encoder_ch: int = 16,
+                 count_predictor: bool = False,
+                 multi_scale_out: bool = False):
         super(SpikesImgReconConvModel, self).__init__()
         self._pred_type = pred_type
         if pred_type == 'conv_unet':
-            self._conv_model = UNetConv(up_mode='bilinear', img_size=img_size)
+            self._conv_model = UNetConv(up_mode='bilinear', img_size=img_size, deep=conv_net_deep)
         elif pred_type == 'conv_ae':
-            self._conv_model = AeConv(img_size=img_size)
+            self._conv_model = AeConv(img_size=img_size,
+                                      deep=conv_net_deep,
+                                      n_encoder_ch=n_encoder_ch,
+                                      multi_scale_out=multi_scale_out)
         else:
             raise TypeError(f'unknown conv type: {pred_type}')
 
         if count_predictor:
             n_features = self._conv_model.n_enc_features_ch
             n_features_size = self._conv_model.n_features_size
-            size_flatten_in = n_features_size*n_features
+            size_flatten_in = n_features * (n_features_size ** 2)
             ch_list = [size_flatten_in,
-                       size_flatten_in // 2, size_flatten_in // 2,
                        size_flatten_in // 4, size_flatten_in // 4,
-                       size_flatten_in // 8, size_flatten_in // 8, 1]
+                       size_flatten_in // 8, size_flatten_in // 8,
+                       size_flatten_in // 16, size_flatten_in // 16, 1]
 
-            self._count_spikes_predictor = MlpNet(in_ch=self._tile_size,
+            self._count_spikes_predictor = MlpNet(in_ch=size_flatten_in,
                                                   ch_list=ch_list,
                                                   out_ch=1,
                                                   deep=len(ch_list),

@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional, Union, Tuple, Dict, Any
+from typing import Optional, Union, Tuple, Dict, Any, List
 
 import fire
 import numpy as np
@@ -8,13 +8,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch import Tensor
+from torchvision import transforms
 from torch.optim.lr_scheduler import MultiStepLR
 from tqdm import tqdm
 
 import models.losses as los_fun
 from common import ConfigSpikesTrainer, DataSpikesBatch, InferredSpikesBatch, \
     LossesSpikesImages
-from data.spikes_dataset import  fft_magnitude
+from data.spikes_dataset import fft_magnitude
 from data import DataHolder, create_spikes_data_loaders
 from models.spikes_predictors import SpikesImgReconConvModel, SpikesImgReconMlpModel
 from training.base_phase_retrieval_trainer import BaseTrainerPhaseRetrieval
@@ -27,7 +28,9 @@ MAX_COUNT_SPIKES = 100
 class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
     _EPS = torch.finfo(torch.float).eps
 
-    def __init__(self, config: ConfigSpikesTrainer, experiment_name: str):
+    def __init__(self, config: ConfigSpikesTrainer, experiment_name: str, eval_only: bool = False):
+        if eval_only:
+            config.use_tensor_board = False
         super(TrainerSpikesSignalRetrieval, self).__init__(config=config, experiment_name=experiment_name)
         self._config: ConfigSpikesTrainer = self._config
 
@@ -42,17 +45,19 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
                                                    device=self.device)
 
         self._sparsity_loss = los_fun.SparsityL1Loss()
-        self._support_size_fun = lambda x: x.abs().sum((-1, -2, -3)).unsqueeze(1)  # los_fun.SparsityL1Loss(reduction='sum')
+        self._support_size_fun = lambda x: x.abs().sum((-1, -2, -3)).unsqueeze(1)
         self._support_loss_fun = nn.L1Loss()
 
         self._model: nn.Module = self._create_predictor_model()
         self.load_models()
 
         self._model.to(device=self.device)
-        self._model.train()
-
-        self._optimizer = optim.Adam(params=self._model.parameters(), lr=self._config.learning_rate)
-        self._lr_schedulers = MultiStepLR(self._optimizer, self._config.lr_milestones, 0.5)
+        if eval_only:
+            self._model.eval()
+        else:
+            self._model.train()
+            self._optimizer = optim.Adam(params=self._model.parameters(), lr=self._config.learning_rate)
+            self._lr_schedulers = MultiStepLR(self._optimizer, self._config.lr_milestones, 0.5)
 
     def _init_dbg_data_batches(self):
         self.data_ts_batch = self.get_batch_test().get_subset(self._config.dbg_img_batch)
@@ -85,7 +90,10 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
                                             tile_size=self._config.tile_size,
                                             is_proj_mag=self._config.proj_mag,
                                             pred_type=self._config.model_type,
-                                            count_predictor=self._config.count_predictor_head)
+                                            count_predictor=self._config.count_predictor_head,
+                                            n_encoder_ch=self._config.n_encoder_ch,
+                                            conv_net_deep=self._config.conv_net_deep,
+                                            multi_scale_out=self._config.multi_scale_out)
         else:
             raise self._log.error(f'Non valid model type: {self._config.model_type}')
         return model
@@ -111,33 +119,44 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
     def forward(self, batch_data: DataSpikesBatch) -> InferredSpikesBatch:
         n_spikes_emb = batch_data.n_spikes / MAX_COUNT_SPIKES
         input_data = batch_data.fft_magnitude_noised if self._config.use_noised_input else batch_data.fft_magnitude
-        img_spikes_pred, pred_n_spikes = self._model(input_data, n_spikes_emb)
+        img_spikes_pred_scales, pred_n_spikes = self._model(input_data, n_spikes_emb)
+        if self._config.multi_scale_out:
+            img_spikes_pred = img_spikes_pred_scales[-1]
+
         fft_spikes_pred = fft_magnitude(img_spikes_pred, shift=self._config.shift_fft)
         inferred_batch = InferredSpikesBatch(img_recon=img_spikes_pred,
                                              fft_recon=fft_spikes_pred,
                                              pred_n_spikes=pred_n_spikes)
+        if self._config.multi_scale_out:
+            inferred_batch.img_recon_scales = img_spikes_pred_scales
+
         return inferred_batch
 
     def calc_losses(self, data_batch: DataSpikesBatch, inferred_batch: InferredSpikesBatch) -> LossesSpikesImages:
-        img_spikes_norm = self.img_norm(data_batch.image)
-        img_spikes_pred_norm = self.img_norm(inferred_batch.img_recon)
+        img_recon_loss = self.cals_img_recon_loss(data_batch.image, inferred_batch.img_recon)
 
         fft_spikes_norm = self.fft_norm(data_batch.fft_magnitude)
         fft_spikes_pred_norm = self.fft_norm(inferred_batch.fft_recon)
-
         fft_recon_loss = self._loss_recon_fft_fun(fft_spikes_norm, fft_spikes_pred_norm)
 
         img_recon_support_size = self._support_size_fun(inferred_batch.img_recon)
         support_size_loss = self._support_loss_fun(data_batch.n_spikes.to(dtype=img_recon_support_size.dtype),
                                                    img_recon_support_size)
 
-        img_recon_loss = self._loss_recon_img_fun(img_spikes_norm, img_spikes_pred_norm)
         img_recon_sparsity_loss = self._sparsity_loss(inferred_batch.img_recon)
 
         total_loss = self._config.lambda_img_recon * img_recon_loss + \
                      self._config.lambda_sparsity * img_recon_sparsity_loss + \
                      self._config.lambda_fft_recon * fft_recon_loss + \
                      self._config.lambda_support_size * support_size_loss
+
+        if self._config.multi_scale_out:
+            scale_recon_loss = self.smooth_multy_scale_loss(data_batch, inferred_batch)
+            scale_recon_loss_total = torch.stack(scale_recon_loss).sum()
+            total_loss += self._config.lambda_img_recon * scale_recon_loss_total
+            scale_recon_loss_dict = {f'scale_{ind}': loss_ for ind, loss_ in enumerate(scale_recon_loss.reverse())}
+        else:
+            scale_recon_loss_dict = None
 
         if self._config.count_predictor_head:
             n_spikes_emb = data_batch.n_spikes / MAX_COUNT_SPIKES
@@ -149,24 +168,48 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
         losses = LossesSpikesImages(total=total_loss,
                                     img_recon=img_recon_loss,
                                     img_sparsity=img_recon_sparsity_loss,
+                                    img_scale_recon=scale_recon_loss_dict,
                                     fft_recon=fft_recon_loss,
                                     count_pred_loss=count_pred_loss,
                                     support_size=support_size_loss)
 
         return losses
 
-    def eval_model(self) -> LossesSpikesImages:
+    def cals_img_recon_loss(self, img_orig: Tensor, img_recon: Tensor) -> Tensor:
+        img_spikes_norm = self.img_norm(img_orig)
+        img_spikes_pred_norm = self.img_norm(img_recon)
+        img_recon_loss = self._loss_recon_img_fun(img_spikes_norm, img_spikes_pred_norm)
+        return img_recon_loss
+
+    def smooth_multy_scale_loss(self, data_batch: DataSpikesBatch, inferred_batch: InferredSpikesBatch) -> List[Tensor]:
+        scale_recon_loss = []
+        for recon_scale in inferred_batch.img_recon_scales:
+            img_size = recon_scale.shape[-1]
+            if img_size > 32:
+                kernel_size = 7
+            else:
+                kernel_size = 3
+            orig_img_scale = transforms.Resize(size=img_size)(data_batch.image)
+            gauss_blur = transforms.GaussianBlur(kernel_size=(kernel_size, kernel_size), sigma=0.5)
+            orig_img_scale_blur = gauss_blur(orig_img_scale)
+            recon_scale_blur = gauss_blur(recon_scale)
+            scale_recon_loss.append(self.cals_img_recon_loss(orig_img_scale_blur, recon_scale_blur))
+        return scale_recon_loss
+
+
+    def eval_model(self) -> (LossesSpikesImages, np.ndarray):
         losses_eval = []
+        n_pikes = []
         for batch_eval in tqdm(self._data_holder.test_loader):
             batch_data_eval: DataSpikesBatch = DataSpikesBatch.from_dict(batch_eval)
+            n_pikes.append(batch_data_eval.n_spikes.numpy(force=True))
             batch_data_eval = batch_data_eval.to(self.device)
             inferred_batch_eval = self.forward(batch_data_eval)
             losses_eval_ = self.calc_losses(batch_data_eval, inferred_batch_eval)
             losses_eval.append(losses_eval_.detach())
-
         losses_eval = LossesSpikesImages.merge(losses_eval)
-        self._data_holder.test_loader
-        return losses_eval
+        n_pikes = np.array(n_pikes)
+        return losses_eval, n_pikes
 
     def images_eval(self) -> (InferredSpikesBatch, LossesSpikesImages, DataSpikesBatch, InferredSpikesBatch):
         batch_inferred_test = self.forward(self.data_ts_batch)
@@ -208,7 +251,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
 
             self._log.info(f'Run eval epoch: {epoch}')
             self._model.eval()
-            losses_eval = self.eval_model()
+            losses_eval, _ = self.eval_model()
             self._log.info(f'Epoch: {epoch}, eval_losses: {losses_eval}')
             self._add_losses_tensorboard('spikes-pred/eval', losses_eval, self._global_step)
             self._model.train()
@@ -230,6 +273,15 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
             self._debug_images_grids(batch_data_rand, batch_inferred_rand,
                                      norm_fun=TrainerSpikesSignalRetrieval.img_norm_min_max,
                                      normalize_img=False, normalize_fft=False)
+
+        if batch_inferred_rand.img_recon_scales is not None:
+            for scale, scale_img_rnd in enumerate(batch_inferred_rand.img_recon_scales.reverse()):
+                self.log_image_grid(scale_img_rnd,
+                                    tag_name=f'train_spikes-pred_rnd/img-recon-scale-{scale}', step=step)
+        if batch_inferred_test.img_recon_scales is not None:
+            for scale, scale_img_ts in enumerate(batch_inferred_test.img_recon_scales.reverse()):
+                self.log_image_grid(scale_img_ts,
+                                    tag_name=f'train_spikes-pred_ts/img-recon-scale-{scale}', step=step)
 
         self.log_image_grid(img_grid_grid_ts,
                             tag_name='train_spikes-pred_ts/img-origin-noised-recon', step=step)

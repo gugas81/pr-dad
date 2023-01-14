@@ -133,6 +133,17 @@ class TensorBatch(DataBatch):
     def detach(self):
         return self.reduce(torch.detach)
 
+    def to_numpy_dict(self) -> dict:
+        numpy_f = lambda x: torch.Tensor.numpy(x, force=True) if isinstance(x, Tensor) else x
+        numpy_data = {}
+        for key, val in self.__dict__.items():
+            if isinstance(val, dict):
+                numpy_data[key] = {key_: numpy_f(val_) for key_, val_ in val.items()}
+            else:
+                numpy_data[key] = numpy_f(val)
+
+        return numpy_data
+
 
 @dataclass
 class DataSpikesBatch(TensorBatch):
@@ -148,6 +159,7 @@ class DataSpikesBatch(TensorBatch):
 @dataclass
 class InferredSpikesBatch(TensorBatch):
     img_recon: Optional[Tensor] = None
+    img_recon_scales: Optional[List[Tensor]] = None
     fft_recon: Optional[Tensor] = None
     pred_n_spikes: Optional[Tensor] = None
 
@@ -271,8 +283,10 @@ class LossesGradNorms(Losses):
 @dataclass
 class LossesSpikesImages(Losses):
     img_recon: Optional[Tensor] = None
+    img_scale_recon: Optional[Dict[str, Tensor]] = None
     img_sparsity: Optional[Tensor] = None
     fft_recon: Optional[Tensor] = None
+    count_pred_loss: Optional[Tensor] = None
     support_size: Optional[Tensor] = None
     total: Optional[Tensor] = None
     lr: Optional[Dict[str, Tensor]] = None

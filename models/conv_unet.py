@@ -51,7 +51,7 @@ class UNetConv(nn.Module):
                                     up_mode=up_mode,
                                     active_type=active_type)
 
-        self.conv_out = nn.Conv2d(self._decoder.ch_out[-1], output_ch, kernel_size=1, stride=1, padding=0)
+        self.conv_out = nn.Conv2d(self._decoder.ch_outs[-1], output_ch, kernel_size=1, stride=1, padding=0)
 
         scale_factor = 2 ** (deep - 1)
         self._n_features_size = int(np.ceil(img_size / scale_factor))

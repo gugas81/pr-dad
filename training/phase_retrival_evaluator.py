@@ -210,7 +210,8 @@ class Evaluator(BaseTrainerPhaseRetrieval):
 
     @staticmethod
     def _get_eval_df(evaluation_metrics: List[EvaluationMetrics], max_val: float) -> pd.DataFrame:
-        evaluation_metrics = EvaluationMetrics.merge(evaluation_metrics)
+        if isinstance(evaluation_metrics, list):
+            evaluation_metrics = EvaluationMetrics.merge(evaluation_metrics)
         keys = evaluation_metrics.get_keys()
         eval_df = pd.DataFrame(index=keys, columns=Evaluator.COLUMNS)
         mean_metrics = evaluation_metrics.mean()
