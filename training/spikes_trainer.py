@@ -184,10 +184,11 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
 
     def smooth_multi_scale_loss(self, data_batch: DataSpikesBatch, inferred_batch: InferredSpikesBatch) -> List[Tensor]:
         scale_recon_loss = []
+        orig_blur_imgs = []
+        recon_blur_imgs = []
         for recon_scale in inferred_batch.img_recon_scales:
             img_size = recon_scale.shape[-1]
-            orig_blur_imgs = []
-            recon_blur_imgs = []
+           
             orig_img_scale = transforms.Resize(size=img_size)(data_batch.image)
             if img_size > 32:
                 kernel_size = 7
@@ -201,7 +202,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
             recon_scale_blur = gauss_blur(recon_scale)
             recon_blur_imgs.append(recon_scale_blur)
             scale_recon_loss.append(self.cals_img_recon_loss(orig_img_scale_blur, recon_scale_blur))
-        inferred_batch.orig_blur_imgs=orig_blur_imgs
+        inferred_batch.orig_blur_imgs = orig_blur_imgs
         inferred_batch.recon_blur_imgs = recon_blur_imgs
         return scale_recon_loss
 
@@ -224,7 +225,8 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
         batch_data_rand = self.get_batch_test().get_subset(self._config.dbg_img_batch)
         batch_inferred_rand = self.forward(batch_data_rand)
         losses_eval_test = self.calc_losses(self.data_ts_batch, batch_inferred_test)
-        return batch_inferred_test, losses_eval_test, batch_data_rand, batch_inferred_rand
+        losses_eval_rnd = self.calc_losses(batch_data_rand, batch_inferred_rand)
+        return batch_inferred_test, losses_eval_test, batch_data_rand, batch_inferred_rand, losses_eval_rnd
 
     def train_model(self):
         self._global_step = 0
@@ -272,7 +274,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
             self._lr_schedulers.step()
 
     def _log_train_dbg_batch(self, step: int) -> None:
-        batch_inferred_test, losses_eval_test, batch_data_rand, batch_inferred_rand = self.images_eval()
+        batch_inferred_test, losses_eval_test, batch_data_rand, batch_inferred_rand, losses_eval_rnd = self.images_eval()
         img_grid_grid_ts, img_diff_grid_grid_ts, fft_magnitude_grid_ts, _, _ = \
             self._debug_images_grids(self.data_ts_batch, batch_inferred_test,
                                      norm_fun=TrainerSpikesSignalRetrieval.img_norm_min_max,
