@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch import Tensor
+import torchvision
 from torchvision import transforms
 from torch.optim.lr_scheduler import MultiStepLR
 from tqdm import tqdm
@@ -151,10 +152,10 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
                      self._config.lambda_support_size * support_size_loss
 
         if self._config.multi_scale_out:
-            scale_recon_loss = self.smooth_multy_scale_loss(data_batch, inferred_batch)
+            scale_recon_loss = self.smooth_multi_scale_loss(data_batch, inferred_batch)
             scale_recon_loss_total = torch.stack(scale_recon_loss).sum()
             total_loss += self._config.lambda_img_recon * scale_recon_loss_total
-            scale_recon_loss_dict = {f'scale_{ind}': loss_ for ind, loss_ in enumerate(scale_recon_loss.reverse())}
+            scale_recon_loss_dict = {f'scale_{ind}': loss_ for ind, loss_ in enumerate(reversed(scale_recon_loss))}
         else:
             scale_recon_loss_dict = None
 
@@ -181,21 +182,28 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
         img_recon_loss = self._loss_recon_img_fun(img_spikes_norm, img_spikes_pred_norm)
         return img_recon_loss
 
-    def smooth_multy_scale_loss(self, data_batch: DataSpikesBatch, inferred_batch: InferredSpikesBatch) -> List[Tensor]:
+    def smooth_multi_scale_loss(self, data_batch: DataSpikesBatch, inferred_batch: InferredSpikesBatch) -> List[Tensor]:
         scale_recon_loss = []
         for recon_scale in inferred_batch.img_recon_scales:
             img_size = recon_scale.shape[-1]
+            orig_blur_imgs = []
+            recon_blur_imgs = []
+            orig_img_scale = transforms.Resize(size=img_size)(data_batch.image)
             if img_size > 32:
                 kernel_size = 7
+            elif img_size >= 16:
+                kernel_size = 5
             else:
                 kernel_size = 3
-            orig_img_scale = transforms.Resize(size=img_size)(data_batch.image)
             gauss_blur = transforms.GaussianBlur(kernel_size=(kernel_size, kernel_size), sigma=0.5)
             orig_img_scale_blur = gauss_blur(orig_img_scale)
+            orig_blur_imgs.append(orig_img_scale_blur)
             recon_scale_blur = gauss_blur(recon_scale)
+            recon_blur_imgs.append(recon_scale_blur)
             scale_recon_loss.append(self.cals_img_recon_loss(orig_img_scale_blur, recon_scale_blur))
+        inferred_batch.orig_blur_imgs=orig_blur_imgs
+        inferred_batch.recon_blur_imgs = recon_blur_imgs
         return scale_recon_loss
-
 
     def eval_model(self) -> (LossesSpikesImages, np.ndarray):
         losses_eval = []
@@ -275,13 +283,10 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
                                      normalize_img=False, normalize_fft=False)
 
         if batch_inferred_rand.img_recon_scales is not None:
-            for scale, scale_img_rnd in enumerate(batch_inferred_rand.img_recon_scales.reverse()):
-                self.log_image_grid(scale_img_rnd,
-                                    tag_name=f'train_spikes-pred_rnd/img-recon-scale-{scale}', step=step)
+            self._log_scale_images(batch_inferred_rand, step=step, tag_name='train_spikes-pred_rnd')
+
         if batch_inferred_test.img_recon_scales is not None:
-            for scale, scale_img_ts in enumerate(batch_inferred_test.img_recon_scales.reverse()):
-                self.log_image_grid(scale_img_ts,
-                                    tag_name=f'train_spikes-pred_ts/img-recon-scale-{scale}', step=step)
+            self._log_scale_images(batch_inferred_test, step=step, tag_name='train_spikes-pred_ts')
 
         self.log_image_grid(img_grid_grid_ts,
                             tag_name='train_spikes-pred_ts/img-origin-noised-recon', step=step)
@@ -294,6 +299,18 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
 
         self._log.info(f'step: {step}, losses_eval_test: {losses_eval_test}')
         self._add_losses_tensorboard('spikes-pred/test_step', losses_eval_test, step)
+
+    def _log_scale_images(self, batch_inferred: InferredSpikesBatch, step: int, tag_name: str):
+        for scale in range(len(batch_inferred.img_recon_scales)):
+            ind = -(scale + 1)
+            scale_recon_img = batch_inferred.img_recon_scales[ind]
+            scale_orig_blur_img = batch_inferred.orig_blur_imgs[ind]
+            scale_recon_blur_img = batch_inferred.recon_blur_imgs[ind]
+            img_scale_grid = torch.cat([scale_recon_img, scale_orig_blur_img, scale_recon_blur_img], dim=-2)
+            img_scale_grid = torchvision.utils.make_grid(TrainerSpikesSignalRetrieval.img_norm_min_max(img_scale_grid))
+            self.log_image_grid(img_scale_grid,
+                                tag_name=f'{tag_name}/recon-scale-orig_blur-recon_blur-{scale}',
+                                step=step)
 
     def train_step(self, batch_data: DataSpikesBatch) -> LossesSpikesImages:
         self._optimizer.zero_grad()

@@ -79,12 +79,11 @@ class AeConv(BaseAe):
         self._encoder = EncoderConv(in_ch=img_ch, encoder_ch=self.n_encoder_ch, deep=deep,
                                     active_type=active_type, down_pool=down_pool, padding_mode='zeros')
         self._decoder = DecoderConv(output_ch=None, img_ch=self.n_dec_features_ch, deep=deep,
-                                    up_mode=up_mode, active_type=active_type,
-                                    multi_scale_out=multi_scale_out)
+                                    up_mode=up_mode, active_type=active_type)
         if multi_scale_out:
             self.out_layer = BlockList()
             for out_ch in self._decoder.ch_outs:
-                self.out_layer.append(ConvBlock(out_ch, output_ch, active_type=active_type))
+                self.out_layer.append(ConvBlock(out_ch, output_ch, active_type=active_type, ch_inter=out_ch//2))
 
         else:
             self.out_layer = nn.Conv2d(self._decoder.ch_outs[-1], output_ch, kernel_size=1, stride=1, padding=0)
@@ -113,7 +112,7 @@ class AeConv(BaseAe):
         x_out_decoder = self._decoder(features, use_residual=self.multi_scale_out)
         if self.multi_scale_out:
             x_out = []
-            for out_layer, x_tensor in zip(self.out_layer, x_out_decoder):
+            for out_layer, x_tensor in zip(self.out_layer, x_out_decoder[1:]):
                 x_out.append(out_layer(x_tensor))
         else:
             x_out = self.out_layer(x_out_decoder)

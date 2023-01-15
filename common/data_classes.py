@@ -162,6 +162,8 @@ class InferredSpikesBatch(TensorBatch):
     img_recon_scales: Optional[List[Tensor]] = None
     fft_recon: Optional[Tensor] = None
     pred_n_spikes: Optional[Tensor] = None
+    orig_blur_imgs: Optional[List[Tensor]] = None
+    recon_blur_imgs: Optional[List[Tensor]] = None
 
 
 @dataclass
@@ -201,7 +203,13 @@ class DiscriminatorBatch(TensorBatch):
 class Losses(TensorBatch):
     def __str__(self) -> str:
         def get_repr(val) -> str:
-            return f'{val.mean().detach().cpu().numpy(): .4f}' if isinstance(val, Tensor) else str(val)
+            get_str = lambda v_: f'{v_.mean().detach().cpu().numpy(): .4f}' if isinstance(v_, Tensor) else str(v_)
+            if isinstance(val, dict):
+                out_str = [f'{key}:{get_str(val_)}' for key, val_ in val.items()]
+                out_str = ' '.join(out_str)
+            else:
+                out_str = get_str(val)
+            return out_str
         losses_batch_str = [f'{metric_name}: {get_repr(val_losses)}'
                             for metric_name, val_losses in self.__dict__.items() if val_losses is not None]
         losses_batch_str = ' '.join(losses_batch_str)
