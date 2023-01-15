@@ -6,7 +6,9 @@ import torch.nn as nn
 from torch import Tensor
 
 from models.seq_blocks import EncoderConv, DecoderConv, MlpNet
+from models.layers import ConvBlock
 from models.base_autoencoder import BaseAe
+from models.untils import BlockList
 
 
 class AttDictionary(nn.Module):
@@ -53,9 +55,11 @@ class AeConv(BaseAe):
     def __init__(self, img_ch: int = 1, output_ch: int = 1, n_encoder_ch: int = 16, img_size: int = 32, deep: int = 3,
                  n_enc_features: int = None, n_dec_features: int = None,
                  down_pool: str = 'avrg_pool', active_type: str = 'leakly_relu', up_mode: str = 'bilinear',
-                 features_sigmoid_active: bool = True, use_dictionary: bool = False, dict_len: int = 16):
+                 features_sigmoid_active: bool = True, use_dictionary: bool = False, dict_len: int = 16,
+                 multi_scale_out: bool = False):
         super(AeConv, self).__init__(img_size=img_size, in_ch=img_ch, deep=deep)
         self.use_dictinary = use_dictionary
+        self.multi_scale_out = multi_scale_out
         self.features_sigmoid_active = features_sigmoid_active
         self.n_encoder_ch = n_encoder_ch
         scale_factor = 2 ** (deep - 1)
@@ -76,7 +80,13 @@ class AeConv(BaseAe):
                                     active_type=active_type, down_pool=down_pool, padding_mode='zeros')
         self._decoder = DecoderConv(output_ch=None, img_ch=self.n_dec_features_ch, deep=deep,
                                     up_mode=up_mode, active_type=active_type)
-        self.out_layer = nn.Conv2d(self._decoder.ch_out[-1], output_ch, kernel_size=1, stride=1, padding=0)
+        if multi_scale_out:
+            self.out_layer = BlockList()
+            for out_ch in self._decoder.ch_outs:
+                self.out_layer.append(ConvBlock(out_ch, output_ch, active_type=active_type, ch_inter=out_ch//2))
+
+        else:
+            self.out_layer = nn.Conv2d(self._decoder.ch_outs[-1], output_ch, kernel_size=1, stride=1, padding=0)
 
     @property
     def n_enc_features_ch(self) -> int:
@@ -99,11 +109,14 @@ class AeConv(BaseAe):
         return features
 
     def decode(self, features: Tensor) -> Tensor:
-        # features = self.apply_dictionary(features)
-        x_out = self._decoder(features)
-        x_out = self.out_layer(x_out)
-        # x_out = torch.sigmoid(x_out)
-        # x_out = torch.clip(x_out, -1.0, 1.0)
+        x_out_decoder = self._decoder(features, use_residual=self.multi_scale_out)
+        if self.multi_scale_out:
+            x_out = []
+            for out_layer, x_tensor in zip(self.out_layer, x_out_decoder[1:]):
+                x_out.append(out_layer(x_tensor))
+        else:
+            x_out = self.out_layer(x_out_decoder)
+
         return x_out
 
     def get_dictionary(self) -> Optional[Tensor]:

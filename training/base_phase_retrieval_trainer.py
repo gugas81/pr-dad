@@ -11,29 +11,20 @@ import shutil
 import torchvision
 from torchvision import transforms
 from torch.nn import functional as F
-from training.dataset import create_data_loaders
 from typing import Optional, Any, Dict, Union
 import logging
-from dataclasses import dataclass
+
+from data import create_data_loaders
 from common import ConfigTrainer, set_seed, Losses, DataBatch, S3FileSystem
 from common import im_concatenate, square_grid_im_concat, PATHS, im_save, fft2_from_rfft
 from common import InferredBatch
 import common.utils as utils
-from training.augmentations import get_rnd_gauss_noise_like
+from data import DataHolder
+from data.augmentations import get_rnd_gauss_noise_like
 from models.torch_dct import Dct2DForward
-from torch.utils.data.dataset import Dataset
-from torch.utils.data.dataloader import DataLoader
+
 
 logging.basicConfig(level=logging.INFO)
-
-
-@dataclass
-class DataHolder:
-    train_paired_loader: Optional[DataLoader] = None
-    train_unpaired_loader: Optional[DataLoader] = None
-    test_loader: Optional[DataLoader] = None
-    train_ds: Optional[Dataset] = None
-    test_ds: Optional[Dataset] = None
 
 
 class BaseTrainerPhaseRetrieval:
@@ -299,13 +290,13 @@ class BaseTrainerPhaseRetrieval:
     def _grid_images(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize: bool = True) -> Tensor:
         inv_norm_transform = self._data_holder.test_ds.get_inv_normalize_transform()
         img_grid = [inv_norm_transform(data_batch.image)]
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if self._config.gauss_noise is not None and (self._config.use_aug or 'spikes' in self._config.project_name):
             img_grid.append(inv_norm_transform(data_batch.image_noised))
-        if inferred_batch.decoded_img is not None:
+        if ('decoded_img' in inferred_batch.__dataclass_fields__) and (inferred_batch.decoded_img is not None):
             img_grid.append(inv_norm_transform(inferred_batch.decoded_img))
         if inferred_batch.img_recon is not None:
             img_grid.append(inv_norm_transform(inferred_batch.img_recon))
-        if inferred_batch.img_recon_ref is not None:
+        if ('img_recon_ref' in inferred_batch.__dataclass_fields__) and inferred_batch.img_recon_ref is not None:
             img_grid.append(inv_norm_transform(inferred_batch.img_recon_ref))
 
         img_grid = torch.cat(img_grid, dim=-2)
@@ -319,13 +310,13 @@ class BaseTrainerPhaseRetrieval:
         if (self._config.gauss_noise is not None) and self._config.use_aug:
             diff_decoded = torch.abs(norm_orig_img - inv_norm_transform(data_batch.image_noised))
             img_grid.append(diff_decoded)
-        if inferred_batch.decoded_img is not None:
+        if ('decoded_img' in inferred_batch.__dataclass_fields__) and inferred_batch.decoded_img is not None:
             diff_decoded = torch.abs(norm_orig_img - inv_norm_transform(inferred_batch.decoded_img))
             img_grid.append(diff_decoded)
         if inferred_batch.img_recon is not None:
             diff_recon = torch.abs(norm_orig_img - inv_norm_transform(inferred_batch.img_recon))
             img_grid.append(diff_recon)
-        if inferred_batch.img_recon_ref is not None:
+        if ('img_recon_ref' in inferred_batch.__dataclass_fields__) and inferred_batch.img_recon_ref is not None:
             diff_recon_ref = torch.abs(norm_orig_img - inv_norm_transform(inferred_batch.img_recon_ref))
             img_grid.append(diff_recon_ref)
 
@@ -333,7 +324,11 @@ class BaseTrainerPhaseRetrieval:
         img_grid = torchvision.utils.make_grid(img_grid, normalize=False)
         return img_grid
 
-    def _grid_fft_magnitude(self, data_batch: DataBatch, inferred_batch: InferredBatch) -> Tensor:
+    def _grid_fft_magnitude(self,
+                            data_batch: DataBatch,
+                            inferred_batch: InferredBatch,
+                            norm_fun=None,
+                            normalize: bool = False) -> Tensor:
         def prepare_fft_img(fft_magnitude: Tensor) -> Tensor:
             if not self._config.use_dct_input:
                 if self._config.use_rfft:
@@ -344,22 +339,28 @@ class BaseTrainerPhaseRetrieval:
             if fft_magnitude.shape[-1] != self._config.image_size:
                 fft_magnitude = F.interpolate(fft_magnitude, (self._config.image_size, self._config.image_size),
                                               mode='bilinear',
-                                              align_corners=False)
+                                              align_corners=normalize)
 
+            if norm_fun is not None:
+                fft_magnitude = norm_fun(fft_magnitude)
             return fft_magnitude
 
         img_grid = []
         if data_batch.fft_magnitude is not None:
             img_grid.append(prepare_fft_img(data_batch.fft_magnitude))
-        if (self._config.gauss_noise is not None) and self._config.use_aug:
+        if (self._config.gauss_noise is not None) and (self._config.use_aug or 'spikes' in self._config.project_name):
             img_grid.append(prepare_fft_img(data_batch.fft_magnitude_noised))
-        if inferred_batch.decoded_img is not None:
+        if ('decoded_img' in inferred_batch.__dataclass_fields__) and inferred_batch.decoded_img is not None:
             fft_magnitude_ae_decoded = prepare_fft_img(self.forward_magnitude_fft(inferred_batch.decoded_img))
             img_grid.append(fft_magnitude_ae_decoded)
         if inferred_batch.img_recon is not None:
-            fft_magnitude_recon = prepare_fft_img(self.forward_magnitude_fft(inferred_batch.img_recon))
+            if 'fft_recon' in inferred_batch.__dataclass_fields__ and inferred_batch.fft_recon is not None:
+                fft_magnitude_recon = inferred_batch.fft_recon
+            else:
+                fft_magnitude_recon = self.forward_magnitude_fft(inferred_batch.img_recon)
+            fft_magnitude_recon = prepare_fft_img(fft_magnitude_recon)
             img_grid.append(fft_magnitude_recon)
-        if inferred_batch.fft_magnitude_recon_ref is not None:
+        if ('fft_magnitude_recon_ref' in inferred_batch.__dataclass_fields__) and inferred_batch.fft_magnitude_recon_ref is not None:
             img_grid.append(prepare_fft_img(inferred_batch.fft_magnitude_recon_ref))
 
         img_grid = torch.cat(img_grid, dim=-2)
@@ -408,10 +409,18 @@ class BaseTrainerPhaseRetrieval:
             else:
                 self._log.error(f'Non valid s3 path to save images: {project_s3_path}')
 
-    def _debug_images_grids(self, data_batch: DataBatch, inferred_batch: InferredBatch, normalize_img: bool = True):
+    def _debug_images_grids(self,
+                            data_batch: DataBatch,
+                            inferred_batch: InferredBatch,
+                            normalize_img: bool = True,
+                            normalize_fft: bool = False,
+                            norm_fun=None,
+                            ):
         img_grid_grid = self._grid_images(data_batch, inferred_batch, normalize=normalize_img)
         img_diff_grid = self._grid_diff_images(data_batch, inferred_batch)
-        fft_magnitude_grid_grid = self._grid_fft_magnitude(data_batch, inferred_batch)
+        fft_magnitude_grid_grid = self._grid_fft_magnitude(data_batch, inferred_batch,
+                                                           normalize=normalize_fft,
+                                                           norm_fun=norm_fun)
         if self._config.predict_out == 'features':
             features_enc_grid, features_dec_grid = self._grid_features(inferred_batch)
         else:
@@ -443,7 +452,7 @@ class BaseTrainerPhaseRetrieval:
                     self._tensorboard.add_scalar(f"{metric_name}/{tag}", metric_val.mean(), step)
                 elif isinstance(metric_val, dict):
                     for key, val in metric_val.items():
-                        assert isinstance(val, Tensor)  or isinstance(val, np.ndarray)
+                        assert isinstance(val, Tensor) or isinstance(val, np.ndarray)
                         self._tensorboard.add_scalar(f"{metric_name}_{key}/{tag}", val.mean(), step)
                 else:
                     raise ValueError(f'not valid type of loss {metric_name}, of type {type(metric_val)}')

@@ -1,25 +1,24 @@
 import logging
 import os
+import shutil
 from functools import partial
 from pathlib import Path
-import shutil
-from typing import Union, Tuple, Dict, Any, Optional, Callable, Sequence, List
-import fire
-from tqdm import tqdm
+from typing import Union, Tuple, Dict, Any, Optional, Callable, List
+
 import PIL
 import numpy as np
 import torch
 import torchvision
 from torch import Tensor
-from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from torchvision.transforms import InterpolationMode
-from common import ConfigTrainer
+from tqdm import tqdm
+
 import common.utils as utils
-from training.augmentations import RandomGammaCorrection
-from common import PATHS, S3FileSystem, NormalizeInverse, DataBatch
-from models.torch_dct import Dct2DForward, Dct2DInverse
+from common import ConfigTrainer, PATHS, S3FileSystem, NormalizeInverse, DataBatch
+from data.augmentations import RandomGammaCorrection
+from models.torch_dct import Dct2DForward
 
 
 class PhaseRetrievalDataset(Dataset):
@@ -29,7 +28,8 @@ class PhaseRetrievalDataset(Dataset):
                  log: logging.Logger,
                  s3: Optional[S3FileSystem] = None,
                  is_gan: bool = False):
-        def celeba_ds(root: str, train: bool, download: bool, transform: Optional[Callable] = None) ->torchvision.datasets.CelebA:
+        def celeba_ds(root: str, train: bool, download: bool,
+                      transform: Optional[Callable] = None) -> torchvision.datasets.CelebA:
             # return torchvision.datasets.CelebA(root=root,
             #                                    split='train' if train else 'test',
             #                                    download=download,
@@ -191,6 +191,7 @@ class PhaseRetrievalDataset(Dataset):
                 return x
             else:
                 return torch.from_numpy(np.array(x))
+
         is_paired = idx in self.paired_ind
         img_item = self.image_dataset[idx]
         image_data = img_item[0].to(device='cpu')
@@ -241,11 +242,11 @@ class CelebAResized(torchvision.datasets.CelebA):
             image_size_crop: int = 108
     ) -> None:
         super(CelebAResized, self).__init__(root,
-                                              transform=transform,
-                                               target_transform=target_transform,
-                                              split=split,
-                                              target_type=target_type,
-                                              download=download)
+                                            transform=transform,
+                                            target_transform=target_transform,
+                                            split=split,
+                                            target_type=target_type,
+                                            download=download)
 
         out_dir_name = f"img_align_celeba_{image_size}_crop_{image_size_crop}"
         self._log = log
@@ -302,7 +303,7 @@ class CelebASmallGray(torchvision.datasets.CelebA):
     ) -> None:
         super(CelebASmallGray, self).__init__(root,
                                               transform=transform,
-                                               target_transform=target_transform,
+                                              target_transform=target_transform,
                                               split=split,
                                               target_type=target_type,
                                               download=download)
@@ -346,7 +347,8 @@ class CelebASmallGray(torchvision.datasets.CelebA):
 
 
 def create_down_sampled_celeba(image_size: int, image_size_crop: int, rewrite_exist: bool = False):
-    def get_celeba_ds(root: str, split_: str, download: bool, transform: Optional[Callable] = None) -> torchvision.datasets.CelebA:
+    def get_celeba_ds(root: str, split_: str, download: bool,
+                      transform: Optional[Callable] = None) -> torchvision.datasets.CelebA:
         return torchvision.datasets.CelebA(root=root,
                                            split=split_,
                                            download=download,
@@ -368,7 +370,7 @@ def create_down_sampled_celeba(image_size: int, image_size_crop: int, rewrite_ex
     splits = ['train', 'test']
     for split in splits:
         ds_path = os.path.join(PATHS.DATASETS, 'celeba')
-        celeba_ds = get_celeba_ds(root=ds_path, split_=split, download=True,  transform=alignment_transform)
+        celeba_ds = get_celeba_ds(root=ds_path, split_=split, download=True, transform=alignment_transform)
         out_dir_name = f"img_align_celeba_{image_size}_crop_{image_size_crop}"
         out_img_path = os.path.join(celeba_ds.root, celeba_ds.base_folder, out_dir_name)
         if rewrite_exist and os.path.exists(out_img_path):
@@ -386,82 +388,3 @@ def create_down_sampled_celeba(image_size: int, image_size_crop: int, rewrite_ex
             img_out_path = os.path.join(out_img_path, img_f_name)
 
             img.save(img_out_path)
-
-
-def create_data_loaders(config: ConfigTrainer,
-                        log: logging.Logger,
-                        s3: Optional[S3FileSystem] = None):
-    log.debug('Create train dataset')
-    train_dataset = PhaseRetrievalDataset(config=config,
-                                          is_train=True,
-                                          is_gan=False,
-                                          log=log,
-                                          s3=s3)
-
-    log.debug('Create test dataset')
-    test_dataset = PhaseRetrievalDataset(config=config,
-                                         is_train=False,
-                                         is_gan=False,
-                                         log=log,
-                                         s3=s3)
-
-    paired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.paired_ind)
-    unpaired_tr_sampler = torch.utils.data.SubsetRandomSampler(train_dataset.unpaired_paired_ind)
-
-    log.debug('Create train  paired loader')
-    train_paired_loader = DataLoader(train_dataset,
-                                     batch_size=config.batch_size_train,
-                                     worker_init_fn=np.random.seed(config.seed),
-                                     num_workers=config.n_dataloader_workers,
-                                     sampler=paired_tr_sampler)
-
-    log.debug('Create train  unnpaired loader')
-    train_unpaired_loader = DataLoader(train_dataset,
-                                       batch_size=config.batch_size_train,
-                                       worker_init_fn=np.random.seed(config.seed),
-                                       num_workers=config.n_dataloader_workers,
-                                       sampler=unpaired_tr_sampler)
-
-    log.debug('Create test loader')
-    test_loader = DataLoader(test_dataset,
-                             batch_size=config.batch_size_test,
-                             shuffle=False,
-                             worker_init_fn=np.random.seed(config.seed),
-                             num_workers=config.n_dataloader_workers)
-
-    return train_paired_loader, train_unpaired_loader, test_loader, train_dataset, test_dataset
-
-
-def example_mnist_upiared():
-    logging.basicConfig(level=logging.DEBUG)
-    log = logging.getLogger('exmaple_mnist_upiared')
-    train_paired_loader, train_unpaired_loader, test_loader, train_dataset, test_dataset \
-        = create_data_loaders(ds_name='mnist',
-                              img_size=32,
-                              use_aug=False,
-                              batch_size_train=128,
-                              batch_size_test=256,
-                              n_dataloader_workers=0,
-                              paired_part=1.0,
-                              fft_norm='ortho',
-                              seed=1,
-                              log=log)
-    from itertools import chain, islice
-
-    def shuffle(generator, buffer_size):
-        while True:
-            buffer = list(islice(generator, buffer_size))
-            if len(buffer) == 0:
-                break
-            np.random.shuffle(buffer)
-            for item in buffer:
-                yield item
-
-    log.debug('train_loader')
-    for data_batch in chain(train_paired_loader, train_unpaired_loader):
-        log.debug(data_batch['image'].shape)
-        log.debug(data_batch['paired'].numpy().all())
-
-
-if __name__ == '__main__':
-    fire.Fire()

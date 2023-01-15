@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Optional, Tuple, Union
 import typeguard
 import torch
 from PIL import Image, ImageCms
@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from .data_classes import TensorBatch
 
 
-def im_concatenate(images: Iterable[np.ndarray], axis=1, pad_value: float = 1.0) -> np.ndarray:
+def im_concatenate(images: Union[np.ndarray, Iterable[np.ndarray]], axis=1, pad_value: float = 1.0) -> np.ndarray:
     """
     im_concatenate images in a row such that are centered aligned in the axis provided
     :param images: list of images np.ndarray WxHxC
@@ -24,6 +24,9 @@ def im_concatenate(images: Iterable[np.ndarray], axis=1, pad_value: float = 1.0)
     typeguard.check_argument_types()
     pivot = abs(1 - axis)
     n_ch = images[0].shape[-1]
+
+    if isinstance(images, np.ndarray):
+        images = [images[ind] for ind in range(images.shape[0])]
 
     total_axis = sum([i.shape[axis] for i in images])
     max_pivot = max([i.shape[pivot] for i in images])

@@ -6,6 +6,7 @@ import dataclasses
 from typing import Optional, List, Callable, Dict, Any
 from collections import defaultdict
 from dataclasses import dataclass, field
+from collections.abc import Iterable  # import directly from collections for Python < 3.3
 
 
 @dataclass
@@ -64,6 +65,14 @@ class DataBatch:
                 torch_data[key] = merge_f(val)
 
         return self.__class__(**torch_data)
+
+    def get_subset(self, index):
+        dict_data = {}
+        for key, val in self.__dict__.items():
+            if isinstance(val, Iterable):
+                val = val[:index]
+            dict_data[key] = val
+        return self.__class__(**dict_data)
 
     def as_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(self)
@@ -124,11 +133,43 @@ class TensorBatch(DataBatch):
     def detach(self):
         return self.reduce(torch.detach)
 
+    def to_numpy_dict(self) -> dict:
+        numpy_f = lambda x: torch.Tensor.numpy(x, force=True) if isinstance(x, Tensor) else x
+        numpy_data = {}
+        for key, val in self.__dict__.items():
+            if isinstance(val, dict):
+                numpy_data[key] = {key_: numpy_f(val_) for key_, val_ in val.items()}
+            else:
+                numpy_data[key] = numpy_f(val)
+
+        return numpy_data
+
+
+@dataclass
+class DataSpikesBatch(TensorBatch):
+    image: Tensor = torch.tensor([float('nan')])
+    image_noised: Tensor = torch.tensor([float('nan')])
+    fft_magnitude: Tensor = torch.tensor([float('nan')])
+    fft_magnitude_noised: Tensor = torch.tensor([float('nan')])
+    n_spikes: int = torch.tensor([float('nan')])
+    x: Tensor = torch.tensor([float('nan')])
+    y: Tensor = torch.tensor([float('nan')])
+
+
+@dataclass
+class InferredSpikesBatch(TensorBatch):
+    img_recon: Optional[Tensor] = None
+    img_recon_scales: Optional[List[Tensor]] = None
+    fft_recon: Optional[Tensor] = None
+    pred_n_spikes: Optional[Tensor] = None
+    orig_blur_imgs: Optional[List[Tensor]] = None
+    recon_blur_imgs: Optional[List[Tensor]] = None
+
 
 @dataclass
 class DataBatch(TensorBatch):
     image: Tensor = torch.tensor([float('nan')])
-    image_noised = torch.tensor([float('nan')])
+    image_noised: Tensor = torch.tensor([float('nan')])
     image_discrim: Tensor = torch.tensor([float('nan')])
     fft_magnitude: Tensor = torch.tensor([float('nan')])
     fft_magnitude_noised: Tensor = torch.tensor([float('nan')])
@@ -162,7 +203,13 @@ class DiscriminatorBatch(TensorBatch):
 class Losses(TensorBatch):
     def __str__(self) -> str:
         def get_repr(val) -> str:
-            return f'{val.mean().detach().cpu().numpy(): .4f}' if isinstance(val, Tensor) else str(val)
+            get_str = lambda v_: f'{v_.mean().detach().cpu().numpy(): .4f}' if isinstance(v_, Tensor) else str(v_)
+            if isinstance(val, dict):
+                out_str = [f'{key}:{get_str(val_)}' for key, val_ in val.items()]
+                out_str = ' '.join(out_str)
+            else:
+                out_str = get_str(val)
+            return out_str
         losses_batch_str = [f'{metric_name}: {get_repr(val_losses)}'
                             for metric_name, val_losses in self.__dict__.items() if val_losses is not None]
         losses_batch_str = ' '.join(losses_batch_str)
@@ -213,7 +260,7 @@ class LossesPRFeatures(Losses):
     perceptual_disrim_img: Optional[Tensor] = None
     perceptual_disrim_ref_img: Optional[Tensor] = None
     perceptual_disrim_features: Optional[Tensor] = None
-    lr:  Optional[Dict[str,Tensor]] = None
+    lr:  Optional[Dict[str, Tensor]] = None
     mean_img: Optional[Tensor] = None
     std_img: Optional[Tensor] = None
     max_img: Optional[Tensor] = None
@@ -241,6 +288,15 @@ class LossesGradNorms(Losses):
     l2_grad_magnitude_encoder: Optional[Tensor] = None
 
 
-
+@dataclass
+class LossesSpikesImages(Losses):
+    img_recon: Optional[Tensor] = None
+    img_scale_recon: Optional[Dict[str, Tensor]] = None
+    img_sparsity: Optional[Tensor] = None
+    fft_recon: Optional[Tensor] = None
+    count_pred_loss: Optional[Tensor] = None
+    support_size: Optional[Tensor] = None
+    total: Optional[Tensor] = None
+    lr: Optional[Dict[str, Tensor]] = None
 
 

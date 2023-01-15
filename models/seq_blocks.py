@@ -89,15 +89,16 @@ class DecoderConv(nn.Module):
         super(DecoderConv, self).__init__()
         self.deep = deep
         self.conv_layers = BlockList()
+        self.out_layers = BlockList()
         ch_im = img_ch
         ch_out = ch_im
-        self.ch_out = []
+        self.ch_outs = []
         if skip_connect_ch is None:
             skip_connect_ch = np.zeros(self.deep, dtype=np.int)
         for ind_layer in range(self.deep):
             ch_im += skip_connect_ch[ind_layer]
             if ind_layer == self.deep - 1:
-                if output_ch is not None:
+                if output_ch is not None and not self.multi_scale_out:
                     conv_layer = nn.Conv2d(ch_im, output_ch, kernel_size=1, stride=1, padding=0)
                 else:
                     ch_out = ch_out // 2
@@ -115,14 +116,15 @@ class DecoderConv(nn.Module):
                 conv_layer = nn.Sequential(up_conv_block, conv_block)
 
             ch_im = ch_out
-            self.ch_out.append(ch_out)
+            self.ch_outs.append(ch_out)
             self.conv_layers.append(conv_layer)
 
     def get_layers(self) -> BlockList:
         return self.conv_layers
 
     def forward(self, x: Tensor, use_residual: bool = False) -> Union[Tensor, List[Tensor]]:
-        # decoding path
         return self.conv_layers(x, use_residual=use_residual)
+
+
 
 
