@@ -186,6 +186,7 @@ class ConfigSpikesTrainer(ConfigBase):
     conv_net_deep: int = 3
     n_encoder_ch: int = 16
     multi_scale_out: bool = False
+    deep_backbone_map: int = 0
 
     # optimization
     loss_type_img_recon: str = 'l1'
@@ -206,6 +207,7 @@ class ConfigSpikesTrainer(ConfigBase):
     shift_fft: bool = False
     use_aug: bool = False
     use_rfft: bool = False
+    min_dist: int = 4
 
 
 @dataclass

@@ -2,6 +2,8 @@ from typing import Union, Tuple, Dict, Any
 import logging
 import numpy as np
 import torch
+import random as rnd
+from scipy.spatial.distance import cdist
 from scipy.ndimage.filters import gaussian_filter
 from torch import Tensor
 from torch.utils.data import IterableDataset
@@ -51,7 +53,42 @@ def get_random_spike_signals_polar(n_spikes: int = 1,
     return img_spikes, img_spikes_noised, x, y
 
 
-def draw_spikes(img_size: int = 32, n_spikes: int = 1, min_dist: int =4) -> (np.ndarray, np.ndarray, np.ndarray):
+def generate_points_with_min_distance(n, shape, min_dist):
+    x, y = np.zeros(n), np.zeros(n)
+    x[0], y[0] = np.round(rnd.uniform(0, shape[0]-1)), np.round(rnd.uniform(0, shape[1]-1))
+    min_distances = []
+    i = 1
+    while i < n:
+        x_temp, y_temp = np.round(rnd.uniform(0, shape[0]-1)), np.round(rnd.uniform(0, shape[1]-1))
+        distances = []
+        for j in range(0, i):
+            distances.append(np.sqrt((x_temp - x[j]) ** 2 + (y_temp - y[j]) ** 2))
+        min_distance = np.min(distances)
+        if min_distance > min_dist:
+            min_distances.append(min_distance)
+            x[i] = x_temp
+            y[i] = y_temp
+            i = i + 1
+    points_cloud = np.stack((x, y), 1)
+    dist_mat = cdist(points_cloud, points_cloud, metric='euclidean')
+    return x, y, dist_mat
+
+
+def draw_spikes(img_size: int = 32, n_spikes: int = 1, min_dist: int = 4) -> (np.ndarray, np.ndarray, np.ndarray):
+    x, y, dist_mat = generate_point_from_polar_coord(img_size, min_dist, n_spikes)
+    # x, y, dist_mat = generate_points_with_min_distance(n=n_spikes, shape=(img_size, img_size), min_dist=min_dist)
+    # np.fill_diagonal(dist_mat, min_dist+1)
+    # assert np.all(dist_mat>min_dist)
+    x = np.int32(np.round(x))
+    y = np.int32(np.round(y))
+    # remove close points
+    img_spikes = np.zeros((img_size, img_size))
+    for ind in range(n_spikes):
+        img_spikes[y[ind], x[ind]] = 1.0
+    return img_spikes, x, y
+
+
+def generate_point_from_polar_coord(img_size, min_dist, n_spikes):
     phi_ranges = 2 * np.pi * np.arange(0, n_spikes, 1) / n_spikes
     half_size = img_size // 2
     r_ranges = (np.random.permutation(half_size - 2 * min_dist) + min_dist)[:n_spikes]
@@ -59,12 +96,9 @@ def draw_spikes(img_size: int = 32, n_spikes: int = 1, min_dist: int =4) -> (np.
     x, y = pol2cart(r_ranges, phi_ranges)
     x += half_size
     y += half_size
-    x = np.int32(np.round(x))
-    y = np.int32(np.round(y))
-    img_spikes = np.zeros((img_size, img_size))
-    for ind in range(n_spikes):
-        img_spikes[y[ind], x[ind]] = 1.0
-    return img_spikes, x, y
+    points_cloud = np.stack((x, y), 1)
+    dist_mat = cdist(points_cloud, points_cloud, metric='euclidean')
+    return x, y, dist_mat
 
 
 class SpikesDataGenerator(IterableDataset):

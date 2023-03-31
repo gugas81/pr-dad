@@ -94,7 +94,8 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
                                             count_predictor=self._config.count_predictor_head,
                                             n_encoder_ch=self._config.n_encoder_ch,
                                             conv_net_deep=self._config.conv_net_deep,
-                                            multi_scale_out=self._config.multi_scale_out)
+                                            multi_scale_out=self._config.multi_scale_out,
+                                            deep_backbone_map=self._config.deep_backbone_map)
         else:
             raise self._log.error(f'Non valid model type: {self._config.model_type}')
         return model
@@ -188,7 +189,7 @@ class TrainerSpikesSignalRetrieval(BaseTrainerPhaseRetrieval):
         recon_blur_imgs = []
         for recon_scale in inferred_batch.img_recon_scales:
             img_size = recon_scale.shape[-1]
-           
+
             orig_img_scale = transforms.Resize(size=img_size)(data_batch.image)
             if img_size > 32:
                 kernel_size = 7

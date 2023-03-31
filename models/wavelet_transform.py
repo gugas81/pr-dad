@@ -224,7 +224,7 @@ class WaveletTransformAe(BaseAe):
         x_out = self._decoder(features)
         return x_out
 
-    def map_to_dec_features(self, enc_features: Tensor) -> (Tensor, Tensor):
+    def bottleneck_mapping(self, enc_features: Tensor) -> (Tensor, Tensor):
         dec_features = enc_features
         coeff = None
         return dec_features, coeff

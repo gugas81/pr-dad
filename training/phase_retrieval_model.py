@@ -181,14 +181,14 @@ class PhaseRetrievalAeModel:
             fft_magnitude = data_batch.fft_magnitude
         enc_features_batch_recon, intermediate_features = self.phase_predictor(fft_magnitude)
         if self._config.predict_out == 'features':
-            dec_features_batch_recon, coeff_recon = self.ae_net.map_to_dec_features(enc_features_batch_recon)
+            dec_features_batch_recon, coeff_recon = self.ae_net.bottleneck_mapping(enc_features_batch_recon)
             recon_batch = self.ae_net.decode(dec_features_batch_recon)
         elif self._config.predict_out == 'images':
             recon_batch = enc_features_batch_recon
 
         if self._config.predict_out == 'features':
             feature_encoder = self.ae_net.encode(data_batch.image)
-            feature_decoder, coeff_enc = self.ae_net.map_to_dec_features(feature_encoder)
+            feature_decoder, coeff_enc = self.ae_net.bottleneck_mapping(feature_encoder)
             decoded_batch = self.ae_net.decode(feature_decoder)
         else:
             feature_encoder = None

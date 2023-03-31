@@ -793,9 +793,9 @@ class TrainerPhaseRetrievalAeFeatures(BaseTrainerPhaseRetrieval):
 
             dec_layers_list = self._generator_model.ae_net._decoder.get_layers()
 
-            dec_layers_features_tr = dec_layers_list(self._generator_model.ae_net.map_to_dec_features(recon_data_tr_batch.feature_encoder)[0],
+            dec_layers_features_tr = dec_layers_list(self._generator_model.ae_net.bottleneck_mapping(recon_data_tr_batch.feature_encoder)[0],
                                                      use_residual=True)
-            dec_layers_features_ts = dec_layers_list(self._generator_model.ae_net.map_to_dec_features(recon_data_ts_batch.feature_encoder)[0],
+            dec_layers_features_ts = dec_layers_list(self._generator_model.ae_net.bottleneck_mapping(recon_data_ts_batch.feature_encoder)[0],
                                                      use_residual=True)
 
         img_grid_tr = self._grid_images(self.data_tr_batch, recon_data_tr_batch)

@@ -54,11 +54,13 @@ class MapToCoeff(nn.Module):
 class AeConv(BaseAe):
     def __init__(self, img_ch: int = 1, output_ch: int = 1, n_encoder_ch: int = 16, img_size: int = 32, deep: int = 3,
                  n_enc_features: int = None, n_dec_features: int = None,
+                 deep_backbone_map: int = 0,
                  down_pool: str = 'avrg_pool', active_type: str = 'leakly_relu', up_mode: str = 'bilinear',
                  features_sigmoid_active: bool = True, use_dictionary: bool = False, dict_len: int = 16,
                  multi_scale_out: bool = False):
         super(AeConv, self).__init__(img_size=img_size, in_ch=img_ch, deep=deep)
-        self.use_dictinary = use_dictionary
+        self.use_dictionary = use_dictionary
+        self.deep_backbone_map = deep_backbone_map
         self.multi_scale_out = multi_scale_out
         self.features_sigmoid_active = features_sigmoid_active
         self.n_encoder_ch = n_encoder_ch
@@ -67,12 +69,17 @@ class AeConv(BaseAe):
         self._n_dec_features_ch = self.n_enc_features_ch if n_dec_features is None else n_dec_features
         self._n_features_size = int(np.ceil(img_size / scale_factor))
         # padding_mode = 'replicate'
-        if self.use_dictinary:
+        if self.use_dictionary:
             self.dictionary: Optional[MulDictionary] = MulDictionary(dict_len, self.n_features_size)
             self.map_to_coeff = MapToCoeff(in_ch=self.n_enc_features_ch,
                                            img_size=self.n_features_size,
                                            out_coeff=dict_len,
                                            out_ch=self.n_dec_features_ch)
+        elif self.deep_backbone_map > 0:
+            self.map_backbone = MlpNet(in_ch=self._n_enc_features_ch * (self._n_features_size ** 2),
+                                       deep=self.deep_backbone_map,
+                                       out_ch=self._n_dec_features_ch * (self._n_features_size ** 2),
+                                       multy_coeff=1.0)
         else:
             assert self.n_enc_features_ch == self.n_dec_features_ch
             self.dictionary: Optional[MulDictionary] = None
@@ -120,15 +127,22 @@ class AeConv(BaseAe):
         return x_out
 
     def get_dictionary(self) -> Optional[Tensor]:
-        return self.dictionary.dictionary if self.use_dictinary else None
+        return self.dictionary.dictionary if self.use_dictionary else None
 
     def apply_dictionary(self, coeff: Tensor) -> Tensor:
         return self.dictionary(coeff)
 
-    def map_to_dec_features(self, enc_features: Tensor) -> (Tensor, Tensor):
-        if self.use_dictinary:
+    def bottleneck_mapping(self, enc_features: Tensor) -> (Tensor, Tensor):
+        if self.use_dictionary:
             coeff = self.map_to_coeff(enc_features)
             dec_features = self.apply_dictionary(coeff)
+        elif self.deep_backbone_map > 0:
+            enc_flatten = torch.flatten(enc_features, 1)
+            dec_flatten = self.map_backbone(enc_flatten)
+            dec_features = dec_flatten.view(dec_flatten.shape[0],
+                                            self._n_dec_features_ch,
+                                            self._n_features_size, self._n_features_size)
+            coeff = None
         else:
             dec_features = enc_features
             coeff = None
@@ -137,7 +151,7 @@ class AeConv(BaseAe):
 
     def forward(self, x: Tensor) -> (Tensor, Tensor, Tensor, Tensor):
         enc_features = self.encode(x)
-        dec_features, coeff = self.map_to_dec_features(enc_features)
+        dec_features, coeff = self.bottleneck_mapping(enc_features)
         x_out = self.decode(dec_features)
 
         return x_out, enc_features, dec_features, coeff

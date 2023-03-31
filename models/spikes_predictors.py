@@ -30,7 +30,8 @@ class SpikesImgReconConvModel(nn.Module):
                  conv_net_deep: int = 3,
                  n_encoder_ch: int = 16,
                  count_predictor: bool = False,
-                 multi_scale_out: bool = False):
+                 multi_scale_out: bool = False,
+                 deep_backbone_map: int =0):
         super(SpikesImgReconConvModel, self).__init__()
         self._pred_type = pred_type
         if pred_type == 'conv_unet':
@@ -39,7 +40,8 @@ class SpikesImgReconConvModel(nn.Module):
             self._conv_model = AeConv(img_size=img_size,
                                       deep=conv_net_deep,
                                       n_encoder_ch=n_encoder_ch,
-                                      multi_scale_out=multi_scale_out)
+                                      multi_scale_out=multi_scale_out,
+                                      deep_backbone_map=deep_backbone_map)
         else:
             raise TypeError(f'unknown conv type: {pred_type}')
 
